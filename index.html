@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Argus Tracker</title>
+<meta name="description" content="Argus Business Machines - Service, AMC, Quotation aur Payment tracker" />
+
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#115e59" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Argus" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+<!-- Tailwind (Play CDN - JIT compiles classes at runtime, works with dynamic React content) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React + ReactDOM (UMD builds, no bundler needed) -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+
+<!-- CSV / Excel parsing libraries are loaded on-demand (see loadLibOnce below) to keep first load light -->
+
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#f8fafc; overscroll-behavior:none; }
+  #root { height:100%; }
+  input, textarea, select { font-size:16px; } /* prevents iOS auto-zoom */
+  * { -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="boot-status" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;color:#334155;padding:20px;text-align:center;">
+      <div style="width:40px;height:40px;border:3px solid #0f766e;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:14px;"></div>
+      <p>Argus Tracker load ho raha hai...</p>
+      <p style="font-size:12px;color:#94a3b8;margin-top:6px;">Pehli baar 10-15 second lag sakte hain</p>
+    </div>
+  </div>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+  <script>
+    // Storage shim: mirrors Claude artifact's window.storage API, backed by localStorage
+    const STORAGE_PREFIX = 'argus_tracker_';
+    window.storage = {
+      async get(key) {
+        const raw = localStorage.getItem(STORAGE_PREFIX + key);
+        if (raw === null) { throw new Error('key not found'); }
+        return { key, value: raw, shared: false };
+      },
+      async set(key, value) {
+        try {
+          localStorage.setItem(STORAGE_PREFIX + key, value);
+          return { key, value, shared: false };
+        } catch (e) {
+          console.error('storage set failed', e);
+          return null;
+        }
+      },
+      async delete(key) {
+        localStorage.removeItem(STORAGE_PREFIX + key);
+        return { key, deleted: true, shared: false };
+      },
+      async list(prefix) {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(STORAGE_PREFIX)) {
+            const bare = k.slice(STORAGE_PREFIX.length);
+            if (!prefix || bare.startsWith(prefix)) keys.push(bare);
+          }
+        }
+        return { keys, prefix, shared: false };
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+
+    // Show any load-time error directly on screen instead of a silent blank page
+    function showBootError(msg, showRetry) {
+      const el = document.getElementById('boot-status');
+      if (!el) return;
+      el.innerHTML =
+        '<p style="color:#dc2626;font-weight:bold;font-size:15px;">Kuch gadbad hui</p>' +
+        '<p style="font-size:12px;color:#475569;max-width:320px;word-break:break-word;margin-top:8px;">' + msg + '</p>' +
+        (showRetry ? '<button onclick="window.location.reload()" style="margin-top:14px;background:#0f766e;color:white;border:none;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;">Dobara Try Karein</button>' : '') +
+        '<p style="font-size:11px;color:#94a3b8;margin-top:10px;">Is message ka screenshot le kar bhej dein</p>';
+    }
+    window.addEventListener('error', function (e) {
+      showBootError((e && e.message) || 'Unknown script error', true);
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      showBootError('Promise error: ' + ((e.reason && e.reason.message) || e.reason), true);
+    });
+
+    // Safety timeout: if app hasn't mounted in 45s, tell the user instead of staying blank
+    setTimeout(function () {
+      const el = document.getElementById('boot-status');
+      if (el && document.getElementById('boot-status')) {
+        showBootError('Loading mein bahut zyada time lag raha hai. Internet dheema ho sakta hai — WiFi ya behtar network try karein.', true);
+      }
+    }, 45000);
+  </script>
+
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" onerror="showBootError('Babel CDN load nahi hua — internet connection check karein', true)"></script>
+  <script type="text/babel" data-presets="react">
+// Argus Tracker - standalone PWA build
+// React, ReactDOM, Papa, XLSX loaded globally via CDN <script> tags in index.html
+const { useState, useEffect, useMemo, useCallback, useRef, Fragment } = React;
+
+// ---- Lightweight emoji-based icon replacements (no external icon library needed) ----
+function Ic({ e, size = 16, className = '' }) {
+  return React.createElement('span', {
+    className: className,
+    style: { fontSize: size, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+  }, e);
+}
+function mkIcon(emoji) {
+  return function IconWrap({ size = 16, className = '' }) {
+    return React.createElement(Ic, { e: emoji, size: size, className: className });
+  };
+}
+const Search = mkIcon('\u{1F50D}');
+const Home = mkIcon('\u{1F3E0}');
+const Printer = mkIcon('\u{1F5A8}\uFE0F');
+const FileText = mkIcon('\u{1F4C4}');
+const IndianRupee = mkIcon('\u20B9');
+const ClipboardList = mkIcon('\u{1F4CB}');
+const Plus = mkIcon('\u2795');
+const X = mkIcon('\u2715');
+const Bell = mkIcon('\u{1F514}');
+const TrendingUp = mkIcon('\u{1F4C8}');
+const Phone = mkIcon('\u{1F4DE}');
+const MapPin = mkIcon('\u{1F4CD}');
+const ChevronRight = mkIcon('\u25B6');
+const ChevronLeft = mkIcon('\u25C0');
+const AlertTriangle = mkIcon('\u26A0\uFE0F');
+const CheckCircle2 = mkIcon('\u2705');
+const Clock = mkIcon('\u{1F550}');
+const Eye = mkIcon('\u{1F441}\uFE0F');
+const Upload = mkIcon('\u2B06\uFE0F');
+const Settings = mkIcon('\u2699\uFE0F');
+const Download = mkIcon('\u2B07\uFE0F');
+const DatabaseBackup = mkIcon('\u{1F4BE}');
+
+
+const SEED_MACHINES = [{"id": "PH-493-1", "machineNo": "PH-493", "model": "AR-5316E", "party": "MAHATMA GANDHI INSTITUTE OF PHARMACY", "contact": "9450396665, 3012576, 3208180", "place": "", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/11/18", "amcTo": "31/10/19", "status": "ACTIVE"}, {"id": "PH-1048-2", "machineNo": "PH-1048", "model": "AR-5516", "party": "MEGHA SOFT INFORMATHION SYSTEMS PVT. LTD.", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/09/22", "amcTo": "31/08/23", "status": "ACTIVE"}, {"id": "PH-1285-3", "machineNo": "PH-1285", "model": "AR-5316", "party": "DROSIA CONSTRUCTION P. LTD.", "contact": "3919313", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/10/20", "amcTo": "30/09/21", "status": "ACTIVE"}, {"id": "PH-1300-4", "machineNo": "PH-1300", "model": "AR-5520D", "party": "ADARSH PURVA PARIKSHA PRASHIKSHAN KENDRA", "contact": "05222205738", "place": "ALIGANJ", "city": "LUCKNOW", "contType": "LA", "amcFrom": "06/03/22", "amcTo": "05/03/23", "status": "ACTIVE"}, {"id": "PH-1351-5", "machineNo": "PH-1351", "model": "AR-5516", "party": "THE PRAMUKH SACHIV FISHERIES", "contact": "5222740067", "place": "5FT FLOOR, R.NO", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/03/11", "amcTo": "28/03/12", "status": "ACTIVE"}, {"id": "PH-1366-6", "machineNo": "PH-1366", "model": "AR-5516", "party": "DIPLOMA ENGINEERING SANGH", "contact": "N/A", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/05/11", "amcTo": "19/05/12", "status": "ACTIVE"}, {"id": "PH-1390-7", "machineNo": "PH-1390", "model": "AR-5516", "party": "FISHERIES", "contact": "9415576971", "place": "DY. DIRECTOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/06/11", "amcTo": "14/06/12", "status": "ACTIVE"}, {"id": "PH-1394-8", "machineNo": "PH-1394", "model": "AR-5520D", "party": "TRAINING & EMPLOYMENT", "contact": "9795816435", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/03/11", "amcTo": "09/03/12", "status": "ACTIVE"}, {"id": "PH-1503-9", "machineNo": "PH-1503", "model": "AR-5520", "party": "JOINT DIR. TECHNICAL EDUCATION", "contact": "0522-2683840", "place": "CENTRAL ZONE", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/01/12", "amcTo": "10/01/13", "status": "ACTIVE"}, {"id": "PH-1529-10", "machineNo": "PH-1529", "model": "AR-5620D", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "", "place": "SAMPATI PRABA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/03/12", "amcTo": "12/03/13", "status": "ACTIVE"}, {"id": "PH-1555-11", "machineNo": "PH-1555", "model": "AR-5618S", "party": "DIPLOMA ENGINEERS SANGH", "contact": "0522-2621484", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/06/12", "amcTo": "07/06/13", "status": "ACTIVE"}, {"id": "PH-1629-12", "machineNo": "PH-1629", "model": "AR-5618", "party": "U.P.GO SEWA AYOG", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/02/13", "amcTo": "14/02/14", "status": "ACTIVE"}, {"id": "PH-1631-13", "machineNo": "PH-1631", "model": "AR-5620N", "party": "ZILA VIKLANG KALYAN ADHIKARI", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/02/13", "amcTo": "27/02/14", "status": "ACTIVE"}, {"id": "PH-1648-14", "machineNo": "PH-1648", "model": "AR-5620", "party": "VIKLANG KALYAN VIBHAG", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/03/15", "amcTo": "09/03/16", "status": "ACTIVE"}, {"id": "PH-1715-15", "machineNo": "PH-1715", "model": "AR-5618", "party": "NAYAY-9", "contact": "0522-2213116", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/10/13", "amcTo": "06/10/14", "status": "ACTIVE"}, {"id": "PH-1840-16", "machineNo": "PH-1840", "model": "AR-5620N", "party": "ALL INDIA RADIO(SHARP)", "contact": "9415751104", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/08/14", "amcTo": "13/08/15", "status": "ACTIVE"}, {"id": "PH-1852-17", "machineNo": "PH-1852", "model": "MX-M452N", "party": "TRAINING & EMPLOYMENT", "contact": "9935636827", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/14", "amcTo": "29/09/15", "status": "ACTIVE"}, {"id": "PH-1853-18", "machineNo": "PH-1853", "model": "AR-5620N", "party": "TRAINING & EMPLOYMENT", "contact": "9935636827", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/14", "amcTo": "29/09/15", "status": "ACTIVE"}, {"id": "PH-1866-19", "machineNo": "PH-1866", "model": "AR-5618S", "party": "AZAD EDUCATIONAL SOCIETY", "contact": "9415766424", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/14", "amcTo": "20/11/15", "status": "ACTIVE"}, {"id": "PH-1874-20", "machineNo": "PH-1874", "model": "AR-5618S", "party": "AZAD INSTITUTE OF PHARMACY & RESEARCH", "contact": "9415766424", "place": "LIBRARY", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/12/14", "amcTo": "15/12/15", "status": "ACTIVE"}, {"id": "PH-1893-21", "machineNo": "PH-1893", "model": "MX-M452N", "party": "PCCF, FOREST", "contact": "2206168/ 9670725033", "place": "CAMP OFF.", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/15", "amcTo": "20/01/16", "status": "ACTIVE"}, {"id": "PH-1894-22", "machineNo": "PH-1894", "model": "AR-5620N", "party": "AD. PCCF FOREST", "contact": "2207956", "place": "AUDIT & NON PLA", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/15", "amcTo": "20/01/16", "status": "ACTIVE"}, {"id": "PH-1901-23", "machineNo": "PH-1901", "model": "MX-M452N", "party": "ADD. CCF FOREST", "contact": "0522-2205120", "place": "COURT CASE", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/02/15", "amcTo": "08/02/16", "status": "ACTIVE"}, {"id": "PH-2017-24", "machineNo": "PH-2017", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9919870735/052 2-2204253", "place": "CCF PROJECT", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/11/18", "amcTo": "31/10/19", "status": "ACTIVE"}, {"id": "PH-2026-25", "machineNo": "PH-2026", "model": "AR-6020N", "party": "CCF(U.P. FOREST)", "contact": "9451133719", "place": "MANAV SANSADH", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/09/15", "amcTo": "07/09/16", "status": "ACTIVE"}, {"id": "PH-2027-26", "machineNo": "PH-2027", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "0522-2207982/ 9453137924", "place": "ADMIN", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/09/15", "amcTo": "08/09/16", "status": "ACTIVE"}, {"id": "PH-2028-27", "machineNo": "PH-2028", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "9415578953", "place": "VIGILENCE", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/09/15", "amcTo": "09/09/16", "status": "ACTIVE"}, {"id": "PH-2029-28", "machineNo": "PH-2029", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "7080908800/ 7417969710", "place": "BHU ABHILESH", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/09/15", "amcTo": "09/09/16", "status": "ACTIVE"}, {"id": "PH-2037-29", "machineNo": "PH-2037", "model": "AR-6020", "party": "MALERIA MUKHYALAYA", "contact": "0522-2287611", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/09/15", "amcTo": "13/09/16", "status": "ACTIVE"}, {"id": "PH-2084-30", "machineNo": "PH-2084", "model": "MX-2010U", "party": "CCF (U.P. FOREST)", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/11/15", "amcTo": "08/11/16", "status": "ACTIVE"}, {"id": "PH-2089-31", "machineNo": "PH-2089", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "0522-2288515", "place": "INSTALL @ SULT", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/01/17", "amcTo": "31/12/17", "status": "ACTIVE"}, {"id": "PH-2096-32", "machineNo": "PH-2096", "model": "MX-2010U", "party": "ADD. CCF (U.P. FOREST)", "contact": "0522-2206195, 2206186", "place": "CHIEF SOCIAL &", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/12/15", "amcTo": "01/12/16", "status": "ACTIVE"}, {"id": "PH-2103-33", "machineNo": "PH-2103", "model": "MX-M464N", "party": "CCF ( U.P. FOREST)", "contact": "n/a", "place": "ADMINISTRATION", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/11/15", "amcTo": "16/11/16", "status": "ACTIVE"}, {"id": "PH-2115-34", "machineNo": "PH-2115", "model": "AR-6020N", "party": "PCCF (U.P. FOREST)", "contact": "8574929950/ 9450001032", "place": "AUDIT", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/11/15", "amcTo": "09/11/16", "status": "ACTIVE"}, {"id": "PH-2125-35", "machineNo": "PH-2125", "model": "AR-6020N", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795810732/ 0522- 2340484", "place": "GROUND FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/01/16", "amcTo": "07/01/17", "status": "ACTIVE"}, {"id": "PH-2126-36", "machineNo": "PH-2126", "model": "MX-M464N", "party": "CCF CAMPA ( U.P. FOREST)", "contact": "0522-2206121/ 2206053", "place": "NITI VISHLESHAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/01/16", "amcTo": "10/01/17", "status": "ACTIVE"}, {"id": "PH-2154-37", "machineNo": "PH-2154", "model": "MX-M464N", "party": "CCF ( U.P. FOREST)", "contact": "7839435388/ 7839435387", "place": "COMMAND CENT", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/03/16", "amcTo": "03/03/17", "status": "ACTIVE"}, {"id": "PH-2155-38", "machineNo": "PH-2155", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "0522-2206176/ 9415910928", "place": "PLANNING", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/10/18", "amcTo": "30/09/19", "status": "ACTIVE"}, {"id": "PH-2156-39", "machineNo": "PH-2156", "model": "MX-M464N", "party": "PCCF FOREST", "contact": "9415083819/ 0522- 2715741", "place": "CENTRAL ZONE", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "17/05/17", "amcTo": "16/05/18", "status": "ACTIVE"}, {"id": "PH-2164-40", "machineNo": "PH-2164", "model": "MX-M464N", "party": "UPPER PRAMUKH VAN SANRAKSH", "contact": "n/a", "place": "VAN SCAHIV", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/03/16", "amcTo": "13/03/17", "status": "ACTIVE"}, {"id": "PH-2203-41", "machineNo": "PH-2203", "model": "MX-2010U", "party": "UPPER PRADHAN MUKYA VAN SANRAKSHAK", "contact": "7639435243/ 0522- 2716619", "place": "IT CELL", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "20/06/17", "amcTo": "19/06/18", "status": "ACTIVE"}, {"id": "PH-2205-42", "machineNo": "PH-2205", "model": "AR-6020N", "party": "233BN,C.R.P.F", "contact": "0522-2817945/8 543094885", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/04/16", "amcTo": "24/04/17", "status": "ACTIVE"}, {"id": "PH-2208-43", "machineNo": "PH-2208", "model": "MX-M464N", "party": "CCF (U.P.FOREST)", "contact": "0522-2205891", "place": "STATISTICS", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/16", "amcTo": "11/05/17", "status": "ACTIVE"}, {"id": "PH-2219-44", "machineNo": "PH-2219", "model": "AR-6020", "party": "GO SEWA AYOG", "contact": "9415514546", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/06/16", "amcTo": "14/06/17", "status": "ACTIVE"}, {"id": "PH-2223-45", "machineNo": "PH-2223", "model": "AR-6020N", "party": "CCF Cheif Vigilance", "contact": "5222204103", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/07/16", "amcTo": "04/07/17", "status": "ACTIVE"}, {"id": "PH-2228-46", "machineNo": "PH-2228", "model": "AR-6020", "party": "SOCIAL WELFARE", "contact": "9454413251", "place": "ANUBHAG-2", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/07/16", "amcTo": "18/07/17", "status": "ACTIVE"}, {"id": "PH-2246-47", "machineNo": "PH-2246", "model": "AR-6020N", "party": "Awas Evam Vikas Parishad", "contact": "7705003424", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/09/16", "amcTo": "18/09/17", "status": "ACTIVE"}, {"id": "PH-2251-48", "machineNo": "PH-2251", "model": "MX-M354N", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811925/879 5811789", "place": "VRINDAVAN CIRC", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/04/19", "amcTo": "31/03/20", "status": "ACTIVE"}, {"id": "PH-2275-49", "machineNo": "PH-2275", "model": "AR-6020N", "party": "URBAN TRANSPORT", "contact": "7080507157", "place": "ROOM NO - 305", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/12/16", "amcTo": "18/12/17", "status": "ACTIVE"}, {"id": "PH-2277-50", "machineNo": "PH-2277", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "0522-2288515", "place": "M/C INSTALL AT I", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/12/16", "amcTo": "25/12/17", "status": "ACTIVE"}, {"id": "PH-2287-51", "machineNo": "PH-2287", "model": "AR-6020", "party": "Minor Irrigation", "contact": "9454119481/945 463024", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/02/17", "amcTo": "12/02/18", "status": "ACTIVE"}, {"id": "PH-2350-52", "machineNo": "PH-2350", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "9454410617, 0522-2238466", "place": "JAWAHAR BHAW", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/04/17", "amcTo": "09/04/18", "status": "ACTIVE"}, {"id": "PH-2387-53", "machineNo": "PH-2387", "model": "MX-M464N", "party": "CCF Campa ( U.P. Forest)", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/06/17", "amcTo": "27/06/18", "status": "ACTIVE"}, {"id": "PH-2389-54", "machineNo": "PH-2389", "model": "MX-M464N", "party": "PCCF (U.P. FOREST)", "contact": "05222206184", "place": "DDO OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/06/17", "amcTo": "27/06/18", "status": "ACTIVE"}, {"id": "PH-2390-55", "machineNo": "PH-2390", "model": "DX-2000U", "party": "CCF (U.P. FOREST)", "contact": "05222204253/ 7839435379", "place": "PROJECT & PLAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/08/17", "amcTo": "20/08/18", "status": "ACTIVE"}, {"id": "PH-2406-56", "machineNo": "PH-2406", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "9838716945", "place": "INSTALL @ REGI", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/10/17", "amcTo": "24/10/18", "status": "ACTIVE"}, {"id": "PH-2411-57", "machineNo": "PH-2411", "model": "AR-6020N", "party": "APCCF Project", "contact": "9452676662, 9415910928", "place": "PARIYOJNA", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/11/17", "amcTo": "29/11/18", "status": "ACTIVE"}, {"id": "PH-2412-58", "machineNo": "PH-2412", "model": "AR-6020N", "party": "CCF ( U.P. Forest)", "contact": "n/a", "place": "MANAV SANSHAD", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/17", "amcTo": "20/11/18", "status": "ACTIVE"}, {"id": "PH-2413-59", "machineNo": "PH-2413", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9305408123", "place": "VITA & LEKHA, R.", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/17", "amcTo": "20/11/18", "status": "ACTIVE"}, {"id": "PH-2426-60", "machineNo": "PH-2426", "model": "AR-6020N", "party": "CCF FOREST", "contact": "9044821723", "place": "MONITERING & E", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/01/22", "amcTo": "31/12/22", "status": "ACTIVE"}, {"id": "PH-2453-61", "machineNo": "PH-2453", "model": "AR-6020N", "party": "PCCF ( U.P. Forest)/staff officer", "contact": "9451014932/220 684", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/02/18", "amcTo": "19/02/19", "status": "ACTIVE"}, {"id": "PH-2454-62", "machineNo": "PH-2454", "model": "AR-6020N", "party": "PCCF (U.P. Forest)", "contact": "9956868558/ 7376633200", "place": "LEKHA ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/02/18", "amcTo": "21/02/19", "status": "ACTIVE"}, {"id": "PH-2471-63", "machineNo": "PH-2471", "model": "AR-6020N", "party": "MEDICAL EDUCATION", "contact": "9919521574/ 9839227173", "place": "N/A", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "06/06/19", "amcTo": "05/06/20", "status": "ACTIVE"}, {"id": "PH-2472-64", "machineNo": "PH-2472", "model": "AR-6020N", "party": "MEDICAL EDUCATION", "contact": "9919521574/ 947360453", "place": "DIRECTOR CAMP", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "06/06/19", "amcTo": "05/06/20", "status": "ACTIVE"}, {"id": "PH-2481-65", "machineNo": "PH-2481", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9415910928", "place": "PLANNING", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/03/18", "amcTo": "20/03/19", "status": "ACTIVE"}, {"id": "PH-2530-66", "machineNo": "PH-2530", "model": "MX-M265N", "party": "SS TRAVELS", "contact": "9839120877", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/04/18", "amcTo": "12/04/19", "status": "ACTIVE"}, {"id": "PH-2557-67", "machineNo": "PH-2557", "model": "MX-M464N", "party": "SOCIAL WELFARE", "contact": "na", "place": "LEKHA", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/09/18", "amcTo": "10/09/19", "status": "ACTIVE"}, {"id": "PH-2640-68", "machineNo": "PH-2640", "model": "AR-6026NV", "party": "FINANCIAL STATISTICAL DIRECTORATE", "contact": "9415085759", "place": "ROOM NO - 148", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "25/02/20", "amcTo": "24/02/21", "status": "ACTIVE"}, {"id": "PH-2694-69", "machineNo": "PH-2694", "model": "AR-6020NV", "party": "GO SEWA AYOG", "contact": "9412311692 / 8433099679", "place": "ROOM NO - 811, I", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/03/19", "amcTo": "25/03/20", "status": "ACTIVE"}, {"id": "PH-2695-70", "machineNo": "PH-2695", "model": "DX-2000U", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "0522-2238181, 9454410021", "place": "NEW SACHIVALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/19", "amcTo": "15/04/21", "status": "ACTIVE"}, {"id": "PH-2696-71", "machineNo": "PH-2696", "model": "DX-2000U", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "9839879814, 9451250016", "place": "DIRECTOR CIVIL", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/04/19", "amcTo": "31/03/21", "status": "ACTIVE"}, {"id": "PH-2697-72", "machineNo": "PH-2697", "model": "AR-6026NV", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "0522-2215118, 8887121328", "place": "NEW SACHIVALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/19", "amcTo": "15/04/21", "status": "ACTIVE"}, {"id": "PH-2714-73", "machineNo": "PH-2714", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "NA", "place": "NIRMAN KHAND -", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/19", "amcTo": "01/04/20", "status": "ACTIVE"}, {"id": "PH-2715-74", "machineNo": "PH-2715", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811734, 7705003754", "place": "EXE. ENGG.", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/04/19", "amcTo": "31/03/20", "status": "ACTIVE"}, {"id": "PH-2718-75", "machineNo": "PH-2718", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811432", "place": "OFFICE SAMPATT", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/04/19", "amcTo": "07/04/20", "status": "ACTIVE"}, {"id": "PH-2732-76", "machineNo": "PH-2732", "model": "AR-6020NV", "party": "Social Welfare Department", "contact": "0522-2209259", "place": "DIRECTOR ROOM", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/06/19", "amcTo": "12/06/20", "status": "ACTIVE"}, {"id": "PH-2733-77", "machineNo": "PH-2733", "model": "AR-6020NV", "party": "SOCIAL WELFARE DEPARTMENT - IGRM", "contact": "9568485462", "place": "ANUBHAG VIBHA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/06/19", "amcTo": "12/06/20", "status": "ACTIVE"}, {"id": "PH-2737-78", "machineNo": "PH-2737", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9838104452", "place": "EDUCATION (B) S", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/06/19", "amcTo": "20/06/20", "status": "ACTIVE"}, {"id": "PH-2738-79", "machineNo": "PH-2738", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9453222342", "place": "E-1 ( STHAPNA 1", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/06/19", "amcTo": "20/06/20", "status": "ACTIVE"}, {"id": "PH-2740-80", "machineNo": "PH-2740", "model": "AR-6020NV", "party": "MADHYANCHAL VIDYUT VITRAN NIGAM", "contact": "9919503063, 8005493138", "place": "D P SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/07/19", "amcTo": "17/07/20", "status": "ACTIVE"}, {"id": "PH-2741-81", "machineNo": "PH-2741", "model": "AR-6020NV", "party": "MADHYANCHAL VIDYUT VITRAN NIGAM", "contact": "8004923160", "place": "COMERCIAL DIRE", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/07/19", "amcTo": "17/07/20", "status": "ACTIVE"}, {"id": "PH-2767-82", "machineNo": "PH-2767", "model": "AR-6020NV", "party": "Forest Corporation", "contact": "9454410222", "place": "VAN RAJYA MANT", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/09/19", "amcTo": "03/09/20", "status": "ACTIVE"}, {"id": "PH-2780-83", "machineNo": "PH-2780", "model": "AR-6020V", "party": "MEDIGULF DIAGNOSTIC CENTRE", "contact": "0522-2727727, 2727730", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/19", "amcTo": "29/09/20", "status": "ACTIVE"}, {"id": "PH-2782-84", "machineNo": "PH-2782", "model": "AR-6020NV", "party": "SCHOLARS HOME", "contact": "9450396556, 9453022798 / 8423807871", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/19", "amcTo": "15/10/20", "status": "ACTIVE"}, {"id": "PH-2783-85", "machineNo": "PH-2783", "model": "AR-6020V", "party": "Shram Vidya Peeth", "contact": "8299800105", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/19", "amcTo": "15/10/20", "status": "ACTIVE"}, {"id": "PH-2797-86", "machineNo": "PH-2797", "model": "AR-6020NV", "party": "CYREX HEALTH CARE", "contact": "9956474125", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/11/19", "amcTo": "11/11/20", "status": "ACTIVE"}, {"id": "PH-2811-87", "machineNo": "PH-2811", "model": "AR-6023NV", "party": "Awas Evam Vikas Parishad", "contact": "9125824387", "place": "C D - 3, OFFICE C", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/12/19", "amcTo": "11/12/20", "status": "ACTIVE"}, {"id": "PH-2818-88", "machineNo": "PH-2818", "model": "AR-6020NV", "party": "NATIONAL WATER DEVELOPMENT AGENCY", "contact": "7905693989, 0522-2340643", "place": "INVESTIGATION D", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/01/20", "amcTo": "07/01/22", "status": "ACTIVE"}, {"id": "PH-2821-89", "machineNo": "PH-2821", "model": "DX-2000U", "party": "YASHASVI ADVERTISING", "contact": "9936275496, 7080865555", "place": "LAVKUSH ENTER", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/01/20", "amcTo": "14/01/21", "status": "ACTIVE"}, {"id": "PH-2822-90", "machineNo": "PH-2822", "model": "AR-6023NV", "party": "Lucknow Model Public Inter College", "contact": "8090041030", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/01/20", "amcTo": "28/01/21", "status": "ACTIVE"}, {"id": "PH-2835-91", "machineNo": "PH-2835", "model": "AR-6031NV", "party": "YASHI ENTERPRISES", "contact": "9559900782, 7704943153", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/02/20", "amcTo": "05/02/21", "status": "ACTIVE"}, {"id": "PH-2879-92", "machineNo": "PH-2879", "model": "BP-20C20Z", "party": "CIVIL DEFENCE", "contact": "6387680637", "place": "BAKSHI KA TALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/03/20", "amcTo": "12/03/22", "status": "ACTIVE"}, {"id": "PH-2894-93", "machineNo": "PH-2894", "model": "AR-6023NV", "party": "AWAS VIKAS PARISHAD", "contact": "7705003639", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/03/20", "amcTo": "19/03/21", "status": "ACTIVE"}, {"id": "PH-2929-94", "machineNo": "PH-2929", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9415560860, 8382844424", "place": "RESIDENCE OF H", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2930-95", "machineNo": "PH-2930", "model": "AR-6020NV", "party": "SOCIAL WELFARE - 2", "contact": "8115915040, 9454413251", "place": "ROOM NO - 441", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2931-96", "machineNo": "PH-2931", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9454413658", "place": "ANUBHAG - 1", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2932-97", "machineNo": "PH-2932", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9450627274", "place": "DIRECTOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2933-98", "machineNo": "PH-2933", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9651019424", "place": "ANUBHAG - 3", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2934-99", "machineNo": "PH-2934", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9260970072, 9454410113", "place": "ROOM NO. 112 D", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2935-100", "machineNo": "PH-2935", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9891540389", "place": "ROOM NO - 36, 2N", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/07/20", "amcTo": "08/07/22", "status": "ACTIVE"}, {"id": "PH-2936-101", "machineNo": "PH-2936", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9935324967", "place": "VIDHI ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/07/20", "amcTo": "08/07/22", "status": "ACTIVE"}, {"id": "PH-2954-102", "machineNo": "PH-2954", "model": "AR-6020NV", "party": "SHISHIR CHANDRA & ASSOCIATE", "contact": "9415026325", "place": "NEAR SHERWOO", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/09/20", "amcTo": "28/09/21", "status": "ACTIVE"}, {"id": "PH-2969-103", "machineNo": "PH-2969", "model": "MX-M5050", "party": "CCF - COURT CASE", "contact": "81423773822", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/10/20", "amcTo": "27/10/21", "status": "ACTIVE"}, {"id": "PH-2973-104", "machineNo": "PH-2973", "model": "AR-6031NV", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "9451250016", "place": "DIRECTOR GENE", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/11/20", "amcTo": "12/11/21", "status": "ACTIVE"}, {"id": "PH-2987-105", "machineNo": "PH-2987", "model": "BP-20C20Z", "party": "Forest Department", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/01/21", "amcTo": "01/01/23", "status": "ACTIVE"}, {"id": "PH-3001-106", "machineNo": "PH-3001", "model": "AR-6020NV", "party": "STATE DISASTER RESPONCE FORCE", "contact": "8318590883", "place": "BIJNOUR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/21", "amcTo": "20/01/22", "status": "ACTIVE"}, {"id": "PH-3005-107", "machineNo": "PH-3005", "model": "AR-6020NV", "party": "Joint Director Pension", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/01/21", "amcTo": "27/01/23", "status": "ACTIVE"}, {"id": "PH-3021-108", "machineNo": "PH-3021", "model": "AR-6026NV", "party": "UNANI Nideshalaya", "contact": "0522-2286907, 9415578640", "place": "8TH FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/03/21", "amcTo": "09/03/24", "status": "ACTIVE"}, {"id": "PH-3030-109", "machineNo": "PH-3030", "model": "AR-6023NV", "party": "AWAS VIKAS PARISHAD", "contact": "8795811509", "place": "C D - 2", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/03/21", "amcTo": "21/03/22", "status": "ACTIVE"}, {"id": "PH-3075-110", "machineNo": "PH-3075", "model": "AR-6031NV", "party": "SAMAJ KALYAN NIDESHALAYA", "contact": "9450627274", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/08/21", "amcTo": "24/08/24", "status": "ACTIVE"}, {"id": "PH-3076-111", "machineNo": "PH-3076", "model": "AR-6031NV", "party": "SAMAJ KALYAN NIDESHALAY", "contact": "8299336700", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/08/21", "amcTo": "24/08/24", "status": "ACTIVE"}, {"id": "PH-3109-112", "machineNo": "PH-3109", "model": "AR-6020NV", "party": "AMRIT BOTTLERS PVT. LTD.", "contact": "9555022344, 9794963336", "place": "4TH FLOOR AMRI", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/09/21", "amcTo": "23/09/22", "status": "ACTIVE"}, {"id": "PH-3233-113", "machineNo": "PH-3233", "model": "BP-30M35T", "party": "ADARSH PURV PARIKSHA", "contact": "9984023111, 7880363764", "place": "PARIKSHAN KEN", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/04/22", "amcTo": "20/04/23", "status": "ACTIVE"}, {"id": "PH-3273-114", "machineNo": "PH-3273", "model": "BP-20M28T", "party": "DIRECTORATE OF PENSION", "contact": "9454412172", "place": "VITT ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/09/22", "amcTo": "21/09/23", "status": "ACTIVE"}, {"id": "PH-3278-115", "machineNo": "PH-3278", "model": "BP-20M28T", "party": "MVVNL", "contact": "8004012470", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/10/22", "amcTo": "05/10/23", "status": "ACTIVE"}, {"id": "PH-3285-116", "machineNo": "PH-3285", "model": "BP-20M22T", "party": "MEGHA SOFT INFORMATION SYSTEMS PVT. LTD.", "contact": "8400206666, 8175992081", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/10/22", "amcTo": "06/10/23", "status": "ACTIVE"}, {"id": "PH-3290-117", "machineNo": "PH-3290", "model": "BP-20M22T", "party": "MAHATMA GANDHI INSTITUTE OF PHARMACY", "contact": "", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/11/22", "amcTo": "27/11/23", "status": "ACTIVE"}, {"id": "PH-673-118", "machineNo": "PH-673", "model": "AR-5127", "party": "U P FOREST CORPORATION", "contact": "2238669, Extn 4564, 2716506", "place": "BAPU BHAWAN", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "19/10/12", "amcTo": "18/10/13", "status": "ACTIVE"}, {"id": "PH-674-119", "machineNo": "PH-674", "model": "AR-M205", "party": "U P FOREST CORPORATION", "contact": "2716619 & 2715741", "place": "CH CONSERVA", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "28/11/15", "amcTo": "27/11/16", "status": "ACTIVE"}, {"id": "PH-675-120", "machineNo": "PH-675", "model": "AR-5320E", "party": "U P FOREST CORPORATION", "contact": "9453007056, 9451308740", "place": "MINISTER FOR", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/09/11", "amcTo": "31/08/12", "status": "ACTIVE"}, {"id": "PH-676-121", "machineNo": "PH-676", "model": "AR-5316E", "party": "U P FOREST CORPORATION", "contact": "2716506", "place": "MARKETING SE", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/06/13", "amcTo": "31/05/14", "status": "ACTIVE"}, {"id": "PH-677-122", "machineNo": "PH-677", "model": "AR-5316", "party": "U P FOREST CORPORATION", "contact": "2715760", "place": "YOJNA & MULY", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/02/13", "amcTo": "31/01/14", "status": "ACTIVE"}, {"id": "PH-678-123", "machineNo": "PH-678", "model": "AR-5316", "party": "U P FOREST CORPORATION", "contact": "2716506", "place": "KARMIK ANUBH", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/02/13", "amcTo": "31/01/14", "status": "ACTIVE"}, {"id": "PH-679-124", "machineNo": "PH-679", "model": "AR-5320E", "party": "U P FOREST CORPORATION", "contact": "2238773 Extn. 4789,2238412", "place": "ADDITIONAL M", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "25/10/13", "amcTo": "24/10/14", "status": "ACTIVE"}, {"id": "PH-876-125", "machineNo": "PH-876", "model": "AR-5320E", "party": "DSM, FOREST CORPORATION", "contact": "2716437", "place": "NA", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "03/07/21", "amcTo": "02/07/22", "status": "ACTIVE"}, {"id": "PH-999-126", "machineNo": "PH-999", "model": "AR-5520D", "party": "CCF, O/O PCCF, FOREST", "contact": "2206121, 2206053", "place": "CCF HQ", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1000-127", "machineNo": "PH-1000", "model": "AR-5520D", "party": "PCCF, FOREST", "contact": "2207982", "place": "AUDIT SECTION", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1101-128", "machineNo": "PH-1101", "model": "AR-5520D", "party": "PCCF, FOREST HQ", "contact": "NA", "place": "BHU ABHILEKH", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1261-129", "machineNo": "PH-1261", "model": "AR-5625", "party": "RML INST OF MEDICAL SCIENCES", "contact": "0522-2306249", "place": "LUCKNOW", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "14/10/19", "amcTo": "13/10/21", "status": "ACTIVE"}, {"id": "PH-1296-130", "machineNo": "PH-1296", "model": "AR-5520", "party": "U P FOREST DEPARTMENT", "contact": "2214566/9454 410564", "place": "BAPU BHAWAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/11/10", "amcTo": "23/11/11", "status": "ACTIVE"}, {"id": "PH-1475-131", "machineNo": "PH-1475", "model": "MX-M310N", "party": "RML. INSTITUTE (SHARP)", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "14/10/19", "amcTo": "13/10/21", "status": "ACTIVE"}, {"id": "PH-1563-132", "machineNo": "PH-1563", "model": "AR-5620N", "party": "CCF FOREST(CAMPA)", "contact": "2204365", "place": "N/A", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "01/04/15", "amcTo": "31/03/16", "status": "ACTIVE"}, {"id": "PH-1702-133", "machineNo": "PH-1702", "model": "AR-5620N", "party": "U P FOREST CORPORATION", "contact": "0522-2238465", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/08/13", "amcTo": "11/08/14", "status": "ACTIVE"}, {"id": "PH-1703-134", "machineNo": "PH-1703", "model": "AR-5620N", "party": "U P FOREST CORPORATION", "contact": "n/a", "place": "GENERAL SEC.", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/08/13", "amcTo": "11/08/14", "status": "ACTIVE"}, {"id": "PH-2032-135", "machineNo": "PH-2032", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "0522-2715328 /9453193802", "place": "WORKING PLA", "city": "LUCKNOW", "contType": "LA", "amcFrom": "16/08/19", "amcTo": "15/08/20", "status": "ACTIVE"}, {"id": "PH-2139-136", "machineNo": "PH-2139", "model": "MX-2010U", "party": "PCCF WILD LIFE", "contact": "0522-2206584 /9415668654", "place": "N/A", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "31/10/23", "amcTo": "30/10/24", "status": "ACTIVE"}, {"id": "PH-2222-137", "machineNo": "PH-2222", "model": "AR-6020N", "party": "U P FOREST CORPORATION LTD.", "contact": "9455336765", "place": "ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/06/16", "amcTo": "21/06/17", "status": "ACTIVE"}, {"id": "PH-2322-138", "machineNo": "PH-2322", "model": "AR-6020N", "party": "APCCF FOREST DEPARTMENT", "contact": "9616017188,9 415460923", "place": "IT CELL, SHEES", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/03/17", "amcTo": "17/03/18", "status": "ACTIVE"}, {"id": "PH-2324-139", "machineNo": "PH-2324", "model": "AR-6020N", "party": "DFO AWADH", "contact": "9307811286", "place": "AWADH 1 PRAB", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/10/22", "amcTo": "09/10/23", "status": "ACTIVE"}, {"id": "PH-2378-140", "machineNo": "PH-2378", "model": "AR-6020N", "party": "PCCF,ESP Project", "contact": "7499248557/9 598996627", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/05/17", "amcTo": "22/05/18", "status": "ACTIVE"}, {"id": "PH-2391-141", "machineNo": "PH-2391", "model": "MX-M464N", "party": "DFO AWADH", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/10/22", "amcTo": "09/10/23", "status": "ACTIVE"}, {"id": "PH-2394-142", "machineNo": "PH-2394", "model": "AR-6020N", "party": "DLM, U P FOREST CORPORATION", "contact": "9532090315/9 451260614", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/08/17", "amcTo": "15/08/18", "status": "ACTIVE"}, {"id": "PH-2424-143", "machineNo": "PH-2424", "model": "AR-6020N", "party": "APCCF FOREST", "contact": "9580182292", "place": "WILD LIFE", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "07/05/23", "amcTo": "06/05/24", "status": "ACTIVE"}, {"id": "PH-2425-144", "machineNo": "PH-2425", "model": "AR-6020N", "party": "APCCF FOREST", "contact": "9931927985/9 415470753", "place": "PROJECT TIGE", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "07/05/21", "amcTo": "06/05/22", "status": "ACTIVE"}, {"id": "PH-2482-145", "machineNo": "PH-2482", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9807631679/0 5222715328", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/03/18", "amcTo": "27/03/19", "status": "ACTIVE"}, {"id": "PH-2866-146", "machineNo": "PH-2866", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA", "contact": "7275046011", "place": "2nd FLOOR, HOSPITAL BLOCK", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2867-147", "machineNo": "PH-2867", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA", "contact": "7275881910", "place": "PHARMACY OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2868-148", "machineNo": "PH-2868", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA", "contact": "9559649300, 8840506288", "place": "DISPATCH SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2869-149", "machineNo": "PH-2869", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA", "contact": "7839127462", "place": "BIO MEDICAL", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2870-150", "machineNo": "PH-2870", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA", "contact": "NA", "place": "2ND FLOOR, ROOM NO - 25", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2980-151", "machineNo": "PH-2980", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 7007066094", "place": "ESTABLISHMEN", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2981-152", "machineNo": "PH-2981", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 7355798275", "place": "EPF SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2982-153", "machineNo": "PH-2982", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 6394311700", "place": "UTPADAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2986-154", "machineNo": "PH-2986", "model": "AR-6020NV", "party": "RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9140159273", "place": "EXAMINATION", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/12/20", "amcTo": "30/12/22", "status": "ACTIVE"}, {"id": "PH-3078-155", "machineNo": "PH-3078", "model": "AR-6020NV", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "6393338639, 8299488779", "place": "CHIEF NURSIN", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/08/21", "amcTo": "29/08/23", "status": "ACTIVE"}, {"id": "PH-3082-156", "machineNo": "PH-3082", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9958256184", "place": "COMPUTER SE", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3083-157", "machineNo": "PH-3083", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9807722851", "place": "ACCOUNT SEC", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3084-158", "machineNo": "PH-3084", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9454414179", "place": "ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3085-159", "machineNo": "PH-3085", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9454412488", "place": "ANUBHAG-4", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3115-160", "machineNo": "PH-3115", "model": "AR-6020NV", "party": "RML INST OF MEDICAL SCIENCES", "contact": "7275068922", "place": "7TH FLOOR, PA", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/10/21", "amcTo": "16/10/23", "status": "ACTIVE"}, {"id": "PH-3223-161", "machineNo": "PH-3223", "model": "AR-6020NV", "party": "UP FOREST CORPORATION (DSM)", "contact": "8299035989", "place": "FOREST", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/03/22", "amcTo": "28/03/23", "status": "ACTIVE"}, {"id": "PH-3242-162", "machineNo": "PH-3242", "model": "AR-6020NV", "party": "UP FOREST CORPORATION", "contact": "9454410071", "place": "Forest Minister, Bapu Bhawan", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/05/22", "amcTo": "27/05/24", "status": "ACTIVE"}, {"id": "PH-3259-163", "machineNo": "PH-3259", "model": "BP-20M22T", "party": "RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "8318833734, 7275068927", "place": "Administrative block", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/07/22", "amcTo": "29/07/23", "status": "ACTIVE"}, {"id": "PH-3293-164", "machineNo": "PH-3293", "model": "AR-6020N", "party": "RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "", "place": "MS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/12/21", "amcTo": "30/11/22", "status": "ACTIVE"}, {"id": "PH-3356-165", "machineNo": "PH-3356", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "8052321561, 7355966610", "place": "CMS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/23", "amcTo": "11/05/24", "status": "ACTIVE"}, {"id": "PH-3357-166", "machineNo": "PH-3357", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "9451322899", "place": "RADIODIAGNOSIS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/23", "amcTo": "11/05/24", "status": "ACTIVE"}, {"id": "PH-3398-167", "machineNo": "PH-3398", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "9450681868", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/10/23", "amcTo": "08/10/24", "status": "ACTIVE"}, {"id": "PH-3399-168", "machineNo": "PH-3399", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "7275068940, 8957485981", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/10/23", "amcTo": "08/10/24", "status": "ACTIVE"}, {"id": "PH-3424-169", "machineNo": "PH-3424", "model": "BP-20M22T", "party": "U P Forest Corporation", "contact": "8853474734", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/12/23", "amcTo": "03/12/24", "status": "ACTIVE"}, {"id": "PH-3427-170", "machineNo": "PH-3427", "model": "BP-20M31T", "party": "UP FOREST, COURT CASE", "contact": "8182810202", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/12/23", "amcTo": "27/12/24", "status": "ACTIVE"}, {"id": "PH-3447-171", "machineNo": "PH-3447", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "7355674977", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/02/24", "amcTo": "22/02/25", "status": "ACTIVE"}, {"id": "PH-3448-172", "machineNo": "PH-3448", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA HOSPITAL", "contact": "9696295907", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/02/24", "amcTo": "22/02/25", "status": "ACTIVE"}, {"id": "PH-3470-173", "machineNo": "PH-3470", "model": "BP-20M28T", "party": "FOREST DEPARTMENT", "contact": "7839435241, 7839435244", "place": "IT CELL", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/24", "amcTo": "15/04/25", "status": "ACTIVE"}, {"id": "PH-3493-174", "machineNo": "PH-3493", "model": "BP-50M55T", "party": "CCF-COURT CASE", "contact": "7839434792", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/05/24", "amcTo": "14/05/25", "status": "ACTIVE"}, {"id": "PH-3509-175", "machineNo": "PH-3509", "model": "BP-20M22T", "party": "UP FOREST CORPORATION", "contact": "8707744154, 8565079788", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/06/24", "amcTo": "25/06/26", "status": "ACTIVE"}, {"id": "PH-3527-176", "machineNo": "PH-3527", "model": "BP-20M22T", "party": "RML INST OF MEDICAL SCIENCES", "contact": "9450447890", "place": "PHYSIOLOGY DEPARTMENT", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/24", "amcTo": "07/07/25", "status": "ACTIVE"}, {"id": "PH-3549-177", "machineNo": "PH-3549", "model": "BP-20M22T", "party": "UP FOREST CORPORATION", "contact": "9454410277, 0522- 2237001", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/08/24", "amcTo": "29/08/26", "status": "ACTIVE"}, {"id": "PH-3596-178", "machineNo": "PH-3596", "model": "BP-20C25Z", "party": "FOREST DEPARTMENT", "contact": "9452242069, 8960317945", "place": "PPCF WILD LIFE", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/01/25", "amcTo": "15/01/26", "status": "ACTIVE"}, {"id": "PH-3597-179", "machineNo": "PH-3597", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "8176007032", "place": "IRF, 23", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3598-180", "machineNo": "PH-3598", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9670222324", "place": "P. S. OFFICE, 1st FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3599-181", "machineNo": "PH-3599", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "8299265881", "place": "UG CELL", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3600-182", "machineNo": "PH-3600", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9598442916", "place": "GROUND FLOOR, ROOM NO. 24", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3601-183", "machineNo": "PH-3601", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "7275052899", "place": "Medical Record", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3602-184", "machineNo": "PH-3602", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "7398143316", "place": "Research Cell", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3606-185", "machineNo": "PH-3606", "model": "BP-20M31T", "party": "UP FOREST DEPARTMENT", "contact": "7839435391", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/02/25", "amcTo": "02/02/26", "status": "ACTIVE"}, {"id": "PH-3607-186", "machineNo": "PH-3607", "model": "BP-20M24T", "party": "UP FOREST DEPARTMENT", "contact": "9369266690", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/02/25", "amcTo": "04/02/26", "status": "ACTIVE"}, {"id": "PH-3609-187", "machineNo": "PH-3609", "model": "BP-20M24T", "party": "UP FOREST DEPARTMENT", "contact": "6394056802", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/02/25", "amcTo": "05/02/26", "status": "ACTIVE"}, {"id": "PH-3613-188", "machineNo": "PH-3613", "model": "BP-20M31T", "party": "FOREST DEPARTMENT (DFO)", "contact": "9918596413", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/02/25", "amcTo": "17/02/26", "status": "ACTIVE"}, {"id": "PH-3614-189", "machineNo": "PH-3614", "model": "BP-20M31T", "party": "PCCF WILD LIFE", "contact": "9580182292", "place": "ROOM No. 313, 2nd FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/02/25", "amcTo": "20/02/26", "status": "ACTIVE"}, {"id": "PH-3636-190", "machineNo": "PH-3636", "model": "BP-30C25", "party": "PCCF WILD LIFE", "contact": "9452679823", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/03/25", "amcTo": "26/03/26", "status": "ACTIVE"}, {"id": "PH-3654-191", "machineNo": "PH-3654", "model": "BP-20M22T", "party": "RML INST OF MEDICAL SCIENCES", "contact": "8052163222", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/06/25", "amcTo": "01/06/26", "status": "ACTIVE"}, {"id": "PH-3657-192", "machineNo": "PH-3657", "model": "BP-30C25ZT", "party": "RML INST OF MEDICAL SCIENCES", "contact": "8115981873", "place": "LIBRARY", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/06/25", "amcTo": "11/06/26", "status": "ACTIVE"}, {"id": "PH-3658-193", "machineNo": "PH-3658", "model": "BP-20M22T", "party": "RML INST OF MEDICAL SCIENCES", "contact": "7275068936", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/07/25", "amcTo": "02/07/26", "status": "ACTIVE"}, {"id": "PH-3694-194", "machineNo": "PH-3694", "model": "BP-30M35T", "party": "FOREST CORPORATION", "contact": "7518377087, 9651217420", "place": "Office of the Managing Director", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/09/25", "amcTo": "21/09/26", "status": "ACTIVE"}, {"id": "PH-3371-195", "machineNo": "PH-3371", "model": "BP-30M35T", "party": "SOCIAL WELFARE", "contact": "7985522071", "place": "NAJARAT ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/03/23", "amcTo": "26/03/24", "status": "ACTIVE"}, {"id": "PH-3407-196", "machineNo": "PH-3407", "model": "BP-20M22T", "party": "DIPLOMA ENGINEERING SANGH", "contact": "9412389684, 9453936486", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/11/23", "amcTo": "31/10/24", "status": "ACTIVE"}, {"id": "PH-3422-197", "machineNo": "PH-3422", "model": "BP-20M22T", "party": "NBFGR", "contact": "7985869131", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/11/23", "amcTo": "23/11/24", "status": "ACTIVE"}, {"id": "PH-3423-198", "machineNo": "PH-3423", "model": "BP-20M22T", "party": "MAHATMA GANDHI AYURVEDIC MEDICAL COLLEGE & RESEARCH CENTER", "contact": "9415929663", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/12/23", "amcTo": "01/12/24", "status": "ACTIVE"}, {"id": "PH-3439-199", "machineNo": "PH-3439", "model": "BP-50M55", "party": "INTERNAL AUDIT DIRECTORATE", "contact": "9005464071", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/01/24", "amcTo": "30/01/25", "status": "ACTIVE"}, {"id": "PH-3450-200", "machineNo": "PH-3450", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "7985522071", "place": "VIKAS ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/03/24", "amcTo": "25/02/25", "status": "ACTIVE"}, {"id": "PH-3558-201", "machineNo": "PH-3558", "model": "BP-20M24T", "party": "FCI", "contact": "9807180000", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/09/24", "amcTo": "08/09/25", "status": "ACTIVE"}, {"id": "PH-3570-202", "machineNo": "PH-3570", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "8417926511", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/24", "amcTo": "15/10/25", "status": "ACTIVE"}, {"id": "PH-3574-203", "machineNo": "PH-3574", "model": "BP-30M35T", "party": "DM OFFICE", "contact": "9936815286", "place": "ROOM No. 52", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/10/24", "amcTo": "14/10/27", "status": "ACTIVE"}, {"id": "PH-3575-204", "machineNo": "PH-3575", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "7355929923", "place": "1st FLOOR, NSAP SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/10/24", "amcTo": "28/10/25", "status": "ACTIVE"}, {"id": "PH-3577-205", "machineNo": "PH-3577", "model": "BP-30M35T", "party": "DM OFFICE", "contact": "8318198653", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/10/24", "amcTo": "14/10/27", "status": "ACTIVE"}, {"id": "PH-3583-206", "machineNo": "PH-3583", "model": "BP-20M22T", "party": "MINORITY COMMISSION", "contact": "9005698923", "place": "6th FLOOR, ROOM NO. 609", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/24", "amcTo": "20/11/25", "status": "ACTIVE"}, {"id": "PH-3589-207", "machineNo": "PH-3589", "model": "BP-20M24T", "party": "PASSPORT OFFICE", "contact": "9415087882", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/12/24", "amcTo": "11/12/25", "status": "ACTIVE"}, {"id": "PH-3603-208", "machineNo": "PH-3603", "model": "BP-20M22T", "party": "APPLIATE AUTHORITY", "contact": "9936850756, 9451427414", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3626-209", "machineNo": "PH-3626", "model": "BP-20M22T", "party": "Central Soil Salinity Research Institute", "contact": "7881199890", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/03/25", "amcTo": "18/03/26", "status": "ACTIVE"}, {"id": "PH-3637-210", "machineNo": "PH-3637", "model": "BP-20M22T", "party": "G. R. MAINTENANCE & SERVICES LTD.", "contact": "7042340544", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/03/25", "amcTo": "27/03/26", "status": "ACTIVE"}, {"id": "PH-3641-211", "machineNo": "PH-3641", "model": "BP-20M22T", "party": "RANJAN KUMAR DEV (SHOP)", "contact": "8081182990", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/03/25", "amcTo": "24/03/26", "status": "ACTIVE"}, {"id": "PH-3647-212", "machineNo": "PH-3647", "model": "BP-50C31", "party": "UNANI SERVICES UP", "contact": "9415578640", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/04/25", "amcTo": "28/04/26", "status": "ACTIVE"}, {"id": "PH-3651-213", "machineNo": "PH-3651", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "0522-2209259", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/05/25", "amcTo": "18/05/26", "status": "ACTIVE"}, {"id": "PH-3653-214", "machineNo": "PH-3653", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "9807629896", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/05/25", "amcTo": "18/05/26", "status": "ACTIVE"}, {"id": "PH-3696-215", "machineNo": "PH-3696", "model": "Apeos 3060", "party": "POLLUTION CONTROL BOARD", "contact": "9454558049", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3697-216", "machineNo": "PH-3697", "model": "BP-20M22T", "party": "CIPET", "contact": "8115011176", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3698-217", "machineNo": "PH-3698", "model": "BP-50M55T", "party": "UP FOREST DEPARTMENT", "contact": "8933049677", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3712-218", "machineNo": "PH-3712", "model": "BP-50M55T", "party": "UP FOREST DEPARTMENT", "contact": "8957099991", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/11/25", "amcTo": "24/11/26", "status": "ACTIVE"}, {"id": "PH-3718-219", "machineNo": "PH-3718", "model": "BP-20M22T", "party": "DIPLOMA ENGINEERING SANGH", "contact": "9621812239, 8799188883", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/12/25", "amcTo": "10/12/26", "status": "ACTIVE"}, {"id": "PH-3721-220", "machineNo": "PH-3721", "model": "AR-6020NV", "party": "DIVYANG JAN NIDESALAY", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/12/22", "amcTo": "15/12/23", "status": "ACTIVE"}, {"id": "PH-3749-221", "machineNo": "PH-3749", "model": "BP-22C20", "party": "DRDO - ITFB", "contact": "9557233469, 8115997997", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/26", "amcTo": "20/01/27", "status": "ACTIVE"}, {"id": "PH-3752-222", "machineNo": "PH-3752", "model": "BP-50C26", "party": "TAJ MAHAL HOTEL", "contact": "9455520732", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/02/26", "amcTo": "02/02/27", "status": "ACTIVE"}, {"id": "PH-3753-223", "machineNo": "PH-3753", "model": "BP-20M22T", "party": "SAMARJEET JANSEVA KENDRA", "contact": "7388810715", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/02/26", "amcTo": "11/02/27", "status": "ACTIVE"}, {"id": "PH-3754 (Fujifilm)-224", "machineNo": "PH-3754 (Fujifilm)", "model": "APEOSC2060", "party": "JTRI", "contact": "9935638273", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/02/26", "amcTo": "10/02/27", "status": "ACTIVE"}, {"id": "PH-3755 (Fujifilm)-225", "machineNo": "PH-3755 (Fujifilm)", "model": "APEOS4620SX", "party": "KRISHNA DIGITAL STUDIO", "contact": "8808687392", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/01/26", "amcTo": "22/01/27", "status": "ACTIVE"}, {"id": "PH-3760-226", "machineNo": "PH-3760", "model": "BP-20M31T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9628216443", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/03/26", "amcTo": "04/03/27", "status": "ACTIVE"}, {"id": "PH-3768-227", "machineNo": "PH-3768", "model": "BP-20M22T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9453982146", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "PH-3769-228", "machineNo": "PH-3769", "model": "BP-20M31T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9012905888", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "PH-3770-229", "machineNo": "PH-3770", "model": "BP-20M31T", "party": "DR. RAM MANOHAR LOHIA INSTITUTE OF MEDICAL SCIENCE", "contact": "9012905888", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "0006-230", "machineNo": "0006", "model": "BP-20M22T", "party": "SSRM-POST OFFICE", "contact": "9451566529", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/03/26", "amcTo": "29/03/27", "status": "ACTIVE"}, {"id": "PH-352-231", "machineNo": "PH-352", "model": "AR-5316N", "party": "NALKOOP KHAND", "contact": "05547-223580", "place": "", "city": "SANT KABIR NAGAR", "contType": "SSA", "amcFrom": "08/01/19", "amcTo": "07/01/20", "status": "ACTIVE"}, {"id": "PH-2033-232", "machineNo": "PH-2033", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYAN", "contact": "9451363230/ 05547226187", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2370-233", "machineNo": "PH-2370", "model": "AR-6020N", "party": "D.F.O", "contact": "9918381696", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "12/05/17", "amcTo": "11/05/18", "status": "ACTIVE"}, {"id": "PH-2462-234", "machineNo": "PH-2462", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9839394984/ 9453639997", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "27/02/18", "amcTo": "26/02/19", "status": "ACTIVE"}, {"id": "PH-2688-235", "machineNo": "PH-2688", "model": "AR-6020V", "party": "CMO", "contact": "7007933932, 9415875875", "place": "", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "26/03/19", "amcTo": "25/03/20", "status": "ACTIVE"}, {"id": "PH-2857-236", "machineNo": "PH-2857", "model": "AR-6023NV", "party": "Govt I T I", "contact": "9412365529, 8285459241", "place": "", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "19/02/20", "amcTo": "18/02/21", "status": "ACTIVE"}, {"id": "PH-2030-237", "machineNo": "PH-2030", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "8756259449", "place": "N/A", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "25/07/15", "amcTo": "24/07/16", "status": "ACTIVE"}, {"id": "PH-2451-238", "machineNo": "PH-2451", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9918033239", "place": "NA", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "16/02/18", "amcTo": "15/02/19", "status": "ACTIVE"}, {"id": "PH-3013-239", "machineNo": "PH-3013", "model": "AR-6020V", "party": "RESERVE POLICE LINE", "contact": "9170196622, 6307744952", "place": "", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "26/02/21", "amcTo": "25/02/22", "status": "ACTIVE"}, {"id": "PH-3020-240", "machineNo": "PH-3020", "model": "AR-6020NV", "party": "NALKOOP KHAND", "contact": "9454414685", "place": "", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "09/03/21", "amcTo": "08/03/22", "status": "ACTIVE"}, {"id": "PH-1710-241", "machineNo": "PH-1710", "model": "AR-5620N", "party": "RAJYA KRISHI UTPADAN MANDI PARISHAD", "contact": "9415519230/8004757 658", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "01/10/13", "amcTo": "30/09/14", "status": "ACTIVE"}, {"id": "PH-182-242", "machineNo": "PH-182", "model": "AR-5316N", "party": "TUBEWELL DIVISION, CIRCLE OFFICE", "contact": "05542-246423, 9415175632", "place": "CIRCLE OFFICE 1", "city": "BASTI", "contType": "SSA", "amcFrom": "01/04/11", "amcTo": "31/03/12", "status": "ACTIVE"}, {"id": "PH-2009-243", "machineNo": "PH-2009", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9235250607", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2107-244", "machineNo": "PH-2107", "model": "AR-6020", "party": "EXECUTIVE ENGINEER", "contact": "8127715213/983 9459929", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "21/11/15", "amcTo": "20/11/16", "status": "ACTIVE"}, {"id": "PH-2679-245", "machineNo": "PH-2679", "model": "AR-6020NV", "party": "NALKOOP KHAND", "contact": "9454415203", "place": "", "city": "BASTI", "contType": "W", "amcFrom": "15/03/19", "amcTo": "14/03/21", "status": "ACTIVE"}, {"id": "PH-3196-246", "machineNo": "PH-3196", "model": "AR-6031NV", "party": "DIRECTORATE OF PENSION", "contact": "9335342111, 9140551907", "place": "", "city": "BASTI", "contType": "W", "amcFrom": "02/03/22", "amcTo": "01/03/23", "status": "ACTIVE"}, {"id": "PH-1792-247", "machineNo": "PH-1792", "model": "AR-5620N", "party": "TUBEWELL DIVISION", "contact": "9450883501", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "21/03/14", "amcTo": "20/03/15", "status": "ACTIVE"}, {"id": "PH-2007-248", "machineNo": "PH-2007", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9415810648", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "07/08/15", "amcTo": "06/08/16", "status": "ACTIVE"}, {"id": "PH-2373-249", "machineNo": "PH-2373", "model": "AR-6020N", "party": "D.F.O", "contact": "8765941080/ 9415693909", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "18/05/17", "amcTo": "17/05/18", "status": "ACTIVE"}, {"id": "PH-2525-250", "machineNo": "PH-2525", "model": "AR-6020N", "party": "GOVT. I.T.I", "contact": "9450878863", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "09/04/18", "amcTo": "08/04/20", "status": "ACTIVE"}, {"id": "PH-3106-251", "machineNo": "PH-3106", "model": "AR-6020NV", "party": "BARODA UP BANK", "contact": "9452043221, 7007297118", "place": "", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "15/09/21", "amcTo": "13/09/23", "status": "ACTIVE"}, {"id": "PH-1664-252", "machineNo": "PH-1664", "model": "AR-5620N", "party": "TUBEWELL CIRCLE", "contact": "0551-2201288", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "01/08/21", "amcTo": "31/07/22", "status": "ACTIVE"}, {"id": "PH-1764-253", "machineNo": "PH-1764", "model": "AR-5618", "party": "U.P. BRIDGE CORPORATION LTD.", "contact": "9695479706", "place": "N/A", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "11/08/21", "amcTo": "10/08/22", "status": "ACTIVE"}, {"id": "PH-2002-254", "machineNo": "PH-2002", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9450739816/893", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "14/07/15", "amcTo": "13/07/16", "status": "ACTIVE"}, {"id": "PH-2161-255", "machineNo": "PH-2161", "model": "AR-6020", "party": "DRAINAGE KHAND(EXECUTIVE ENGINEER)", "contact": "9889595104/ 8004963488", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "09/03/16", "amcTo": "08/03/17", "status": "ACTIVE"}, {"id": "PH-2328-256", "machineNo": "PH-2328", "model": "AR-6020N", "party": "D.F.O.", "contact": "9415380289/ 0551- 2333108", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "21/03/17", "amcTo": "20/03/18", "status": "ACTIVE"}, {"id": "PH-2418-257", "machineNo": "PH-2418", "model": "AR-6020N", "party": "D.F.O.", "contact": "n/a", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "24/11/17", "amcTo": "23/11/18", "status": "ACTIVE"}, {"id": "PH-251-258", "machineNo": "PH-251", "model": "AR-5320", "party": "CMS, MALE", "contact": "0551-2833500, 9415692558", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "04/06/20", "amcTo": "03/06/21", "status": "ACTIVE"}, {"id": "PH-2999-259", "machineNo": "PH-2999", "model": "AR-6020NV", "party": "ZILA KARAGAR", "contact": "0551-2282325", "place": "", "city": "GORAKHPU R", "contType": "W", "amcFrom": "18/01/21", "amcTo": "17/01/23", "status": "ACTIVE"}, {"id": "PH-3028-260", "machineNo": "PH-3028", "model": "AR-6023NV", "party": "TUBEWELL CONSTRUCTION DIVISION", "contact": "6394111575, 8299674225, 9670559765", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "01/09/22", "amcTo": "31/08/23", "status": "ACTIVE"}, {"id": "PH-2187-261", "machineNo": "PH-2187", "model": "AR-6020N", "party": "NALKOOP KHAND-I", "contact": "9807310325", "place": "N/A", "city": "GORAKHPUR", "contType": "SSA", "amcFrom": "10/08/22", "amcTo": "09/08/23", "status": "ACTIVE"}, {"id": "PH-3563-262", "machineNo": "PH-3563", "model": "BP-20M28T", "party": "PENSION DIRECTORATE", "contact": "8756641544", "place": "", "city": "GORAKHPUR", "contType": "W", "amcFrom": "25/09/24", "amcTo": "24/09/25", "status": "ACTIVE"}, {"id": "PH-2063-263", "machineNo": "PH-2063", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9839509057 /9450266011", "place": "N/A", "city": "KUSHI NAGAR", "contType": "W", "amcFrom": "23/07/15", "amcTo": "22/07/16", "status": "ACTIVE"}, {"id": "PH-2160-264", "machineNo": "PH-2160", "model": "AR-6020N", "party": "D.F.O", "contact": "9721275325/ 9415767143", "place": "N/A", "city": "KUSHI NAGAR", "contType": "W", "amcFrom": "10/03/16", "amcTo": "09/03/17", "status": "ACTIVE"}, {"id": "PH-2062-265", "machineNo": "PH-2062", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05568-227268/9 450676667", "place": "N/A", "city": "DEORIA", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2242-266", "machineNo": "PH-2242", "model": "AR-6020N", "party": "GOVT. I.T.I", "contact": "9984824003", "place": "N/A", "city": "DEORIA", "contType": "SSA", "amcFrom": "09/11/17", "amcTo": "08/11/18", "status": "ACTIVE"}, {"id": "PH-2622-267", "machineNo": "PH-2622", "model": "AR-6020N", "party": "EXECUTIVE ENGG NALKOOP", "contact": "9454414948", "place": "TUBEWELL DIVIS", "city": "DEORIA", "contType": "W", "amcFrom": "17/01/19", "amcTo": "16/01/21", "status": "ACTIVE"}, {"id": "PH-2939-268", "machineNo": "PH-2939", "model": "AR-6031NV", "party": "BHARAT PETROLEUM", "contact": "8947052877, 7311119927", "place": "MACHINE SOLD B", "city": "DEORIA", "contType": "W", "amcFrom": "10/08/20", "amcTo": "09/08/21", "status": "ACTIVE"}, {"id": "PH-3037-269", "machineNo": "PH-3037", "model": "AR-6020NV", "party": "NALKOOP KHAND - 2", "contact": "8931997216", "place": "SALEMPUR", "city": "DEORIA", "contType": "W", "amcFrom": "26/03/21", "amcTo": "25/03/23", "status": "ACTIVE"}, {"id": "PH-2258-270", "machineNo": "PH-2258", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "PURCHASE", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2259-271", "machineNo": "PH-2259", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "QUALITY", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2260-272", "machineNo": "PH-2260", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "C & M", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2261-273", "machineNo": "PH-2261", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "CONTRACT", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2262-274", "machineNo": "PH-2262", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "9650998814", "place": "HOSPITAL", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2263-275", "machineNo": "PH-2263", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "9473584231", "place": "H R HALL", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2806-276", "machineNo": "PH-2806", "model": "MX-M315NV", "party": "NTPC TANDA", "contact": "7379764175, 9450982314, 05273-284099", "place": "DR. AMRIT LAL IS", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "02/12/19", "amcTo": "01/12/20", "status": "ACTIVE"}, {"id": "PH-3045-277", "machineNo": "PH-3045", "model": "AR-6020NV", "party": "MAHAMAYA RAJKIYA ALLOPATHIC MEDICAL COLLEGE", "contact": "9719430490, 9839320222", "place": "CMS OFFICE", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "17/05/21", "amcTo": "16/05/23", "status": "ACTIVE"}, {"id": "PH-2142-278", "machineNo": "PH-2142", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9451704708/ 9454415390", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "15/02/16", "amcTo": "14/02/17", "status": "ACTIVE"}, {"id": "PH-2008-279", "machineNo": "PH-2008", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "n/a", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "20/07/15", "amcTo": "19/07/16", "status": "ACTIVE"}, {"id": "PH-2006-280", "machineNo": "PH-2006", "model": "AR-5618S", "party": "R K PUBLIC SCHOOL", "contact": "9450493447/ 9918231590", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "18/08/15", "amcTo": "17/08/16", "status": "ACTIVE"}, {"id": "PH-3679-281", "machineNo": "PH-3679", "model": "BP-20M22T", "party": "R.K. PUBLIC SCHOOL", "contact": "9005889889", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "24/07/25", "amcTo": "23/07/26", "status": "ACTIVE"}, {"id": "PH-2012-282", "machineNo": "PH-2012", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "052281244865", "place": "N/A", "city": "MAHOBA", "contType": "W", "amcFrom": "23/07/15", "amcTo": "22/07/16", "status": "ACTIVE"}, {"id": "PH-1762-283", "machineNo": "PH-1762", "model": "AR-5620N", "party": "D.T.O.OFFICE(C.M.O.)", "contact": "9935930981/ 05282225684", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "24/02/14", "amcTo": "23/02/15", "status": "ACTIVE"}, {"id": "PH-2014-284", "machineNo": "PH-2014", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "n/a", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2176-285", "machineNo": "PH-2176", "model": "AR-6020N", "party": "ZILA MISSION PRABHANDAN EKAIN/A", "contact": "9415266207/ 9450263080", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "05/04/16", "amcTo": "04/04/17", "status": "ACTIVE"}, {"id": "PH-2226-286", "machineNo": "PH-2226", "model": "AR-6020N", "party": "D M OFFICE", "contact": "9919172513", "place": "", "city": "HAMIRPUR", "contType": "W", "amcFrom": "13/07/16", "amcTo": "12/07/17", "status": "ACTIVE"}, {"id": "PH-2227-287", "machineNo": "PH-2227", "model": "AR-6020N", "party": "D M OFFICE", "contact": "9454416011", "place": "DM RESIDENCE", "city": "HAMIRPUR", "contType": "W", "amcFrom": "13/07/16", "amcTo": "12/07/17", "status": "ACTIVE"}, {"id": "PH-2652-288", "machineNo": "PH-2652", "model": "AR-6026NV", "party": "MAUDAHA BANDH NIRMAN KHAND", "contact": "8858121537", "place": "NA", "city": "HAMIRPUR", "contType": "W", "amcFrom": "28/02/19", "amcTo": "27/02/20", "status": "ACTIVE"}, {"id": "PH-1289-289", "machineNo": "PH-1289", "model": "AR-5516", "party": "IRRIGATION DIVISION", "contact": "9415179303, 9415104111", "place": "MINOR IRRIGATIO", "city": "LALITPUR", "contType": "SSA", "amcFrom": "16/02/21", "amcTo": "15/02/22", "status": "ACTIVE"}, {"id": "PH-1682-290", "machineNo": "PH-1682", "model": "MX-M452N", "party": "IRRIGATION WORK CIRCLE (SHARP)", "contact": "9415220677, 9455067880", "place": "RAJGHAT NIRMA", "city": "LALITPUR", "contType": "W", "amcFrom": "18/03/13", "amcTo": "17/03/14", "status": "ACTIVE"}, {"id": "PH-2059-291", "machineNo": "PH-2059", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05176-275097/ 9935119447", "place": "N/A", "city": "LALITPUR", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2199-292", "machineNo": "PH-2199", "model": "AR-6020N", "party": "D.F.O", "contact": "9598062129", "place": "N/A", "city": "LALITPUR", "contType": "W", "amcFrom": "11/04/16", "amcTo": "10/04/17", "status": "ACTIVE"}, {"id": "PH-393-293", "machineNo": "PH-393", "model": "AR-5316", "party": "NATIONAL SAMPLE SURVEY ORGANISATION (FOD)", "contact": "0510-2332477", "place": "NA", "city": "JHANSI", "contType": "W", "amcFrom": "24/09/08", "amcTo": "23/09/09", "status": "ACTIVE"}, {"id": "PH-893-294", "machineNo": "PH-893", "model": "AR-5320E", "party": "DSM, FOREST CORPORATION", "contact": "0510-2472463", "place": "NA", "city": "JHANSI", "contType": "SSA", "amcFrom": "01/05/10", "amcTo": "30/04/11", "status": "ACTIVE"}, {"id": "PH-1072-295", "machineNo": "PH-1072", "model": "AR-5516", "party": "DISTT. PROBATION OFFICER", "contact": "9452030950, 9415589304", "place": "ZILA PROBATION", "city": "JHANSI", "contType": "W", "amcFrom": "31/08/09", "amcTo": "30/08/10", "status": "ACTIVE"}, {"id": "PH-1073-296", "machineNo": "PH-1073", "model": "AR-5516", "party": "DY. PROBATION OFFICER", "contact": "0510-2445221", "place": "NA", "city": "JHANSI", "contType": "W", "amcFrom": "31/08/09", "amcTo": "30/08/10", "status": "ACTIVE"}, {"id": "PH-1581-297", "machineNo": "PH-1581", "model": "AR-5618N", "party": "KOSHAGAR EVAM PENSION", "contact": "9140786694", "place": "UPPER NIDESHA", "city": "JHANSI", "contType": "W", "amcFrom": "14/09/12", "amcTo": "13/09/13", "status": "ACTIVE"}, {"id": "PH-1602-298", "machineNo": "PH-1602", "model": "AR-5620", "party": "U.P. RAJYA BHANDARAN", "contact": "9415311428, 8381875238", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "08/11/12", "amcTo": "07/11/13", "status": "ACTIVE"}, {"id": "PH-1603-299", "machineNo": "PH-1603", "model": "AR-5620N", "party": "IRRIGATION WORKSHOP", "contact": "9450074979, 9936930276", "place": "", "city": "JHANSI", "contType": "SSA", "amcFrom": "01/06/20", "amcTo": "31/05/21", "status": "ACTIVE"}, {"id": "PH-2057-300", "machineNo": "PH-2057", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9935119447/ 9721599425", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2419-301", "machineNo": "PH-2419", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "8840120420/ 9506386550", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "25/11/17", "amcTo": "24/11/18", "status": "ACTIVE"}, {"id": "PH-2990-302", "machineNo": "PH-2990", "model": "AR-6020V", "party": "FOREST DEPARTMENT - DLM", "contact": "9919353436", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "14/01/21", "amcTo": "13/01/24", "status": "ACTIVE"}, {"id": "PH-3191-303", "machineNo": "PH-3191", "model": "AR-6020NV", "party": "IRRIGATION & FLOOD CONTROL DEPARTMENT", "contact": "9899963573", "place": "WORKSHOP DIVI", "city": "JHANSI", "contType": "W", "amcFrom": "11/02/22", "amcTo": "10/02/23", "status": "ACTIVE"}, {"id": "PH-1575-304", "machineNo": "PH-1575", "model": "AR-5618N", "party": "KOSHAGAR EVAM PENSION", "contact": "9452222525, 7398238421", "place": "UPPER NIDESHA", "city": "BANDA", "contType": "W", "amcFrom": "12/09/12", "amcTo": "11/09/13", "status": "ACTIVE"}, {"id": "PH-171-305", "machineNo": "PH-171", "model": "AR-M205", "party": "DISTRICT SOCIAL WELFARE", "contact": "9450169787", "place": "NA", "city": "BANDA", "contType": "SSA", "amcFrom": "01/01/11", "amcTo": "01/12/11", "status": "ACTIVE"}, {"id": "PH-172-306", "machineNo": "PH-172", "model": "AR-5320E", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9451261104", "place": "", "city": "BANDA", "contType": "SSA", "amcFrom": "01/01/14", "amcTo": "31/12/15", "status": "ACTIVE"}, {"id": "PH-1800-307", "machineNo": "PH-1800", "model": "AR-5620N", "party": "LAGHU DAL NAHAR KHAND", "contact": "05192-220958/9 454414340", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "28/03/14", "amcTo": "27/03/15", "status": "ACTIVE"}, {"id": "PH-1905-308", "machineNo": "PH-1905", "model": "AR-5620N", "party": "NALKOOP MANDAL", "contact": "8445046952", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "10/02/15", "amcTo": "09/02/16", "status": "ACTIVE"}, {"id": "PH-1906-309", "machineNo": "PH-1906", "model": "AR-5620N", "party": "NALKOOP KHAND", "contact": "n/a", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "10/02/15", "amcTo": "09/02/16", "status": "ACTIVE"}, {"id": "PH-2058-310", "machineNo": "PH-2058", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05192-285393", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "25/07/15", "amcTo": "24/07/16", "status": "ACTIVE"}, {"id": "PH-2254-311", "machineNo": "PH-2254", "model": "AR-6020", "party": "RURAL ENGEERING SERVICES", "contact": "0", "place": "", "city": "BANDA", "contType": "W", "amcFrom": "22/10/16", "amcTo": "21/10/17", "status": "ACTIVE"}, {"id": "PH-2860-312", "machineNo": "PH-2860", "model": "AR-6020NV", "party": "MANDI PARISHAD", "contact": "9936223953, 9956808728", "place": "NIDESHAK - NIRM", "city": "BANDA", "contType": "W", "amcFrom": "25/02/20", "amcTo": "24/02/21", "status": "ACTIVE"}, {"id": "PH-3582-313", "machineNo": "PH-3582", "model": "BP-20C20Z", "party": "ADEN NCR", "contact": "7518402574, 9794825722", "place": "SSE/WORKS/ NCR", "city": "BANDA", "contType": "W", "amcFrom": "28/10/24", "amcTo": "27/10/25", "status": "ACTIVE"}, {"id": "PH-3532-314", "machineNo": "PH-3532", "model": "BP-20C20", "party": "ADEN. NCR", "contact": "7388483585", "place": "ADEN, NCR", "city": "BANDA", "contType": "W", "amcFrom": "10/07/24", "amcTo": "09/07/25", "status": "ACTIVE"}, {"id": "PH-199-315", "machineNo": "PH-199", "model": "AR-5320E", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05198-236047, 9453477805", "place": "NA", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "21/05/08", "amcTo": "20/05/09", "status": "ACTIVE"}, {"id": "PH-2013-316", "machineNo": "PH-2013", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05298-236047", "place": "N/A", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2255-317", "machineNo": "PH-2255", "model": "AR-6020", "party": "RURAL ENGEERING SERVICES", "contact": "9452598747", "place": "", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "22/10/16", "amcTo": "21/10/17", "status": "ACTIVE"}, {"id": "PH-3029-318", "machineNo": "PH-3029", "model": "AR-6020V", "party": "FOREST DEPARTMENT - DLM", "contact": "9695178562", "place": "", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "17/03/21", "amcTo": "16/03/24", "status": "ACTIVE"}, {"id": "PH-3102-319", "machineNo": "PH-3102", "model": "AR-6020NV", "party": "ZILA KARAGAR, CHITRAKOOT", "contact": "8433417992", "place": "DISTT. JAIL", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "15/09/21", "amcTo": "13/09/23", "status": "ACTIVE"}, {"id": "PH-2382-320", "machineNo": "PH-2382", "model": "AR-6020N", "party": "D.F.O", "contact": "9559075786", "place": "N/A", "city": "CHITRAKOOT", "contType": "SSA", "amcFrom": "01/12/21", "amcTo": "30/11/22", "status": "ACTIVE"}, {"id": "PH-3113-321", "machineNo": "PH-3113", "model": "AR-6020NV", "party": "U P Treasury Collectrate", "contact": "9956384445", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "11/10/21", "amcTo": "10/10/22", "status": "ACTIVE"}, {"id": "PH-3531-322", "machineNo": "PH-3531", "model": "BP-20C20", "party": "SENIOR SECTION ENGG. NCR", "contact": "9794848049", "place": "SSE/PW/CNTD, NCR", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "10/07/24", "amcTo": "09/07/25", "status": "ACTIVE"}, {"id": "PH-3420-323", "machineNo": "PH-3420", "model": "MX-M464N", "party": "JAWAHAR NAVODAYA VIDYALAYA", "contact": "05194-222388", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "24/09/22", "amcTo": "23/09/23", "status": "ACTIVE"}, {"id": "PH-1737-324", "machineNo": "PH-1737", "model": "AR-5620V", "party": "MUKHYA PASHU CHIKITSHA ADHIKARI", "contact": "9452574037", "place": "N/A", "city": "ORAI", "contType": "W", "amcFrom": "20/12/13", "amcTo": "19/12/14", "status": "ACTIVE"}, {"id": "PH-2011-325", "machineNo": "PH-2011", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9621947729", "place": "N/A", "city": "ORAI", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-3072-326", "machineNo": "PH-3072", "model": "AR-6026NV", "party": "GOVT ITI, ORAI", "contact": "7905883428", "place": "GOVT ITI", "city": "ORAI", "contType": "W", "amcFrom": "23/08/21", "amcTo": "22/08/22", "status": "ACTIVE"}, {"id": "PH-3464-327", "machineNo": "PH-3464", "model": "BP-20M22T", "party": "GOVT. ITI", "contact": "8299804020, 7417103881", "place": "", "city": "ORAI", "contType": "W", "amcFrom": "20/03/24", "amcTo": "19/03/25", "status": "ACTIVE"}, {"id": "PH-3425-328", "machineNo": "PH-3425", "model": "BP-20M22T", "party": "NALKOOP KHAND", "contact": "8090393907", "place": "", "city": "FAIZABAD", "contType": "W", "amcFrom": "04/12/23", "amcTo": "03/12/24", "status": "ACTIVE"}, {"id": "PH-3756-329", "machineNo": "PH-3756", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3757-330", "machineNo": "PH-3757", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3758-331", "machineNo": "PH-3758", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3705-332", "machineNo": "PH-3705", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984165", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "04/11/25", "amcTo": "03/11/26", "status": "ACTIVE"}, {"id": "PH-3709-333", "machineNo": "PH-3709", "model": "BP-20M22T", "party": "MAHAMAYA RAJKIYA ALLOPATHIC MEDICAL COLLEGE", "contact": "9719430490", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "12/11/25", "amcTo": "11/11/26", "status": "ACTIVE"}, {"id": "PH-3720-334", "machineNo": "PH-3720", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "6306598451", "place": "", "city": "BANDA", "contType": "W", "amcFrom": "16/12/25", "amcTo": "15/12/26", "status": "ACTIVE"}, {"id": "PH-3706-335", "machineNo": "PH-3706", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "9305985018", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "07/11/25", "amcTo": "06/11/26", "status": "ACTIVE"}, {"id": "PH-3719-336", "machineNo": "PH-3719", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984143, 8318705698", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "15/12/25", "amcTo": "14/12/26", "status": "ACTIVE"}, {"id": "PH-3732-337", "machineNo": "PH-3732", "model": "BP-20C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "7905615665", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "27/12/25", "amcTo": "26/12/26", "status": "ACTIVE"}, {"id": "PH-3725-338", "machineNo": "PH-3725", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984141", "place": "", "city": "ORAI", "contType": "W", "amcFrom": "26/12/25", "amcTo": "25/12/26", "status": "ACTIVE"}, {"id": "PH-3740-339", "machineNo": "PH-3740", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "7897064988, 8765984144", "place": "", "city": "MAHOBA", "contType": "W", "amcFrom": "03/01/26", "amcTo": "03/01/27", "status": "ACTIVE"}];
+
+function parseDate(d) {
+  if (!d) return null;
+  const parts = d.split('/');
+  if (parts.length !== 3) return null;
+  let [dd, mm, yy] = parts;
+  yy = yy.length === 2 ? (parseInt(yy) < 50 ? '20' + yy : '19' + yy) : yy;
+  const dt = new Date(parseInt(yy), parseInt(mm) - 1, parseInt(dd));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function daysUntil(dateStr) {
+  const dt = parseDate(dateStr);
+  if (!dt) return null;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  dt.setHours(0,0,0,0);
+  return Math.round((dt - today) / 86400000);
+}
+
+function amcBadge(days, contType) {
+  if (days === null) return { label: 'No Date', color: 'bg-slate-100 text-slate-500' };
+  if (days < 0) return { label: 'Expired', color: 'bg-red-50 text-red-700 border border-red-200' };
+  const isWarranty = (contType || '').toUpperCase() === 'W';
+  return { label: isWarranty ? 'In Warranty' : 'AMC', color: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+}
+
+const STATUS_OPTIONS = ['ACTIVE', 'INACTIVE', 'BUYBACK', 'CLOSED'];
+const STATUS_LABELS = { ACTIVE: 'Active', INACTIVE: 'Inactive', BUYBACK: 'Buyback', CLOSED: 'Closed' };
+const STATUS_COLORS = {
+  ACTIVE: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  INACTIVE: 'bg-slate-100 text-slate-500 border border-slate-200',
+  BUYBACK: 'bg-purple-50 text-purple-700 border border-purple-200',
+  CLOSED: 'bg-red-50 text-red-700 border border-red-200',
+};
+function normStatus(s) {
+  const up = (s || 'ACTIVE').toUpperCase();
+  return STATUS_OPTIONS.includes(up) ? up : 'ACTIVE';
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-lib="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.setAttribute('data-lib', src);
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Library load nahi hui: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function parseUploadedFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv')) {
+    if (typeof Papa === 'undefined') await loadScriptOnce('https://unpkg.com/papaparse@5.4.1/papaparse.min.js');
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => resolve(res.data),
+        error: reject,
+      });
+    });
+  }
+  if (typeof XLSX === 'undefined') await loadScriptOnce('https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js');
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        resolve(rows);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function getField(row, ...keys) {
+  const rowKeys = Object.keys(row);
+  for (const k of keys) {
+    const found = rowKeys.find(rk => rk.trim().toLowerCase().replace(/[.\s]/g, '') === k.toLowerCase().replace(/[.\s]/g, ''));
+    if (found && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+  }
+  return '';
+}
+
+const COMPANY = {
+  name: 'ARGUS BUSINESS MACHINES (P) LTD.',
+  address: '3rd Floor, B-Block, Suraj Deep Complex, 1 Jopling Road, Lucknow-226001',
+  phone: '0522-2209608 / 3528993, 9839467547',
+  email: 'argus.lko1@gmail.com',
+  gstin: '09AACCA0105F1ZE',
+  pan: 'AACCA0105F',
+  contactName: 'Shivdutt Pandey',
+  contactPhone: '9839467547',
+  footer1: 'DIGITAL PHOTOCOPIERS  |  DIGITAL MULTIFUNCTION DEVICES  |  DISPLAY PANELS',
+  footer2: 'AIR PURIFIERS  |  TOTAL RANGE OF OFFICE & HOSPITAL FURNITURE',
+};
+
+function todayISO() { return new Date().toISOString().slice(0,10); }
+
+function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+// ---- Storage helpers ----
+async function loadKey(key, fallback) {
+  try {
+    const res = await window.storage.get(key, false);
+    if (res && res.value) return JSON.parse(res.value);
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+async function saveKey(key, value) {
+  try {
+    await window.storage.set(key, JSON.stringify(value), false);
+  } catch (e) {
+    console.error('save failed', key, e);
+  }
+}
+
+const TABS = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'machines', label: 'Machines', icon: Printer },
+  { id: 'sales', label: 'Sales', icon: FileText },
+  { id: 'payments', label: 'Payments', icon: IndianRupee },
+  { id: 'log', label: 'Log', icon: ClipboardList },
+];
+
+function App() {
+  const [ready, setReady] = useState(false);
+  const [tab, setTab] = useState('home');
+  const [machinesView, setMachinesView] = useState('list');
+  const [jumpToParty, setJumpToParty] = useState(null);
+  const [showBackup, setShowBackup] = useState(false);
+  const goTo = useCallback((tabId, view, partyName) => {
+    setTab(tabId);
+    if (view) setMachinesView(view);
+    setJumpToParty(partyName || null);
+  }, []);
+  const [machines, setMachines] = useState([]);
+  const [quotations, setQuotations] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [dailyLogs, setDailyLogs] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [items, setItems] = useState([]);
+  const [targets, setTargets] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      const [m, q, o, p, l, tk, it, t] = await Promise.all([
+        loadKey('argus-machines', SEED_MACHINES),
+        loadKey('argus-quotations', []),
+        loadKey('argus-orders', []),
+        loadKey('argus-payments', []),
+        loadKey('argus-dailylogs', []),
+        loadKey('argus-tasks', []),
+        loadKey('argus-items', []),
+        loadKey('argus-targets', {}),
+      ]);
+      setMachines(m);
+      setQuotations(q);
+      setOrders(o);
+      setPayments(p);
+      setDailyLogs(l);
+      setTasks(tk);
+      setItems(it);
+      setTargets(t);
+      setReady(true);
+    })();
+  }, []);
+
+  useEffect(() => { if (ready) saveKey('argus-machines', machines); }, [machines, ready]);
+  useEffect(() => { if (ready) saveKey('argus-quotations', quotations); }, [quotations, ready]);
+  useEffect(() => { if (ready) saveKey('argus-orders', orders); }, [orders, ready]);
+  useEffect(() => { if (ready) saveKey('argus-payments', payments); }, [payments, ready]);
+  useEffect(() => { if (ready) saveKey('argus-dailylogs', dailyLogs); }, [dailyLogs, ready]);
+  useEffect(() => { if (ready) saveKey('argus-tasks', tasks); }, [tasks, ready]);
+  useEffect(() => { if (ready) saveKey('argus-items', items); }, [items, ready]);
+  useEffect(() => { if (ready) saveKey('argus-targets', targets); }, [targets, ready]);
+
+  const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
+
+  const expiringSoon = useMemo(() => {
+    return activeMachines
+      .filter(m => (m.city || '').trim().toUpperCase() === 'LUCKNOW')
+      .map(m => ({ ...m, days: daysUntil(m.amcTo) }))
+      .filter(m => m.days !== null && m.days <= 90)
+      .sort((a,b) => a.days - b.days);
+  }, [activeMachines]);
+
+  const outstanding = useMemo(() => {
+    return payments.reduce((sum, p) => sum + (Number(p.invoiceAmount||0) - Number(p.receivedAmount||0)), 0);
+  }, [payments]);
+
+  const thisMonthTarget = targets[monthKey()] || 0;
+  const thisMonthAchieved = useMemo(() => {
+    return payments
+      .filter(p => (p.date||'').startsWith(monthKey()))
+      .reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  }, [payments]);
+
+  const dueTasks = useMemo(() => {
+    const today = todayISO();
+    return tasks.filter(t => !t.done && t.dueDate <= today).sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+  }, [tasks]);
+
+  const completeTask = useCallback((id) => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const today = todayISO();
+    setTasks(tasks.map(x => x.id === id ? { ...x, done: true, completedDate: today } : x));
+    setDailyLogs(prev => [{ id: uid(), date: today, note: `✔ Task complete: ${t.title}`, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
+  }, [tasks]);
+
+  if (!ready) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+          <p className="text-slate-500 text-sm">Loading Argus Tracker...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden">
+      <Header expiringCount={expiringSoon.length} tab={tab} onBack={() => setTab('home')} onOpenBackup={() => setShowBackup(true)} />
+      <div className="flex-1 overflow-y-auto pb-20">
+        {tab === 'home' && (
+          <HomeTab
+            machines={machines}
+            expiringSoon={expiringSoon}
+            quotations={quotations}
+            orders={orders}
+            outstanding={outstanding}
+            thisMonthTarget={thisMonthTarget}
+            thisMonthAchieved={thisMonthAchieved}
+            setTargets={setTargets}
+            targets={targets}
+            dueTasks={dueTasks}
+            completeTask={completeTask}
+            goTo={goTo}
+          />
+        )}
+        {tab === 'machines' && <MachinesTab machines={machines} setMachines={setMachines} view={machinesView} setView={setMachinesView} jumpToParty={jumpToParty} />}
+        {tab === 'sales' && (
+          <SalesTab
+            machines={machines}
+            quotations={quotations}
+            setQuotations={setQuotations}
+            orders={orders}
+            setOrders={setOrders}
+            items={items}
+            setItems={setItems}
+          />
+        )}
+        {tab === 'payments' && (
+          <PaymentsTab machines={machines} payments={payments} setPayments={setPayments} />
+        )}
+        {tab === 'log' && (
+          <LogTab
+            dailyLogs={dailyLogs}
+            setDailyLogs={setDailyLogs}
+            tasks={tasks}
+            setTasks={setTasks}
+            completeTask={completeTask}
+          />
+        )}
+      </div>
+      <BottomNav tab={tab} setTab={setTab} badgeCount={expiringSoon.length} />
+      {showBackup && (
+        <BackupModal
+          data={{ machines, quotations, orders, payments, dailyLogs, tasks, items, targets }}
+          setters={{ setMachines, setQuotations, setOrders, setPayments, setDailyLogs, setTasks, setItems, setTargets }}
+          onClose={() => setShowBackup(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function Header({ expiringCount, tab, onBack, onOpenBackup }) {
+  return (
+    <div className="bg-teal-800 text-white px-4 pt-4 pb-3 shadow-sm shrink-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {tab !== 'home' ? (
+            <button onClick={onBack} className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center ring-2 ring-teal-400/40">
+              <ChevronLeft size={18} className="text-teal-100" />
+            </button>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center ring-2 ring-teal-400/40 relative">
+              <span className="text-sm font-black text-amber-400 leading-none" style={{ fontFamily: 'Georgia, serif' }}>A</span>
+              <span className="absolute top-[3px] w-[5px] h-[5px] rounded-full bg-amber-400" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-base font-bold tracking-tight leading-none">Argus Tracker</h1>
+            <p className="text-[11px] text-teal-200 leading-none mt-1">Shiv Dutt Pandey · Service Desk</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {expiringCount > 0 && (
+            <div className="flex items-center gap-1 bg-amber-500/90 text-amber-950 text-xs font-semibold px-2 py-1 rounded-full">
+              <Bell size={12} />
+              {expiringCount}
+            </div>
+          )}
+          <button onClick={onOpenBackup} className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center">
+            <Settings size={16} className="text-teal-100" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({ tab, setTab, badgeCount }) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-stretch py-1 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+      {TABS.map(t => {
+        const Icon = t.icon;
+        const active = tab === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 flex-1 relative ${active ? 'text-teal-700' : 'text-slate-400'}`}
+          >
+            <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+            <span className={`text-[10px] ${active ? 'font-semibold' : ''}`}>{t.label}</span>
+            {t.id === 'home' && badgeCount > 0 && (
+              <span className="absolute top-0 right-4 w-2 h-2 rounded-full bg-amber-500" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Card({ children, className = '' }) {
+  return <div className={`bg-white rounded-2xl border border-slate-200 p-4 ${className}`}>{children}</div>;
+}
+
+function SectionTitle({ children, action }) {
+  return (
+    <div className="flex items-center justify-between mb-2 px-1">
+      <h2 className="text-sm font-bold text-slate-800">{children}</h2>
+      {action}
+    </div>
+  );
+}
+
+// ---------------- HOME TAB ----------------
+function HomeTab({ machines, expiringSoon, quotations, orders, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, goTo }) {
+  const [editTarget, setEditTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
+  const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
+  const pendingOrders = orders.filter(o => o.deliveryStatus !== 'Delivered').length;
+  const pct = thisMonthTarget > 0 ? Math.min(100, Math.round((thisMonthAchieved / thisMonthTarget) * 100)) : 0;
+  const activeCount = machines.filter(m => normStatus(m.status) === 'ACTIVE').length;
+  const uniquePartyCount = useMemo(() => new Set(machines.map(m => m.party)).size, [machines]);
+
+  const duePartiesGrouped = useMemo(() => {
+    const map = {};
+    expiringSoon.forEach(m => {
+      if (!map[m.party]) map[m.party] = { party: m.party, city: m.city, machines: [] };
+      map[m.party].machines.push(m);
+    });
+    return Object.values(map)
+      .map(p => ({ ...p, minDays: Math.min(...p.machines.map(m => m.days)) }))
+      .sort((a, b) => a.minDays - b.minDays);
+  }, [expiringSoon]);
+
+  return (
+    <div className="px-4 pt-4 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Active Machines</p>
+          <p className="text-2xl font-bold text-slate-800 mt-0.5">{activeCount} <span className="text-xs font-normal text-slate-400">/ {machines.length}</span></p>
+        </Card>
+        <Card className="!p-3">
+          <button onClick={() => goTo('machines', 'parties')} className="w-full text-left">
+            <p className="text-[11px] text-slate-500">Parties</p>
+            <p className="text-2xl font-bold text-slate-800 mt-0.5">{uniquePartyCount}</p>
+          </button>
+        </Card>
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Pending Quotes</p>
+          <p className="text-2xl font-bold text-slate-800 mt-0.5">{pendingQuotes}</p>
+        </Card>
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Outstanding</p>
+          <p className="text-2xl font-bold text-red-600 mt-0.5">₹{outstanding.toLocaleString('en-IN')}</p>
+        </Card>
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-bold text-slate-800">This Month's Target</p>
+          <button onClick={() => setEditTarget(!editTarget)} className="text-xs text-teal-700 font-semibold">
+            {editTarget ? 'Cancel' : 'Set'}
+          </button>
+        </div>
+        {editTarget ? (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={targetInput}
+              onChange={e => setTargetInput(e.target.value)}
+              placeholder="Target amount ₹"
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-base"
+            />
+            <button
+              onClick={() => {
+                const mk = monthKey();
+                setTargets({ ...targets, [mk]: Number(targetInput) || 0 });
+                setEditTarget(false);
+              }}
+              className="bg-teal-700 text-white text-sm font-semibold px-4 rounded-lg"
+            >Save</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>₹{thisMonthAchieved.toLocaleString('en-IN')} collected</span>
+              <span>₹{thisMonthTarget.toLocaleString('en-IN')} target</span>
+            </div>
+            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved</p>
+          </>
+        )}
+      </Card>
+
+      <div>
+        <SectionTitle action={<button onClick={() => goTo('log')} className="text-xs text-teal-700 font-semibold flex items-center">Sabhi Tasks <ChevronRight size={14} /></button>}>
+          Aaj ke / Bakaya Tasks{dueTasks.length > 0 ? ` (${dueTasks.length})` : ''}
+        </SectionTitle>
+        {dueTasks.length === 0 ? (
+          <Card className="text-center text-sm text-slate-400 py-6">Koi pending task nahi 👍</Card>
+        ) : (
+          <div className="space-y-2">
+            {dueTasks.slice(0, 6).map(t => {
+              const overdue = t.dueDate < todayISO();
+              return (
+                <Card key={t.id} className="!p-3 flex items-center gap-3">
+                  <button onClick={() => completeTask(t.id)} className="w-5 h-5 rounded-full border-2 border-teal-600 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-800 truncate">{t.title}</p>
+                    <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>{overdue ? 'Overdue · ' : ''}{t.dueDate}</p>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <SectionTitle action={<button onClick={() => goTo('machines', 'list')} className="text-xs text-teal-700 font-semibold flex items-center">View all <ChevronRight size={14} /></button>}>
+          AMC Renewals Due
+        </SectionTitle>
+        {expiringSoon.length === 0 ? (
+          <Card className="text-center text-sm text-slate-400 py-6">Lucknow ki koi AMC/Warranty 90 din mein expire nahi ho rahi 🎉</Card>
+        ) : (
+          <div className="space-y-2">
+            {duePartiesGrouped.slice(0, 8).map(p => {
+              const worst = p.machines.reduce((w, m) => (m.days < w.days ? m : w), p.machines[0]);
+              const badge = amcBadge(worst.days, worst.contType);
+              return (
+                <Card key={p.party} className="!p-3">
+                  <button className="w-full text-left" onClick={() => goTo('machines', 'parties', p.party)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{p.city} · {p.machines.length} machine{p.machines.length > 1 ? 's' : ''}</p>
+                      </div>
+                      <span className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                    </div>
+                  </button>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- MACHINES TAB ----------------
+function MachinesTab({ machines, setMachines, view, setView, jumpToParty }) {
+  const [search, setSearch] = useState('');
+  const [cityFilter, setCityFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
+  const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [selectedParty, setSelectedParty] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(40);
+
+  useEffect(() => {
+    if (jumpToParty) setSelectedParty(jumpToParty);
+  }, [jumpToParty]);
+
+  const cities = useMemo(() => ['All', ...Array.from(new Set(machines.map(m => m.city).filter(Boolean))).sort()], [machines]);
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return machines.filter(m => {
+      const matchesSearch = !s || [m.machineNo, m.party, m.model, m.city, m.contact].join(' ').toLowerCase().includes(s);
+      const matchesCity = cityFilter === 'All' || m.city === cityFilter;
+      const matchesStatus = statusFilter === 'ALL' || normStatus(m.status) === statusFilter;
+      return matchesSearch && matchesCity && matchesStatus;
+    }).sort((a,b) => {
+      const da = daysUntil(a.amcTo); const db = daysUntil(b.amcTo);
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    });
+  }, [machines, search, cityFilter, statusFilter]);
+
+  const parties = useMemo(() => {
+    const map = {};
+    machines.forEach(m => {
+      if (!map[m.party]) map[m.party] = { party: m.party, count: 0, active: 0, city: m.city || '', models: new Set() };
+      map[m.party].count += 1;
+      if (normStatus(m.status) === 'ACTIVE') map[m.party].active += 1;
+      if (m.model) map[m.party].models.add(m.model.toLowerCase());
+    });
+    let list = Object.values(map);
+    const s = search.trim().toLowerCase();
+    if (s) list = list.filter(p => p.party.toLowerCase().includes(s) || Array.from(p.models).some(mod => mod.includes(s)));
+    return list.sort((a, b) => {
+      const aLko = a.city.trim().toUpperCase() === 'LUCKNOW';
+      const bLko = b.city.trim().toUpperCase() === 'LUCKNOW';
+      if (aLko !== bLko) return aLko ? -1 : 1;
+      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      return a.party.localeCompare(b.party);
+    });
+  }, [machines, search]);
+
+  const addMachine = (data) => {
+    setMachines([{ ...data, id: uid() }, ...machines]);
+    setShowAdd(false);
+  };
+
+  const updateMachine = (id, data, closeModal = true) => {
+    setMachines(machines.map(m => m.id === id ? { ...m, ...data } : m));
+    if (closeModal) setSelected(null);
+    else setSelected(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
+  };
+
+  const deleteMachine = (id) => {
+    setMachines(machines.filter(m => m.id !== id));
+    setSelected(null);
+  };
+
+  const [showImport, setShowImport] = useState(false);
+  const importMachines = (rows) => {
+    const updated = [...machines];
+    let added = 0, upd = 0;
+    rows.forEach(row => {
+      const machineNo = getField(row, 'machineno', 'machine no', 'machine_no', 'phno');
+      if (!machineNo) return;
+      const data = {
+        machineNo,
+        model: getField(row, 'model', 'modelno', 'model no'),
+        party: getField(row, 'party', 'partyname', 'party name'),
+        contact: getField(row, 'contact', 'contactno', 'contact no'),
+        city: getField(row, 'city'),
+        place: getField(row, 'place', 'instplace', 'inst place'),
+        amcFrom: getField(row, 'amcfrom', 'amc from'),
+        amcTo: getField(row, 'amcto', 'amc to'),
+        status: getField(row, 'status') || 'ACTIVE',
+      };
+      const idx = updated.findIndex(m => m.machineNo.toLowerCase() === machineNo.toLowerCase());
+      if (idx >= 0) {
+        updated[idx] = { ...updated[idx], ...Object.fromEntries(Object.entries(data).filter(([k,v]) => v !== '')) };
+        upd++;
+      } else {
+        updated.push({ ...data, id: uid() });
+        added++;
+      }
+    });
+    setMachines(updated);
+    return { added, upd };
+  };
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-3">
+        <button onClick={() => setView('list')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${view === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Machines</button>
+        <button onClick={() => setView('parties')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${view === 'parties' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Parties</button>
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        <div className="flex-1 relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setVisibleCount(40); }}
+            placeholder={view === 'parties' ? 'Party ya machine model dhundein...' : 'Party, machine no, model...'}
+            className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-base bg-white"
+          />
+        </div>
+        <button onClick={() => setShowAdd(true)} className="bg-teal-700 text-white rounded-xl px-3 flex items-center justify-center">
+          <Plus size={18} />
+        </button>
+        <button onClick={() => setShowImport(true)} className="bg-slate-800 text-white rounded-xl px-3 flex items-center justify-center">
+          <Upload size={18} />
+        </button>
+      </div>
+      {showImport && (
+        <ImportModal
+          title="Machines List Upload Karein"
+          hint="CSV ya Excel file mein columns: Machine No, Model, Party, Contact, City, Place, AMC From, AMC To, Status. Machine No match hone par purani entry update ho jayegi, warna nayi jud jayegi."
+          onImport={importMachines}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {view === 'list' && (
+        <>
+          <div className="flex gap-1.5 mb-2">
+            {['ACTIVE', 'INACTIVE', 'BUYBACK', 'CLOSED', 'ALL'].map(s => (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setVisibleCount(40); }}
+                className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full whitespace-nowrap border ${statusFilter === s ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'}`}
+              >{s === 'ALL' ? 'Sabhi' : STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-1 -mx-1 px-1">
+            {cities.slice(0, 12).map(c => (
+              <button
+                key={c}
+                onClick={() => { setCityFilter(c); setVisibleCount(40); }}
+                className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap border ${cityFilter === c ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-600 border-slate-200'}`}
+              >{c}</button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mb-2 px-1">{filtered.length} machines mile</p>
+
+          <div className="space-y-2">
+            {filtered.slice(0, visibleCount).map(m => {
+              const st = normStatus(m.status);
+              const days = daysUntil(m.amcTo);
+              const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+              return (
+                <Card key={m.id} className={`!p-3 ${st !== 'ACTIVE' ? 'opacity-70' : ''}`}>
+                  <button className="w-full text-left" onClick={() => setSelected(m)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{m.party}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{m.machineNo} · {m.model}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{m.city}{m.place ? ' · ' + m.place : ''}</p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                    </div>
+                  </button>
+                </Card>
+              );
+            })}
+            {visibleCount < filtered.length && (
+              <button onClick={() => setVisibleCount(v => v + 40)} className="w-full text-sm text-teal-700 font-semibold py-3">
+                Aur dikhaye ({filtered.length - visibleCount} baaki)
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === 'parties' && (
+        <>
+          <p className="text-xs text-slate-400 mb-2 px-1">{parties.length} parties</p>
+          <div className="space-y-2">
+            {parties.map((p, idx) => {
+              const showHeader = idx === 0 || parties[idx - 1].city !== p.city;
+              return (
+                <React.Fragment key={p.party}>
+                  {showHeader && (
+                    <p className="text-xs font-bold text-teal-700 uppercase tracking-wide px-1 pt-1">{p.city || 'Unknown City'}</p>
+                  )}
+                  <Card className="!p-3">
+                    <button className="w-full text-left" onClick={() => setSelectedParty(p.party)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{p.city}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-800">{p.count}</p>
+                          <p className="text-[10px] text-slate-400">machine{p.count > 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                    </button>
+                  </Card>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {showAdd && <MachineForm onSave={addMachine} onClose={() => setShowAdd(false)} defaultParty={selectedParty} />}
+      {selected && (
+        <MachineDetail
+          machine={selected}
+          onClose={() => setSelected(null)}
+          onStatusChange={(data) => updateMachine(selected.id, data, false)}
+          onSave={(data) => updateMachine(selected.id, data, true)}
+          onDelete={() => deleteMachine(selected.id)}
+        />
+      )}
+      {selectedParty && !selected && (
+        <PartyDetail
+          party={selectedParty}
+          machines={machines.filter(m => m.party === selectedParty)}
+          onClose={() => setSelectedParty(null)}
+          onSelectMachine={setSelected}
+          onAddMachine={() => setShowAdd(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImportModal({ title, hint, onImport, onClose }) {
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    try {
+      const rows = await parseUploadedFile(file);
+      const res = onImport(rows);
+      setResult({ total: rows.length, ...res });
+    } catch (e) {
+      setError('File padhne mein dikkat hui. CSV ya Excel (.xlsx) file try karein.');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">{hint}</p>
+      <label className="block border-2 border-dashed border-slate-300 rounded-xl p-6 text-center mb-3 cursor-pointer">
+        <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setFile(e.target.files[0]); setResult(null); setError(''); }} />
+        <Upload size={22} className="mx-auto text-slate-400 mb-2" />
+        <p className="text-sm text-slate-600 font-medium">{file ? file.name : 'File chunein (.csv / .xlsx)'}</p>
+      </label>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {result && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3 mb-3">
+          ✔ {result.total} rows mile. {result.added !== undefined && `${result.added} nayi jodi gayi, ${result.upd} update hui.`}
+        </div>
+      )}
+      <button
+        onClick={handleUpload}
+        disabled={!file || busy}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl disabled:opacity-40"
+      >{busy ? 'Process ho raha hai...' : 'Upload Karein'}</button>
+    </Modal>
+  );
+}
+
+function PartyDetail({ party, machines, onClose, onSelectMachine, onAddMachine }) {
+  return (
+    <Modal title={party} onClose={onClose}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-slate-500">{machines.length} machine{machines.length > 1 ? 's' : ''}</p>
+        <button onClick={onAddMachine} className="text-xs bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+          <Plus size={13} /> Machine Jodein
+        </button>
+      </div>
+      <div className="space-y-2">
+        {machines.map(m => {
+          const st = normStatus(m.status);
+          const days = daysUntil(m.amcTo);
+          const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+          return (
+            <Card key={m.id} className={`!p-3 ${st !== 'ACTIVE' ? 'opacity-70' : ''}`}>
+              <button className="w-full text-left" onClick={() => onSelectMachine(m)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{m.machineNo} · {m.model}</p>
+                    <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{m.city}{m.place ? ' · ' + m.place : ''}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                </div>
+              </button>
+            </Card>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
+function BackupModal({ data, setters, onClose }) {
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const totalCount = Object.values(data).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0);
+
+  const handleBackup = () => {
+    try {
+      const payload = { ...data, exportedAt: new Date().toISOString(), app: 'argus-tracker' };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = todayISO();
+      a.href = url;
+      a.download = `argus-tracker-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setStatus('✔ Backup file download ho gayi. Ise WhatsApp/Drive/Email kahin bhi save kar lein.');
+    } catch (e) {
+      setStatus('Backup banane mein dikkat hui.');
+    }
+  };
+
+  const handleRestore = () => {
+    if (!restoreFile) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (parsed.machines) setters.setMachines(parsed.machines);
+        if (parsed.quotations) setters.setQuotations(parsed.quotations);
+        if (parsed.orders) setters.setOrders(parsed.orders);
+        if (parsed.payments) setters.setPayments(parsed.payments);
+        if (parsed.dailyLogs) setters.setDailyLogs(parsed.dailyLogs);
+        if (parsed.tasks) setters.setTasks(parsed.tasks);
+        if (parsed.items) setters.setItems(parsed.items);
+        if (parsed.targets) setters.setTargets(parsed.targets);
+        setStatus('✔ Data restore ho gaya.');
+        setConfirmRestore(false);
+        setRestoreFile(null);
+      } catch (err) {
+        setStatus('Ye file valid backup nahi hai.');
+      }
+    };
+    reader.readAsText(restoreFile);
+  };
+
+  return (
+    <Modal title="Backup & Restore" onClose={onClose}>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-1">Backup Banayein</p>
+        <p className="text-xs text-slate-500 mb-3">Abhi total {totalCount} records hain (machines, quotations, orders, payments, log, tasks, items). Ek file download hogi jise aap kahin bhi save kar sakte hain — naya phone lene par wahi file yahin "Restore" mein daal kar sara data wapas le aayenge.</p>
+        <button onClick={handleBackup} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+          <Download size={16} /> Backup Download Karein
+        </button>
+      </Card>
+
+      <Card>
+        <p className="text-sm font-bold text-slate-800 mb-1">Restore Karein</p>
+        <p className="text-xs text-slate-500 mb-3">Pehle se li gayi backup .json file yahan select karein. Restore karne se abhi ka data uss file se badal jayega.</p>
+        <label className="block border-2 border-dashed border-slate-300 rounded-xl p-4 text-center mb-3 cursor-pointer">
+          <input type="file" accept=".json" className="hidden" onChange={e => { setRestoreFile(e.target.files[0]); setConfirmRestore(false); }} />
+          <Upload size={20} className="mx-auto text-slate-400 mb-1.5" />
+          <p className="text-sm text-slate-600 font-medium">{restoreFile ? restoreFile.name : 'Backup file chunein (.json)'}</p>
+        </label>
+        {restoreFile && !confirmRestore && (
+          <button onClick={() => setConfirmRestore(true)} className="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl text-sm">
+            Restore Karein
+          </button>
+        )}
+        {confirmRestore && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-800 font-semibold mb-2">Pakka? Isse abhi ka sara data is file se replace ho jayega.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmRestore(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+              <button onClick={handleRestore} className="flex-1 bg-red-600 text-white font-semibold py-2 rounded-lg text-sm">Haan, Restore Karein</button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {status && <p className="text-sm text-center mt-4 text-slate-600">{status}</p>}
+    </Modal>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prevPosition = body.style.position;
+    const prevTop = body.style.top;
+    const prevWidth = body.style.width;
+    const prevOverflow = body.style.overflow;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    return () => {
+      body.style.position = prevPosition;
+      body.style.top = prevTop;
+      body.style.width = prevWidth;
+      body.style.overflow = prevOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50" onClick={onClose}>
+      <div className="bg-white w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="shrink-0 bg-white flex items-center justify-between px-4 py-3 border-b border-slate-200 shadow-sm">
+          <button onClick={onClose} className="flex items-center gap-1 text-teal-700 font-semibold text-sm -ml-1 px-1 py-1">
+            <ChevronLeft size={20} /> Back
+          </button>
+          <h3 className="font-bold text-slate-800 text-sm absolute left-1/2 -translate-x-1/2">{title}</h3>
+          <button onClick={onClose}><X size={20} className="text-slate-400" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="mb-3">
+      <label className="text-xs font-semibold text-slate-500 mb-1 block">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = "w-full border border-slate-300 rounded-lg px-3 py-2 text-base";
+
+function MachineForm({ onSave, onClose, initial, defaultParty }) {
+  const [f, setF] = useState(initial || { machineNo: '', model: '', party: defaultParty || '', contact: '', city: '', place: '', amcFrom: '', amcTo: '', status: 'ACTIVE' });
+  const set = (k, v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title={initial ? 'Machine Edit Karein' : 'Nayi Machine Jodein'} onClose={onClose}>
+      <Field label="Machine No"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} placeholder="PH-XXXX" /></Field>
+      <Field label="Model"><input className={inputCls} value={f.model} onChange={e => set('model', e.target.value)} placeholder="AR-6020N" /></Field>
+      <Field label="Party Name"><input className={inputCls} value={f.party} onChange={e => set('party', e.target.value)} /></Field>
+      <Field label="Contact No"><input className={inputCls} value={f.contact} onChange={e => set('contact', e.target.value)} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="City"><input className={inputCls} value={f.city} onChange={e => set('city', e.target.value)} /></Field>
+        <Field label="Place"><input className={inputCls} value={f.place} onChange={e => set('place', e.target.value)} /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="AMC From (dd/mm/yy)"><input className={inputCls} value={f.amcFrom} onChange={e => set('amcFrom', e.target.value)} placeholder="01/01/26" /></Field>
+        <Field label="AMC To (dd/mm/yy)"><input className={inputCls} value={f.amcTo} onChange={e => set('amcTo', e.target.value)} placeholder="31/12/26" /></Field>
+      </div>
+      <button
+        onClick={() => onSave(f)}
+        disabled={!f.machineNo || !f.party}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40"
+      >Save</button>
+    </Modal>
+  );
+}
+
+function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  if (editing) return <MachineForm initial={machine} onSave={onSave} onClose={() => setEditing(false)} />;
+  const currentStatus = normStatus(machine.status);
+  const days = daysUntil(machine.amcTo);
+  const badge = currentStatus === 'ACTIVE' ? amcBadge(days, machine.contType) : { label: STATUS_LABELS[currentStatus], color: STATUS_COLORS[currentStatus] };
+  return (
+    <Modal title={machine.machineNo} onClose={onClose}>
+      <div className="space-y-3">
+        <div>
+          <p className="text-base font-bold text-slate-800">{machine.party}</p>
+          <p className="text-sm text-slate-500">{machine.model}</p>
+        </div>
+        <span className={`inline-block text-xs font-semibold px-2 py-1 rounded-full ${badge.color}`}>{badge.label}</span>
+
+        <div>
+          <p className="text-xs font-semibold text-slate-500 mb-1.5">Machine Status Badalein</p>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_OPTIONS.map(s => (
+              <button
+                key={s}
+                onClick={() => onStatusChange({ status: s })}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${currentStatus === s ? STATUS_COLORS[s] + ' ring-1 ring-offset-1 ring-slate-300' : 'bg-white text-slate-500 border-slate-200'}`}
+              >{STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+          {currentStatus !== 'ACTIVE' && (
+            <p className="text-[11px] text-slate-400 mt-1.5">Ye machine ab AMC alerts aur active list mein nahi dikhegi.</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div><p className="text-xs text-slate-400">City</p><p className="font-medium">{machine.city || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">Place</p><p className="font-medium">{machine.place || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">AMC From</p><p className="font-medium">{machine.amcFrom || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">AMC To</p><p className="font-medium">{machine.amcTo || '-'}</p></div>
+        </div>
+        {machine.contact && (
+          <a href={`tel:${machine.contact.split(',')[0].trim()}`} className="flex items-center gap-2 bg-teal-50 text-teal-800 rounded-xl px-3 py-2.5 text-sm font-medium">
+            <Phone size={16} /> {machine.contact}
+          </a>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button onClick={() => setEditing(true)} className="flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Party/Machine Info Edit</button>
+        </div>
+        <div className="flex gap-2">
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)} className="flex-1 bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Permanently Hatayein</button>
+          ) : (
+            <button onClick={onDelete} className="flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm — Hamesha Ke Liye Delete</button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------- SALES TAB (Quotations + Orders + Items) ----------------
+function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems }) {
+  const [sub, setSub] = useState('quotes');
+  const [showAdd, setShowAdd] = useState(false);
+  const [viewQuote, setViewQuote] = useState(null);
+  const [editQuote, setEditQuote] = useState(null);
+
+  const addQuote = (data) => {
+    setQuotations([{ ...data, id: uid() }, ...quotations]);
+    setShowAdd(false);
+  };
+  const updateQuote = (id, data) => {
+    setQuotations(quotations.map(q => q.id === id ? { ...q, ...data } : q));
+    setEditQuote(null);
+    setViewQuote(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
+  };
+  const deleteQuote = (id) => {
+    setQuotations(quotations.filter(q => q.id !== id));
+    setViewQuote(null);
+  };
+  const addOrder = (data) => {
+    setOrders([{ ...data, id: uid() }, ...orders]);
+    setShowAdd(false);
+  };
+  const convertQuoteToOrder = (quote, orderNo, poDate) => {
+    setOrders([{
+      id: uid(),
+      orderNo,
+      poDate,
+      party: quote.party,
+      machineNo: quote.subject || (quote.lineItems && quote.lineItems[0] ? quote.lineItems[0].name : ''),
+      amount: quote.amount,
+      quotNo: quote.quotNo,
+      deliveryStatus: 'Pending',
+    }, ...orders]);
+    updateQuote(quote.id, { orderNo, convertedToOrder: true });
+  };
+  const cycleOrderStatus = (id) => {
+    const order = ['Pending', 'Delivered'];
+    setOrders(orders.map(o => o.id === id ? { ...o, deliveryStatus: order[(order.indexOf(o.deliveryStatus) + 1) % order.length] } : o));
+  };
+  const addItem = (data) => setItems([{ ...data, id: uid() }, ...items]);
+  const updateItem = (id, data) => setItems(items.map(i => i.id === id ? { ...i, ...data } : i));
+  const deleteItem = (id) => setItems(items.filter(i => i.id !== id));
+
+  const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-3">
+        <button onClick={() => setSub('quotes')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'quotes' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Quotations</button>
+        <button onClick={() => setSub('orders')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'orders' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Orders</button>
+        <button onClick={() => setSub('items')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'items' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Items</button>
+      </div>
+
+      <button onClick={() => setShowAdd(true)} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mb-3 flex items-center justify-center gap-1">
+        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : 'Naya Item Jodein'}
+      </button>
+
+      {sub === 'quotes' && (
+        <div className="space-y-2">
+          {quotations.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi quotation nahi</Card>}
+          {quotations.map(q => (
+            <Card key={q.id} className="!p-3">
+              <button className="w-full text-left" onClick={() => setViewQuote(q)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{q.party}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{q.quotNo || '—'} · ₹{Number(q.amount||0).toLocaleString('en-IN')} · {q.date}</p>
+                    {q.subject && <p className="text-xs text-slate-400 mt-0.5 truncate">{q.subject}</p>}
+                    {q.convertedToOrder && <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">✔ Order banaya</p>}
+                  </div>
+                  <span className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[q.status]}`}>{q.status}</span>
+                </div>
+              </button>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'orders' && (
+        <div className="space-y-2">
+          {orders.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi order nahi</Card>}
+          {orders.map(o => (
+            <Card key={o.id} className="!p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{o.party}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{o.machineNo || '—'} · ₹{Number(o.amount||0).toLocaleString('en-IN')} · PO: {o.orderNo || '—'} ({o.poDate})</p>
+                  {o.quotNo && <p className="text-[11px] text-slate-400 mt-0.5">Se: {o.quotNo}</p>}
+                </div>
+                <button onClick={() => cycleOrderStatus(o.id)} className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[o.deliveryStatus]}`}>{o.deliveryStatus}</button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'items' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Ek baar item add karein, quotation banate waqt select karte hi rate apne aap aa jayega</p>
+          {items.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi item nahi</Card>}
+          {items.map(it => (
+            <ItemRow key={it.id} item={it} onUpdate={data => updateItem(it.id, data)} onDelete={() => deleteItem(it.id)} />
+          ))}
+        </div>
+      )}
+
+      {showAdd && sub === 'quotes' && (
+        <QuotationBuilder machines={machines} items={items} quotations={quotations} onSave={addQuote} onClose={() => setShowAdd(false)} />
+      )}
+      {showAdd && sub === 'orders' && <OrderForm machines={machines} onSave={addOrder} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'items' && <ItemForm onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+
+      {viewQuote && !editQuote && (
+        <QuotationView
+          quote={viewQuote}
+          onClose={() => setViewQuote(null)}
+          onEdit={() => setEditQuote(viewQuote)}
+          onDelete={() => deleteQuote(viewQuote.id)}
+          onStatusChange={(status) => updateQuote(viewQuote.id, { status })}
+          onConvertToOrder={(orderNo, poDate) => convertQuoteToOrder(viewQuote, orderNo, poDate)}
+        />
+      )}
+      {editQuote && (
+        <QuotationBuilder
+          machines={machines}
+          items={items}
+          quotations={quotations}
+          initial={editQuote}
+          onSave={(data) => updateQuote(editQuote.id, data)}
+          onClose={() => setEditQuote(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ItemRow({ item, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  if (editing) {
+    return (
+      <ItemForm
+        initial={item}
+        onSave={(data) => { onUpdate(data); setEditing(false); }}
+        onClose={() => setEditing(false)}
+        inline
+      />
+    );
+  }
+  return (
+    <Card className="!p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
+          <p className="text-xs text-slate-500 mt-0.5 truncate">{item.description}</p>
+          {item.machineModel && <p className="text-[11px] text-teal-600 mt-0.5 truncate">Model: {item.machineModel}</p>}
+          <p className="text-xs text-slate-400 mt-0.5">₹{Number(item.rate||0).toLocaleString('en-IN')} · GST {item.gst}%</p>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button onClick={() => setEditing(true)} className="text-xs text-teal-700 font-semibold px-2 py-1">Edit</button>
+          {!confirmDel ? (
+            <button onClick={() => setConfirmDel(true)} className="text-xs text-red-600 font-semibold px-2 py-1">Delete</button>
+          ) : (
+            <button onClick={onDelete} className="text-xs text-white bg-red-600 font-semibold px-2 py-1 rounded">Sure?</button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ItemForm({ onSave, onClose, initial, inline }) {
+  const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  const body = (
+    <>
+      <Field label="Item / Part No"><input className={inputCls} value={f.name} onChange={e => set('name', e.target.value)} placeholder="Jaise: MX-312AR" /></Field>
+      <Field label="Description"><input className={inputCls} value={f.description} onChange={e => set('description', e.target.value)} placeholder="Jaise: Drum" /></Field>
+      <Field label="Machine Model(s)"><input className={inputCls} value={f.machineModel} onChange={e => set('machineModel', e.target.value)} placeholder="Jaise: 20M22, MX-2010U (comma se alag karein)" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Rate (₹)"><input type="number" className={inputCls} value={f.rate} onChange={e => set('rate', e.target.value)} /></Field>
+        <Field label="GST %"><input type="number" className={inputCls} value={f.gst} onChange={e => set('gst', e.target.value)} /></Field>
+      </div>
+      <button onClick={() => onSave(f)} disabled={!f.name || !f.rate} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Item</button>
+    </>
+  );
+  if (inline) return <Card className="!p-3 border-teal-200">{body}</Card>;
+  return <Modal title={initial ? 'Item Edit Karein' : 'Naya Item'} onClose={onClose}>{body}</Modal>;
+}
+
+function PartyPicker({ machines, value, onChange, onMachineNo }) {
+  const [q, setQ] = useState(value || '');
+  const [open, setOpen] = useState(false);
+  const matches = useMemo(() => {
+    if (!q || q.length < 2) return [];
+    const s = q.toLowerCase();
+    const seen = new Set();
+    return machines.filter(m => {
+      if (seen.has(m.party)) return false;
+      const ok = m.party.toLowerCase().includes(s);
+      if (ok) seen.add(m.party);
+      return ok;
+    }).slice(0, 6);
+  }, [q, machines]);
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { onChange(q); setTimeout(() => setOpen(false), 150); }}
+        placeholder="Party name type karein..."
+      />
+      {open && matches.length > 0 && (
+        <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-y-auto">
+          {matches.map(m => (
+            <button
+              key={m.id}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onClick={() => { setQ(m.party); onChange(m.party); onMachineNo && onMachineNo(m.machineNo); setOpen(false); }}
+            >
+              <p className="font-medium text-slate-700 truncate">{m.party}</p>
+              <p className="text-[11px] text-slate-400">{m.machineNo} · {m.city}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function nextQuotNo(quotations) {
+  const seq = quotations.length + 1;
+  const yy = new Date().getFullYear() % 100;
+  return `ABM/SD/${String(seq).padStart(3, '0')}/${yy}-${yy + 1}`;
+}
+
+function QuotationBuilder({ machines, items, quotations, onSave, onClose, initial }) {
+  const [party, setParty] = useState(initial?.party || '');
+  const [attention, setAttention] = useState(initial?.attention || 'The Director');
+  const [quotNo, setQuotNo] = useState(initial?.quotNo || nextQuotNo(quotations));
+  const [date, setDate] = useState(initial?.date || todayISO());
+  const [subject, setSubject] = useState(initial?.subject || '');
+  const [selectedModel, setSelectedModel] = useState(initial?.machineModel || '');
+  const [modelDraft, setModelDraft] = useState(initial?.machineModel || '');
+  const [lines, setLines] = useState(initial?.lineItems || []);
+  const [deliveryPeriod, setDeliveryPeriod] = useState(initial?.deliveryPeriod || '0-15 days from the date of receipt of purchase order.');
+  const [serviceTerms, setServiceTerms] = useState(initial?.serviceTerms || 'Service Charge is valid for one day only. Another per call charge would be applicable for any other day except the day machine has been repaired.');
+
+  const partyMachines = useMemo(() => {
+    if (!party) return [];
+    return machines.filter(m => m.party.toLowerCase() === party.toLowerCase());
+  }, [party, machines]);
+
+  const suggestedItems = useMemo(() => {
+    if (!selectedModel) return [];
+    const s = selectedModel.toLowerCase();
+    return items.filter(it => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (s.includes(m) || m.includes(s))));
+  }, [selectedModel, items]);
+
+  const addLine = (item) => {
+    setLines([...lines, {
+      lineId: uid(),
+      name: item ? item.name : '',
+      description: item ? item.description : '',
+      rate: item ? item.rate : '',
+      qty: 1,
+      gst: item ? item.gst : 18,
+    }]);
+  };
+  const updateLine = (lineId, data) => setLines(lines.map(l => l.lineId === lineId ? { ...l, ...data } : l));
+  const removeLine = (lineId) => setLines(lines.filter(l => l.lineId !== lineId));
+
+  const computed = lines.map(l => {
+    const base = Number(l.rate || 0) * Number(l.qty || 0);
+    const gstAmt = base * Number(l.gst || 0) / 100;
+    return { ...l, base, gstAmt, total: base + gstAmt };
+  });
+  const grandTotal = computed.reduce((s, l) => s + l.total, 0);
+
+  const canSave = party.trim() && lines.length > 0 && lines.every(l => l.name && l.rate);
+
+  const handleSave = () => {
+    onSave({
+      party, attention, quotNo, date, subject, machineModel: selectedModel,
+      lineItems: computed.map(({ lineId, name, description, rate, qty, gst }) => ({ lineId, name, description, rate: Number(rate), qty: Number(qty), gst: Number(gst) })),
+      amount: grandTotal,
+      deliveryPeriod, serviceTerms,
+      status: initial?.status || 'Sent',
+    });
+  };
+
+  return (
+    <Modal title={initial ? 'Quotation Edit Karein' : 'Nayi Quotation'} onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
+      <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
+
+      {partyMachines.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs font-semibold text-slate-500 mb-1.5">Is Party Ki Machines (tap to select)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {partyMachines.map(m => {
+              const days = daysUntil(m.amcTo);
+              const st = normStatus(m.status);
+              const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => { setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`); setSelectedModel(m.model); setModelDraft(m.model); }}
+                  className={`text-left border rounded-lg px-2.5 py-1.5 ${selectedModel === m.model ? 'border-teal-600 bg-teal-50' : 'border-slate-200'}`}
+                >
+                  <p className="text-xs font-medium text-slate-700">{m.machineNo} · {m.model}</p>
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <Field label="Subject / Reference"><input className={inputCls} value={subject} onChange={e => setSubject(e.target.value)} placeholder="Jaise: Quotation of Drum for Sharp Machine..." /></Field>
+      <Field label="Machine Model (parts suggest karne ke liye)"><input className={inputCls} value={modelDraft} onChange={e => setModelDraft(e.target.value)} onBlur={() => setSelectedModel(modelDraft)} placeholder="Jaise: 20M22" /></Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Quotation No"><input className={inputCls} value={quotNo} onChange={e => setQuotNo(e.target.value)} /></Field>
+        <Field label="Date"><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} /></Field>
+      </div>
+
+      <p className="text-xs font-semibold text-slate-500 mt-3 mb-1.5">Items</p>
+
+      {suggestedItems.length > 0 && (
+        <div className="mb-2">
+          <p className="text-[11px] text-teal-700 font-semibold mb-1">Model {selectedModel} ke liye suggested parts</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestedItems.map(it => (
+              <button
+                key={it.id}
+                onClick={() => addLine(it)}
+                className="text-xs bg-teal-50 text-teal-800 border border-teal-200 rounded-full px-2.5 py-1.5 font-medium"
+              >+ {it.name} (₹{it.rate})</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2 mb-2">
+        {lines.map(l => (
+          <QuotationLineEditor key={l.lineId} line={l} items={items} onUpdate={data => updateLine(l.lineId, data)} onRemove={() => removeLine(l.lineId)} />
+        ))}
+      </div>
+      <button onClick={() => addLine(null)} className="w-full border-2 border-dashed border-slate-300 text-slate-500 font-semibold py-2 rounded-lg text-sm mb-3">+ Item Line Jodein</button>
+
+      {lines.length > 0 && (
+        <div className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 mb-3">
+          <span className="text-sm font-semibold text-slate-600">Grand Total</span>
+          <span className="text-base font-bold text-slate-800">₹{grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+        </div>
+      )}
+
+      <Field label="Delivery Period"><input className={inputCls} value={deliveryPeriod} onChange={e => setDeliveryPeriod(e.target.value)} /></Field>
+      <Field label="Service Terms"><textarea rows={2} className={inputCls + ' resize-none'} value={serviceTerms} onChange={e => setServiceTerms(e.target.value)} /></Field>
+
+      <button onClick={handleSave} disabled={!canSave} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">
+        {initial ? 'Update Quotation' : 'Quotation Banayein'}
+      </button>
+    </Modal>
+  );
+}
+
+function QuotationLineEditor({ line, items, onUpdate, onRemove }) {
+  const [q, setQ] = useState(line.name || '');
+  const [open, setOpen] = useState(false);
+  const matches = useMemo(() => {
+    if (!q) return items.slice(0, 8);
+    const s = q.toLowerCase();
+    return items.filter(it => it.name.toLowerCase().includes(s) || (it.description||'').toLowerCase().includes(s)).slice(0, 8);
+  }, [q, items]);
+
+  const base = Number(line.rate || 0) * Number(line.qty || 0);
+  const gstAmt = base * Number(line.gst || 0) / 100;
+
+  return (
+    <Card className="!p-3">
+      <div className="relative mb-2">
+        <input
+          className={inputCls}
+          value={q}
+          onChange={e => { setQ(e.target.value); onUpdate({ name: e.target.value }); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Item search / naya naam likhein"
+        />
+        {open && matches.length > 0 && (
+          <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-40 overflow-y-auto">
+            {matches.map(it => (
+              <button
+                key={it.id}
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                onClick={() => {
+                  setQ(it.name);
+                  onUpdate({ name: it.name, description: it.description, rate: it.rate, gst: it.gst });
+                  setOpen(false);
+                }}
+              >
+                <p className="font-medium text-slate-700">{it.name}</p>
+                <p className="text-[11px] text-slate-400">{it.description} · ₹{it.rate} · GST {it.gst}%</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <input
+        className={inputCls + ' mb-2'}
+        value={line.description || ''}
+        onChange={e => onUpdate({ description: e.target.value })}
+        placeholder="Description"
+      />
+      <div className="grid grid-cols-4 gap-1.5 items-center">
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.rate} onChange={e => onUpdate({ rate: e.target.value })} placeholder="Rate" />
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.qty} onChange={e => onUpdate({ qty: e.target.value })} placeholder="Qty" />
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.gst} onChange={e => onUpdate({ gst: e.target.value })} placeholder="GST%" />
+        <button onClick={onRemove} className="col-span-1 text-red-500 text-xs font-semibold py-2">Remove</button>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5 text-right">Line Total: ₹{(base + gstAmt).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+    </Card>
+  );
+}
+
+function buildQuotationHTML(quote) {
+  const lines = quote.lineItems || [];
+  const rows = lines.map((l, i) => {
+    const base = Number(l.rate||0) * Number(l.qty||0);
+    const amt = base + base * Number(l.gst||0) / 100;
+    return `<tr>
+      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #94a3b8;padding:4px;">${l.name || ''}</td>
+      <td style="border:1px solid #94a3b8;padding:4px;">${l.description || ''}</td>
+      <td style="border:1px solid #94a3b8;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
+      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${l.qty}</td>
+      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${l.gst}%</td>
+      <td style="border:1px solid #94a3b8;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+    </tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${quote.quotNo || 'Quotation'}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding: 20px; max-width: 700px; margin: 0 auto; }
+  .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
+  .badges span { display:inline-block; font-size:11px; font-weight:bold; border:1px solid #fca5a5; color:#b91c1c; border-radius:4px; padding:2px 8px; margin:0 3px; }
+  .badges span.grey { border-color:#cbd5e1; color:#334155; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; margin-top:6px; }
+  .small { font-size:11px; color:#64748b; }
+  table { width:100%; border-collapse: collapse; margin: 12px 0; font-size:12px; }
+  th { background:#f1f5f9; border:1px solid #94a3b8; padding:5px; }
+  .terms { font-size:12px; margin-top: 4px; }
+  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:16px; padding-top:8px; font-size:10px; color:#64748b; }
+  @media print { body { padding: 0; } }
+</style></head>
+<body>
+  <div class="header">
+    <div class="badges">
+      <span>ARGUS</span><span>SHARP</span><span class="grey">Geeken Furniture</span><span class="grey">GeM</span>
+    </div>
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">${COMPANY.address}</div>
+    <div class="small">Telephone: ${COMPANY.phone} · E-mail: ${COMPANY.email}</div>
+    <div class="small" style="font-weight:600;color:#334155;">GSTIN: ${COMPANY.gstin}  PAN NO. ${COMPANY.pan}</div>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">
+    <b>${quote.quotNo || ''}</b><span>Date: ${quote.date || ''}</span>
+  </div>
+  <p style="font-size:13px;margin:4px 0;">To,</p>
+  ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:600;">${quote.attention}</p>` : ''}
+  <p style="font-size:14px;font-weight:700;margin:2px 0 8px;">${quote.party || ''}</p>
+  ${quote.subject ? `<p style="font-size:12px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
+  <p style="font-size:12px;margin:4px 0 10px;">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
+  <table>
+    <thead><tr><th>S.No</th><th>Item</th><th>Description</th><th>Rate</th><th>Qty</th><th>GST%</th><th>Amount</th></tr></thead>
+    <tbody>
+      ${rows}
+      <tr><td colspan="6" style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
+    </tbody>
+  </table>
+  ${quote.deliveryPeriod ? `<p class="terms"><b>Delivery Period: </b>${quote.deliveryPeriod}</p>` : ''}
+  ${quote.serviceTerms ? `<p class="terms"><b>Service Terms: </b>${quote.serviceTerms}</p>` : ''}
+  <p class="terms" style="font-weight:600;text-decoration:underline;">Please mention our quotation no. in your order.</p>
+  <p class="terms">Thanking you & assuring you of our best services at all times.</p>
+  <p class="terms">Yours faithfully,</p>
+  <p class="terms" style="margin-top:14px;">For ${COMPANY.name}</p>
+  <p style="font-size:13px;font-weight:700;margin-top:30px;">(${COMPANY.contactName})</p>
+  <p class="small">${COMPANY.contactPhone}</p>
+  <div class="footer">
+    <div>${COMPANY.footer1}</div>
+    <div>${COMPANY.footer2}</div>
+  </div>
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script>
+</body></html>`;
+}
+
+function downloadQuotationHTML(quote) {
+  const html = buildQuotationHTML(quote);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onConvertToOrder }) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
+  const [orderNo, setOrderNo] = useState('');
+  const [poDate, setPoDate] = useState(todayISO());
+  const lines = quote.lineItems || [];
+  const statusOptions = ['Sent', 'Approved', 'Rejected'];
+  const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200' };
+
+  const [downloadMsg, setDownloadMsg] = useState('');
+
+  const handleDownload = () => {
+    downloadQuotationHTML(quote);
+    setDownloadMsg('File download shuru ho gayi hai. Ek popup aayega jisme "Download file" dabayein — file aapke phone ke Downloads folder mein save ho jayegi. Wahan se WhatsApp/Email par attach karke share kar sakte hain.');
+  };
+
+  return (
+    <Modal title={quote.quotNo || 'Quotation'} onClose={onClose}>
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #quot-print-area, #quot-print-area * { visibility: visible; }
+          #quot-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16px; }
+        }
+      `}</style>
+
+      <div className="flex gap-1.5 mb-3">
+        {statusOptions.map(s => (
+          <button
+            key={s}
+            onClick={() => onStatusChange(s)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${quote.status === s ? statusColor[s] + ' ring-1 ring-offset-1 ring-slate-300' : 'bg-white text-slate-500 border-slate-200'}`}
+          >{s}</button>
+        ))}
+      </div>
+
+      <div id="quot-print-area" className="border border-slate-200 rounded-xl p-3 bg-white text-slate-800">
+        <div className="text-center border-b-2 border-red-700 pb-2 mb-2">
+          <div className="flex items-center justify-center gap-2 mb-1 flex-wrap">
+            <span className="text-[10px] font-bold text-red-700 border border-red-300 rounded px-1.5 py-0.5">ARGUS</span>
+            <span className="text-[10px] font-bold text-red-700 border border-red-300 rounded px-1.5 py-0.5">SHARP</span>
+            <span className="text-[10px] font-bold text-slate-700 border border-slate-300 rounded px-1.5 py-0.5">Geeken Furniture</span>
+            <span className="text-[10px] font-bold text-slate-700 border border-slate-300 rounded px-1.5 py-0.5">GeM</span>
+          </div>
+          <p className="text-sm font-extrabold tracking-tight text-red-700">{COMPANY.name}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{COMPANY.address}</p>
+          <p className="text-[10px] text-slate-500">Telephone: {COMPANY.phone} · E-mail: {COMPANY.email}</p>
+          <p className="text-[10px] font-semibold text-slate-600 mt-0.5">GSTIN: {COMPANY.gstin}  PAN NO. {COMPANY.pan}</p>
+        </div>
+
+        <div className="flex justify-between text-xs mb-2">
+          <span className="font-semibold">{quote.quotNo}</span>
+          <span>Date: {quote.date}</span>
+        </div>
+
+        <p className="text-xs mb-1">To,</p>
+        {quote.attention && <p className="text-xs font-medium mb-0.5">{quote.attention}</p>}
+        <p className="text-sm font-semibold mb-2">{quote.party}</p>
+
+        {quote.subject && (
+          <p className="text-xs mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
+        )}
+        <p className="text-xs mb-2">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
+
+        <table className="w-full text-[10px] border-collapse mb-2">
+          <thead>
+            <tr className="bg-slate-100">
+              <th className="border border-slate-300 px-1 py-1">S.No</th>
+              <th className="border border-slate-300 px-1 py-1 text-left">Item</th>
+              <th className="border border-slate-300 px-1 py-1 text-left">Description</th>
+              <th className="border border-slate-300 px-1 py-1">Rate</th>
+              <th className="border border-slate-300 px-1 py-1">Qty</th>
+              <th className="border border-slate-300 px-1 py-1">GST%</th>
+              <th className="border border-slate-300 px-1 py-1">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l, i) => {
+              const base = Number(l.rate||0) * Number(l.qty||0);
+              const amt = base + base * Number(l.gst||0)/100;
+              return (
+                <tr key={l.lineId || i}>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{i+1}</td>
+                  <td className="border border-slate-300 px-1 py-1">{l.name}</td>
+                  <td className="border border-slate-300 px-1 py-1">{l.description}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{Number(l.rate).toLocaleString('en-IN')}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{l.qty}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{l.gst}%</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td colSpan={6} className="border border-slate-300 px-1 py-1 text-right font-bold">Grand Total</td>
+              <td className="border border-slate-300 px-1 py-1 text-right font-bold">₹{Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {quote.deliveryPeriod && <p className="text-[10px] mb-1"><span className="font-semibold">Delivery Period: </span>{quote.deliveryPeriod}</p>}
+        {quote.serviceTerms && <p className="text-[10px] mb-1"><span className="font-semibold">Service Terms: </span>{quote.serviceTerms}</p>}
+        <p className="text-[10px] font-semibold underline mt-1">Please mention our quotation no. in your order.</p>
+        <p className="text-[10px] mt-1">Thanking you & assuring you of our best services at all times.</p>
+        <p className="text-[10px] mt-1">Yours faithfully,</p>
+        <p className="text-[10px] mt-2">For {COMPANY.name}</p>
+        <p className="text-xs font-semibold mt-4">({COMPANY.contactName})</p>
+        <p className="text-[10px]">{COMPANY.contactPhone}</p>
+
+        <div className="border-t border-slate-300 mt-3 pt-1.5 text-center">
+          <p className="text-[9px] text-slate-500">{COMPANY.footer1}</p>
+          <p className="text-[9px] text-slate-500">{COMPANY.footer2}</p>
+        </div>
+      </div>
+
+      {!quote.convertedToOrder ? (
+        showConvert ? (
+          <div className="border border-teal-200 bg-teal-50 rounded-xl p-3 mt-3">
+            <p className="text-xs font-semibold text-teal-800 mb-2">Order Bana Rahe Hain</p>
+            <Field label="Order No / PO No"><input className={inputCls} value={orderNo} onChange={e => setOrderNo(e.target.value)} placeholder="Party ka PO number" /></Field>
+            <Field label="Order Date"><input type="date" className={inputCls} value={poDate} onChange={e => setPoDate(e.target.value)} /></Field>
+            <div className="flex gap-2">
+              <button onClick={() => setShowConvert(false)} className="flex-1 bg-white text-slate-600 font-semibold py-2.5 rounded-xl text-sm border border-slate-200">Cancel</button>
+              <button
+                onClick={() => { onConvertToOrder(orderNo, poDate); setShowConvert(false); }}
+                disabled={!orderNo}
+                className="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-40"
+              >Order Confirm Karein</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowConvert(true)} className="w-full bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm mt-3">
+            Order Me Convert Karein
+          </button>
+        )
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold text-center py-2.5 rounded-xl mt-3">
+          ✔ Order Ban Chuka Hai (PO: {quote.orderNo})
+        </div>
+      )}
+
+      <button onClick={handleDownload} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mt-3 flex items-center justify-center gap-2">
+        <Download size={16} /> Quotation Download Karein
+      </button>
+      {downloadMsg && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mt-2">{downloadMsg}</p>
+      )}
+      <button onClick={onEdit} className="w-full bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm mt-2">Edit</button>
+      <div className="mt-2">
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} className="w-full bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Quotation Delete Karein</button>
+        ) : (
+          <button onClick={onDelete} className="w-full bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm Delete</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+
+function OrderForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', amount: '', poDate: todayISO(), deliveryStatus: 'Pending' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Naya Order" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Amount (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
+      <Field label="PO Date"><input type="date" className={inputCls} value={f.poDate} onChange={e => set('poDate', e.target.value)} /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.amount} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save</button>
+    </Modal>
+  );
+}
+
+// ---------------- PAYMENTS TAB ----------------
+function PaymentsTab({ machines, payments, setPayments }) {
+  const [addMode, setAddMode] = useState(null); // 'billing' | 'collection' | null
+  const [showImport, setShowImport] = useState(false);
+  const addPayment = (data) => {
+    setPayments([{ ...data, id: uid() }, ...payments]);
+    setAddMode(null);
+  };
+
+  const importPayments = (rows) => {
+    const newEntries = [];
+    rows.forEach(row => {
+      const party = getField(row, 'party', 'partyname', 'party name');
+      if (!party) return;
+      const invoiceAmount = getField(row, 'invoiceamount', 'invoice amount', 'billamount', 'bill amount', 'billed');
+      const receivedAmount = getField(row, 'receivedamount', 'received amount', 'received', 'collected', 'collection');
+      const outstanding = getField(row, 'outstanding', 'outstandingamount', 'outstanding amount', 'pending', 'due');
+      const date = getField(row, 'date', 'billdate', 'bill date') || todayISO();
+      const note = getField(row, 'note', 'remark', 'remarks') || 'Imported';
+      if (outstanding && !invoiceAmount && !receivedAmount) {
+        newEntries.push({ id: uid(), party, invoiceAmount: Number(outstanding) || 0, receivedAmount: 0, date, note });
+      } else if (invoiceAmount || receivedAmount) {
+        newEntries.push({ id: uid(), party, invoiceAmount: Number(invoiceAmount) || 0, receivedAmount: Number(receivedAmount) || 0, date, note });
+      }
+    });
+    setPayments([...newEntries, ...payments]);
+    return { added: newEntries.length };
+  };
+
+  const totalInvoiced = payments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const totalReceived = payments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  const totalOutstanding = totalInvoiced - totalReceived;
+
+  const byParty = useMemo(() => {
+    const map = {};
+    payments.forEach(p => {
+      const key = p.party || 'Unknown';
+      if (!map[key]) map[key] = { invoiced: 0, received: 0 };
+      map[key].invoiced += Number(p.invoiceAmount||0);
+      map[key].received += Number(p.receivedAmount||0);
+    });
+    return Object.entries(map).map(([party, v]) => ({ party, ...v, pending: v.invoiced - v.received })).filter(x => x.pending > 0).sort((a,b) => b.pending - a.pending);
+  }, [payments]);
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Billed</p><p className="text-sm font-bold text-slate-800">₹{totalInvoiced.toLocaleString('en-IN')}</p></Card>
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Collected</p><p className="text-sm font-bold text-emerald-600">₹{totalReceived.toLocaleString('en-IN')}</p></Card>
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Outstanding</p><p className="text-sm font-bold text-red-600">₹{totalOutstanding.toLocaleString('en-IN')}</p></Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <button onClick={() => setAddMode('billing')} className="bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1">
+          <Plus size={16} /> Billing Entry
+        </button>
+        <button onClick={() => setAddMode('collection')} className="bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1">
+          <Plus size={16} /> Collection Entry
+        </button>
+      </div>
+      <button onClick={() => setShowImport(true)} className="w-full bg-white border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 mb-3">
+        <Upload size={16} /> Outstanding List Upload Karein
+      </button>
+      {showImport && (
+        <ImportModal
+          title="Outstanding List Upload Karein"
+          hint="April 2024 se ab tak ki party-wise outstanding CSV/Excel se ek saath dalein. Columns: Party, aur ya to 'Outstanding' (sirf due amount) ya 'Invoice Amount' + 'Received Amount' alag-alag. Date optional hai."
+          onImport={importPayments}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {byParty.length > 0 && (
+        <div className="mb-4">
+          <SectionTitle>Party-wise Outstanding</SectionTitle>
+          <div className="space-y-2">
+            {byParty.map(p => (
+              <Card key={p.party} className="!p-3 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-700 truncate pr-2">{p.party}</p>
+                <p className="text-sm font-bold text-red-600 whitespace-nowrap">₹{p.pending.toLocaleString('en-IN')}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <SectionTitle>Recent Entries</SectionTitle>
+      <div className="space-y-2">
+        {payments.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi entry nahi</Card>}
+        {payments.map(p => {
+          const isBilling = Number(p.invoiceAmount||0) > 0 && Number(p.receivedAmount||0) === 0;
+          const isCollection = Number(p.receivedAmount||0) > 0 && Number(p.invoiceAmount||0) === 0;
+          const kindLabel = isBilling ? 'Billing' : isCollection ? 'Collection' : 'Entry';
+          const kindColor = isBilling ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-teal-50 text-teal-700 border border-teal-200';
+          return (
+            <Card key={p.id} className="!p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {p.date}
+                    {Number(p.invoiceAmount||0) > 0 && ` · Bill ₹${Number(p.invoiceAmount).toLocaleString('en-IN')}`}
+                    {Number(p.receivedAmount||0) > 0 && ` · Collected ₹${Number(p.receivedAmount).toLocaleString('en-IN')}`}
+                  </p>
+                  {p.note && <p className="text-xs text-slate-400 mt-0.5">{p.note}</p>}
+                </div>
+                <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${kindColor}`}>{kindLabel}</span>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {addMode === 'billing' && <BillingForm machines={machines} onSave={addPayment} onClose={() => setAddMode(null)} />}
+      {addMode === 'collection' && <CollectionForm machines={machines} onSave={addPayment} onClose={() => setAddMode(null)} />}
+    </div>
+  );
+}
+
+function BillingForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: '', receivedAmount: 0, date: todayISO(), note: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Billing Entry (Bulk Order)" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No / Order Ref (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={f.invoiceAmount} onChange={e => set('invoiceAmount', e.target.value)} placeholder="Bulk order ka total billing" /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: 5 machine bulk order" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.invoiceAmount} className="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Billing</button>
+    </Modal>
+  );
+}
+
+function CollectionForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: 0, receivedAmount: '', date: todayISO(), note: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Collection Entry" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Amount Collected (₹)"><input type="number" className={inputCls} value={f.receivedAmount} onChange={e => set('receivedAmount', e.target.value)} /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: Cheque no. / cash" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.receivedAmount} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Collection</button>
+    </Modal>
+  );
+}
+
+// ---------------- DAILY LOG TAB ----------------
+function LogTab({ dailyLogs, setDailyLogs, tasks, setTasks, completeTask }) {
+  const [sub, setSub] = useState('log');
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+        <button onClick={() => setSub('log')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${sub === 'log' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Daily Log</button>
+        <button onClick={() => setSub('tasks')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${sub === 'tasks' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>To-Do Tasks</button>
+      </div>
+      {sub === 'log' ? (
+        <DailyLogSection dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} />
+      ) : (
+        <TasksSection tasks={tasks} setTasks={setTasks} completeTask={completeTask} />
+      )}
+    </div>
+  );
+}
+
+function DailyLogSection({ dailyLogs, setDailyLogs }) {
+  const [note, setNote] = useState('');
+  const today = todayISO();
+  const todayLogs = dailyLogs.filter(l => l.date === today);
+
+  const addLog = () => {
+    if (!note.trim()) return;
+    setDailyLogs([{ id: uid(), date: today, note: note.trim(), time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...dailyLogs]);
+    setNote('');
+  };
+
+  const grouped = useMemo(() => {
+    const map = {};
+    dailyLogs.forEach(l => {
+      if (!map[l.date]) map[l.date] = [];
+      map[l.date].push(l);
+    });
+    return Object.entries(map).sort((a,b) => b[0].localeCompare(a[0]));
+  }, [dailyLogs]);
+
+  return (
+    <>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-2">Aaj ka Update Likhein</p>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Jaise: XYZ office gaye, AMC renewal follow up kiya, ₹5000 collect hua..."
+          rows={3}
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-base resize-none"
+        />
+        <button onClick={addLog} disabled={!note.trim()} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mt-2 disabled:opacity-40">
+          Entry Jodein
+        </button>
+      </Card>
+
+      {todayLogs.length > 0 && (
+        <div className="mb-4">
+          <SectionTitle>Aaj ({todayLogs.length} entries)</SectionTitle>
+          <div className="space-y-2">
+            {todayLogs.map(l => (
+              <Card key={l.id} className="!p-3">
+                <p className="text-sm text-slate-700">{l.note}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{l.time}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <SectionTitle>Purane Din</SectionTitle>
+      <div className="space-y-3">
+        {grouped.filter(([d]) => d !== today).slice(0, 20).map(([date, logs]) => (
+          <div key={date}>
+            <p className="text-xs font-semibold text-slate-500 mb-1.5 px-1">{new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {logs.length} entries</p>
+            <div className="space-y-1.5">
+              {logs.map(l => (
+                <Card key={l.id} className="!p-2.5">
+                  <p className="text-sm text-slate-600">{l.note}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{l.time}</p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
+        {dailyLogs.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi log entry nahi</Card>}
+      </div>
+    </>
+  );
+}
+
+function TasksSection({ tasks, setTasks, completeTask }) {
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState(todayISO());
+  const today = todayISO();
+
+  const addTask = () => {
+    if (!title.trim()) return;
+    setTasks([{ id: uid(), title: title.trim(), dueDate, done: false, completedDate: null }, ...tasks]);
+    setTitle('');
+    setDueDate(today);
+  };
+
+  const pending = useMemo(() => tasks.filter(t => !t.done).sort((a,b) => a.dueDate.localeCompare(b.dueDate)), [tasks]);
+  const done = useMemo(() => tasks.filter(t => t.done).sort((a,b) => (b.completedDate||'').localeCompare(a.completedDate||'')), [tasks]);
+
+  return (
+    <>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-2">Naya Task Jodein</p>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Jaise: PH-2115 AMC renewal call karein"
+          className={inputCls + ' mb-2'}
+        />
+        <div className="flex gap-2">
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls + ' flex-1'} />
+          <button onClick={addTask} disabled={!title.trim()} className="bg-teal-700 text-white font-semibold px-4 rounded-lg text-sm disabled:opacity-40">Add</button>
+        </div>
+      </Card>
+
+      <SectionTitle>Pending Tasks ({pending.length})</SectionTitle>
+      <div className="space-y-2 mb-4">
+        {pending.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Koi pending task nahi</Card>}
+        {pending.map(t => {
+          const overdue = t.dueDate < today;
+          const isToday = t.dueDate === today;
+          return (
+            <Card key={t.id} className="!p-3 flex items-center gap-3">
+              <button onClick={() => completeTask(t.id)} className="w-5 h-5 rounded-full border-2 border-teal-600 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-slate-800">{t.title}</p>
+                <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-600 font-semibold' : isToday ? 'text-amber-600 font-semibold' : 'text-slate-400'}`}>
+                  {overdue ? 'Overdue · ' : isToday ? 'Aaj · ' : ''}{t.dueDate}
+                </p>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {done.length > 0 && (
+        <>
+          <SectionTitle>Complete Ho Chuke ({done.length})</SectionTitle>
+          <div className="space-y-1.5">
+            {done.slice(0, 15).map(t => (
+              <Card key={t.id} className="!p-2.5 flex items-center gap-3 opacity-60">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-600 line-through truncate">{t.title}</p>
+                  <p className="text-[10px] text-slate-400">{t.completedDate}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+
+// ---- Mount ----
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+
+  </script>
+</body>
+</html>
