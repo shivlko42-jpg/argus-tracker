@@ -329,10 +329,12 @@ function App() {
   const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
 
   const expiringSoon = useMemo(() => {
+    // Sirf wahi machines jinki AMC/warranty jaldi khatam ho rahi hai ya abhi-abhi khatam hui hai —
+    // bahut purani expired machines (jinka AMC lena hi chhod diya gaya ho) list mein nahi aani chahiye.
     return activeMachines
       .filter(m => (m.city || '').trim().toUpperCase() === 'LUCKNOW')
       .map(m => ({ ...m, days: daysUntil(m.amcTo) }))
-      .filter(m => m.days !== null && m.days <= 60)
+      .filter(m => m.days !== null && m.days <= 60 && m.days >= -30)
       .sort((a,b) => a.days - b.days);
   }, [activeMachines]);
 
@@ -548,11 +550,13 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, outstan
     // 2. Most urgent AMC renewal
     if (duePartiesGrouped.length > 0) {
       const p = duePartiesGrouped[0];
+      const worstMachine = p.machines.reduce((w, m) => (m.days < w.days ? m : w), p.machines[0]);
       const overdue = p.minDays < 0;
+      const deptTag = worstMachine.place ? ` (${worstMachine.place})` : '';
       list.push({
         key: 'amc-' + p.party,
         icon: '🛠️',
-        title: `${p.party} — AMC renewal`,
+        title: `${p.party}${deptTag} — AMC renewal`,
         subtitle: overdue ? `${Math.abs(p.minDays)} din pehle expire ho chuki` : `${p.minDays} din mein expire ho rahi`,
         urgent: overdue || p.minDays <= 7,
         onClick: () => goTo('machines', 'parties', p.party),
@@ -1693,6 +1697,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
   const [party, setParty] = useState(initial?.party || '');
   const [attention, setAttention] = useState(initial?.attention || 'The Director');
   const [department, setDepartment] = useState(initial?.department || '');
+  const [recipientAddress, setRecipientAddress] = useState(initial?.recipientAddress || '');
   const [quotNo, setQuotNo] = useState(initial?.quotNo || nextQuotNo(quotations));
   const [date, setDate] = useState(initial?.date || todayISO());
   const [subject, setSubject] = useState(initial?.subject || '');
@@ -1706,6 +1711,13 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     if (!party) return [];
     return machines.filter(m => m.party.toLowerCase() === party.toLowerCase());
   }, [party, machines]);
+
+  useEffect(() => {
+    if (!recipientAddress && partyMachines.length > 0 && partyMachines[0].city) {
+      setRecipientAddress(partyMachines[0].city);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyMachines]);
 
   const suggestedItems = useMemo(() => {
     if (!selectedModel) return [];
@@ -1737,7 +1749,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
 
   const handleSave = () => {
     onSave({
-      party, attention, department, quotNo, date, subject, machineModel: selectedModel,
+      party, attention, department, recipientAddress, quotNo, date, subject, machineModel: selectedModel,
       lineItems: computed.map(({ lineId, name, description, rate, qty, gst }) => ({ lineId, name, description, rate: Number(rate), qty: Number(qty), gst: Number(gst) })),
       amount: grandTotal,
       deliveryPeriod, serviceTerms,
@@ -1749,6 +1761,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     <Modal title={initial ? 'Quotation Edit Karein' : 'Nayi Quotation'} onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
       <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
+      <Field label="Address (To, block mein designation ke saath print hoga)"><input className={inputCls} value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} placeholder="Jaise: Lucknow" /></Field>
       <Field label="Department (sirf jaankari ke liye — kis vibhag/adhikari ke liye hai)"><input className={inputCls} value={department} onChange={e => setDepartment(e.target.value)} placeholder="Jaise: CCF HQ, Audit Section" /></Field>
 
       {partyMachines.length > 0 && (
@@ -2014,7 +2027,8 @@ function buildQuotationHTML(quote, signatureImg) {
     </div>
     <p style="font-size:13px;margin:4px 0;">To,</p>
     ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:600;">${quote.attention}</p>` : ''}
-    <p style="font-size:14px;font-weight:700;margin:2px 0 8px;">${quote.party || ''}</p>
+    <p style="font-size:14px;font-weight:700;margin:2px 0 4px;">${quote.party || ''}</p>
+    ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;">${quote.recipientAddress}</p>` : ''}
     ${quote.subject ? `<p style="font-size:12px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
     <p style="font-size:12px;margin:4px 0 10px;">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
     <table>
@@ -2042,7 +2056,7 @@ function buildQuotationHTML(quote, signatureImg) {
     <p class="terms" style="margin-top:14px;">For ${COMPANY.name}</p>
     ${signatureImg ? `<img src="${signatureImg}" style="height:70px;object-fit:contain;margin-top:8px;display:block;" />` : ''}
     <p style="font-size:13px;font-weight:700;margin-top:${signatureImg ? '6px' : '30px'};">(${COMPANY.contactName})</p>
-    <p class="small">Authorised Signatory · ${COMPANY.contactPhone}</p>
+    <p class="small">${COMPANY.contactPhone}</p>
     <div class="footer">
       <div>${COMPANY.footer1}</div>
       <div>${COMPANY.footer2}</div>
@@ -2158,7 +2172,8 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
 
         <p className="text-xs mb-1">To,</p>
         {quote.attention && <p className="text-xs font-medium mb-0.5">{quote.attention}</p>}
-        <p className="text-sm font-semibold mb-2">{quote.party}</p>
+        <p className="text-sm font-semibold mb-0.5">{quote.party}</p>
+        {quote.recipientAddress && <p className="text-xs text-slate-600 mb-2">{quote.recipientAddress}</p>}
 
         {quote.subject && (
           <p className="text-xs mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
@@ -2210,7 +2225,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
           <p className="text-[10px] mt-2">For {COMPANY.name}</p>
           {signatureImg && <img src={signatureImg} alt="Signature" className="h-12 object-contain mt-1" />}
           <p className={`text-xs font-semibold ${signatureImg ? 'mt-1' : 'mt-4'}`}>({COMPANY.contactName})</p>
-          <p className="text-[10px]">Authorised Signatory · {COMPANY.contactPhone}</p>
+          <p className="text-[10px]">{COMPANY.contactPhone}</p>
 
           <div className="border-t border-slate-300 mt-3 pt-1.5 text-center">
             <p className="text-[9px] text-slate-500">{COMPANY.footer1}</p>
