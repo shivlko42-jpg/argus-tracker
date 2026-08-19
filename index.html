@@ -111,10 +111,8 @@
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" onerror="showBootError('Babel CDN load nahi hua — internet connection check karein', true)"></script>
   <script type="text/babel" data-presets="react">
 // Argus Tracker - standalone PWA build
-// React, ReactDOM, Papa, XLSX loaded globally via CDN <script> tags in index.html
 const { useState, useEffect, useMemo, useCallback, useRef, Fragment } = React;
 
-// ---- Lightweight emoji-based icon replacements (no external icon library needed) ----
 function Ic({ e, size = 16, className = '' }) {
   return React.createElement('span', {
     className: className,
@@ -290,10 +288,11 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [items, setItems] = useState([]);
   const [targets, setTargets] = useState({});
+  const [signatureImg, setSignatureImg] = useState('');
 
   useEffect(() => {
     (async () => {
-      const [m, q, o, p, l, tk, it, t] = await Promise.all([
+      const [m, q, o, p, l, tk, it, t, sig] = await Promise.all([
         loadKey('argus-machines', SEED_MACHINES),
         loadKey('argus-quotations', []),
         loadKey('argus-orders', []),
@@ -302,6 +301,7 @@ function App() {
         loadKey('argus-tasks', []),
         loadKey('argus-items', []),
         loadKey('argus-targets', {}),
+        loadKey('argus-signature', ''),
       ]);
       setMachines(m);
       setQuotations(q);
@@ -311,6 +311,7 @@ function App() {
       setTasks(tk);
       setItems(it);
       setTargets(t);
+      setSignatureImg(sig);
       setReady(true);
     })();
   }, []);
@@ -320,6 +321,7 @@ function App() {
   useEffect(() => { if (ready) saveKey('argus-orders', orders); }, [orders, ready]);
   useEffect(() => { if (ready) saveKey('argus-payments', payments); }, [payments, ready]);
   useEffect(() => { if (ready) saveKey('argus-dailylogs', dailyLogs); }, [dailyLogs, ready]);
+  useEffect(() => { if (ready) saveKey('argus-signature', signatureImg); }, [signatureImg, ready]);
   useEffect(() => { if (ready) saveKey('argus-tasks', tasks); }, [tasks, ready]);
   useEffect(() => { if (ready) saveKey('argus-items', items); }, [items, ready]);
   useEffect(() => { if (ready) saveKey('argus-targets', targets); }, [targets, ready]);
@@ -330,7 +332,7 @@ function App() {
     return activeMachines
       .filter(m => (m.city || '').trim().toUpperCase() === 'LUCKNOW')
       .map(m => ({ ...m, days: daysUntil(m.amcTo) }))
-      .filter(m => m.days !== null && m.days <= 90)
+      .filter(m => m.days !== null && m.days <= 60)
       .sort((a,b) => a.days - b.days);
   }, [activeMachines]);
 
@@ -402,6 +404,7 @@ function App() {
             setItems={setItems}
             payments={payments}
             setPayments={setPayments}
+            signatureImg={signatureImg}
           />
         )}
         {tab === 'payments' && (
@@ -422,6 +425,8 @@ function App() {
         <BackupModal
           data={{ machines, quotations, orders, payments, dailyLogs, tasks, items, targets }}
           setters={{ setMachines, setQuotations, setOrders, setPayments, setDailyLogs, setTasks, setItems, setTargets }}
+          signatureImg={signatureImg}
+          setSignatureImg={setSignatureImg}
           onClose={() => setShowBackup(false)}
         />
       )}
@@ -627,7 +632,7 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, outstan
       {expiringSoon.length > 0 && (
         <button onClick={() => goTo('machines', 'list')} className="w-full flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
           <Bell size={16} className="text-amber-600 shrink-0" />
-          <p className="text-xs text-amber-800 font-semibold text-left flex-1">{expiringSoon.length} machine{expiringSoon.length > 1 ? 's' : ''} ki AMC/Warranty 90 din mein renew karni hai</p>
+          <p className="text-xs text-amber-800 font-semibold text-left flex-1">{expiringSoon.length} machine{expiringSoon.length > 1 ? 's' : ''} ki AMC/Warranty 60 din mein renew karni hai</p>
           <ChevronRight size={14} className="text-amber-500 shrink-0" />
         </button>
       )}
@@ -689,6 +694,18 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, outstan
               <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
             </div>
             <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved</p>
+            <button
+              onClick={() => downloadMonthlyReport({
+                monthLabel: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+                quotations: quotations.filter(q => (q.date||'').startsWith(monthKey())),
+                orders: orders.filter(o => (o.poDate||'').startsWith(monthKey())),
+                payments: payments.filter(p => (p.date||'').startsWith(monthKey())),
+                machines,
+                target: thisMonthTarget,
+                achieved: thisMonthAchieved,
+              })}
+              className="w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5"
+            >📊 Is Mahine Ki Report Download Karein</button>
           </>
         )}
       </Card>
@@ -1117,10 +1134,23 @@ function PartyDetail({ party, machines, onClose, onSelectMachine, onAddMachine }
   );
 }
 
-function BackupModal({ data, setters, onClose }) {
+function BackupModal({ data, setters, signatureImg, setSignatureImg, onClose }) {
   const [restoreFile, setRestoreFile] = useState(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [status, setStatus] = useState('');
+  const [sigError, setSigError] = useState('');
+
+  const handleSignatureUpload = (file) => {
+    if (!file) return;
+    if (file.size > 800 * 1024) {
+      setSigError('Image bahut badi hai (800KB se kam rakhein). Photo thodi crop/compress kar ke try karein.');
+      return;
+    }
+    setSigError('');
+    const reader = new FileReader();
+    reader.onload = (e) => setSignatureImg(e.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const totalCount = Object.values(data).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0);
 
@@ -1169,6 +1199,23 @@ function BackupModal({ data, setters, onClose }) {
 
   return (
     <Modal title="Backup & Restore" onClose={onClose}>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-1">Signature / Stamp</p>
+        <p className="text-xs text-slate-500 mb-3">Apni stamp/signature ki saaf photo yahan ek baar upload kar dein — har quotation mein apne aap laga milega.</p>
+        {signatureImg && (
+          <div className="border border-slate-200 rounded-lg p-2 mb-2 flex items-center justify-between">
+            <img src={signatureImg} alt="Signature" className="h-14 object-contain" />
+            <button onClick={() => setSignatureImg('')} className="text-xs text-red-600 font-semibold px-2">Hatayein</button>
+          </div>
+        )}
+        <label className="block border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer">
+          <input type="file" accept="image/*" className="hidden" onChange={e => handleSignatureUpload(e.target.files[0])} />
+          <Upload size={18} className="mx-auto text-slate-400 mb-1" />
+          <p className="text-xs text-slate-600 font-medium">{signatureImg ? 'Photo Badlein' : 'Photo Chunein'}</p>
+        </label>
+        {sigError && <p className="text-xs text-red-600 mt-2">{sigError}</p>}
+      </Card>
+
       <Card className="mb-4">
         <p className="text-sm font-bold text-slate-800 mb-1">Backup Banayein</p>
         <p className="text-xs text-slate-500 mb-3">Abhi total {totalCount} records hain (machines, quotations, orders, payments, log, tasks, items). Ek file download hogi jise aap kahin bhi save kar sakte hain — naya phone lene par wahi file yahin "Restore" mein daal kar sara data wapas le aayenge.</p>
@@ -1340,9 +1387,18 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
           <div><p className="text-xs text-slate-400">AMC To</p><p className="font-medium">{machine.amcTo || '-'}</p></div>
         </div>
         {machine.contact && (
-          <a href={`tel:${machine.contact.split(',')[0].trim()}`} className="flex items-center gap-2 bg-teal-50 text-teal-800 rounded-xl px-3 py-2.5 text-sm font-medium">
-            <Phone size={16} /> {machine.contact}
-          </a>
+          <div className="grid grid-cols-2 gap-2">
+            <a href={`tel:${machine.contact.split(',')[0].trim()}`} className="flex items-center justify-center gap-2 bg-teal-50 text-teal-800 rounded-xl px-3 py-2.5 text-sm font-medium">
+              <Phone size={16} /> Call
+            </a>
+            <a
+              href={`https://wa.me/91${machine.contact.split(',')[0].replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`Namaste, ${machine.party} — machine ${machine.machineNo} (${machine.model})${machine.amcTo ? ' ki AMC/Warranty ' + machine.amcTo + ' ko khatam ho rahi hai' : ''}. Renewal ke baare mein baat karni thi. — Argus Business Machines`)}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-800 rounded-xl px-3 py-2.5 text-sm font-medium"
+            >
+              WhatsApp
+            </a>
+          </div>
         )}
 
         <div className="border border-amber-200 bg-amber-50 rounded-xl p-3">
@@ -1382,7 +1438,7 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
 }
 
 // ---------------- SALES TAB (Quotations + Orders + Items) ----------------
-function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments }) {
+function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg }) {
   const [sub, setSub] = useState('quotes');
   const [showAdd, setShowAdd] = useState(false);
   const [viewQuote, setViewQuote] = useState(null);
@@ -1459,6 +1515,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{q.party}</p>
+                    {q.department && <p className="text-[10px] text-teal-600 font-medium">{q.department}</p>}
                     <p className="text-xs text-slate-500 mt-0.5">{q.quotNo || '—'} · ₹{Number(q.amount||0).toLocaleString('en-IN')} · {q.date}</p>
                     {q.subject && <p className="text-xs text-slate-400 mt-0.5 truncate">{q.subject}</p>}
                     {q.convertedToOrder && <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">✔ Order banaya</p>}
@@ -1513,6 +1570,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           onDelete={() => deleteQuote(viewQuote.id)}
           onStatusChange={(status) => updateQuote(viewQuote.id, { status })}
           onConvertToOrder={(orderNo, poDate) => convertQuoteToOrder(viewQuote, orderNo, poDate)}
+          signatureImg={signatureImg}
         />
       )}
       {editQuote && (
@@ -1634,6 +1692,7 @@ function nextQuotNo(quotations) {
 function QuotationBuilder({ machines, items, quotations, onSave, onClose, initial }) {
   const [party, setParty] = useState(initial?.party || '');
   const [attention, setAttention] = useState(initial?.attention || 'The Director');
+  const [department, setDepartment] = useState(initial?.department || '');
   const [quotNo, setQuotNo] = useState(initial?.quotNo || nextQuotNo(quotations));
   const [date, setDate] = useState(initial?.date || todayISO());
   const [subject, setSubject] = useState(initial?.subject || '');
@@ -1678,7 +1737,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
 
   const handleSave = () => {
     onSave({
-      party, attention, quotNo, date, subject, machineModel: selectedModel,
+      party, attention, department, quotNo, date, subject, machineModel: selectedModel,
       lineItems: computed.map(({ lineId, name, description, rate, qty, gst }) => ({ lineId, name, description, rate: Number(rate), qty: Number(qty), gst: Number(gst) })),
       amount: grandTotal,
       deliveryPeriod, serviceTerms,
@@ -1690,6 +1749,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     <Modal title={initial ? 'Quotation Edit Karein' : 'Nayi Quotation'} onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
       <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
+      <Field label="Department (sirf jaankari ke liye — kis vibhag/adhikari ke liye hai)"><input className={inputCls} value={department} onChange={e => setDepartment(e.target.value)} placeholder="Jaise: CCF HQ, Audit Section" /></Field>
 
       {partyMachines.length > 0 && (
         <div className="mb-3">
@@ -1702,10 +1762,11 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
               return (
                 <button
                   key={m.id}
-                  onClick={() => { setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`); setSelectedModel(m.model); setModelDraft(m.model); }}
+                  onClick={() => { setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`); setSelectedModel(m.model); setModelDraft(m.model); if (m.place) setDepartment(m.place); }}
                   className={`text-left border rounded-lg px-2.5 py-1.5 ${selectedModel === m.model ? 'border-teal-600 bg-teal-50' : 'border-slate-200'}`}
                 >
                   <p className="text-xs font-medium text-slate-700">{m.machineNo} · {m.model}</p>
+                  {m.place && <p className="text-[9px] text-teal-600">{m.place}</p>}
                   <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
                 </button>
               );
@@ -1821,7 +1882,89 @@ function QuotationLineEditor({ line, items, onUpdate, onRemove }) {
   );
 }
 
-function buildQuotationHTML(quote) {
+function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved }) {
+  const quotesInMonth = quotations;
+  const ordersInMonth = orders;
+  const totalBilled = payments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const totalCollected = payments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  const approvedQuotes = quotesInMonth.filter(q => q.status === 'Approved').length;
+  const rejectedQuotes = quotesInMonth.filter(q => q.status === 'Rejected').length;
+
+  const byPartyOutstanding = {};
+  payments.forEach(p => {
+    const pend = Number(p.invoiceAmount||0) - Number(p.receivedAmount||0);
+    if (pend > 0) byPartyOutstanding[p.party] = (byPartyOutstanding[p.party]||0) + pend;
+  });
+  const topOutstandingRows = Object.entries(byPartyOutstanding)
+    .sort((a,b) => b[1]-a[1]).slice(0,10)
+    .map(([party, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${party}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`)
+    .join('');
+
+  const pct = target > 0 ? Math.min(100, Math.round((achieved/target)*100)) : 0;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Monthly Report — ${monthLabel}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding:20px; max-width:750px; margin:0 auto; word-wrap:break-word; }
+  .header { text-align:center; border-bottom:3px solid #b91c1c; padding-bottom:10px; margin-bottom:16px; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; }
+  .small { font-size:11px; color:#64748b; }
+  h2 { font-size:14px; margin:18px 0 8px; color:#0f766e; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid #cbd5e1; border-radius:8px; padding:10px; }
+  .stat-label { font-size:11px; color:#64748b; }
+  .stat-value { font-size:18px; font-weight:800; color:#1e293b; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+  .bar-bg { width:100%; height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar-fill { height:100%; background:#0f766e; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">Monthly Business Report — ${monthLabel}</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Quotations Bheji Gayi</div><div class="stat-value">${quotesInMonth.length}</div></div>
+    <div class="stat"><div class="stat-label">Approved / Rejected</div><div class="stat-value">${approvedQuotes} / ${rejectedQuotes}</div></div>
+    <div class="stat"><div class="stat-label">Orders Bane</div><div class="stat-value">${ordersInMonth.length}</div></div>
+    <div class="stat"><div class="stat-label">Total Billing</div><div class="stat-value">₹${totalBilled.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Collection Hui</div><div class="stat-value">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Outstanding Bacha</div><div class="stat-value">₹${(totalBilled-totalCollected).toLocaleString('en-IN')}</div></div>
+  </div>
+
+  <h2>Target vs Achievement</h2>
+  <p class="small">₹${achieved.toLocaleString('en-IN')} collected of ₹${target.toLocaleString('en-IN')} target (${pct}%)</p>
+  <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+
+  ${topOutstandingRows ? `
+  <h2>Sabse Zyada Outstanding Wali Parties</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Outstanding</th></tr></thead>
+    <tbody>${topOutstandingRows}</tbody>
+  </table>` : ''}
+
+  <p class="small" style="margin-top:20px;">Report generated on ${todayISO()} — Argus Tracker</p>
+</body></html>`;
+}
+
+function downloadMonthlyReport(payload) {
+  const html = buildMonthlyReportHTML(payload);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Monthly-Report-${payload.monthLabel.replace(/\s/g,'-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function buildQuotationHTML(quote, signatureImg) {
   const lines = quote.lineItems || [];
   const rows = lines.map((l, i) => {
     const base = Number(l.rate||0) * Number(l.qty||0);
@@ -1840,18 +1983,23 @@ function buildQuotationHTML(quote) {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${quote.quotNo || 'Quotation'}</title>
 <style>
+  @page { size: A4; margin: 15mm; }
   html, body { height: 100%; }
-  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding: 20px; max-width: 700px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding: 20px; max-width: 750px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
   .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
   .company { font-size:16px; font-weight:800; color:#b91c1c; }
   .small { font-size:11px; color:#64748b; }
-  table { width:100%; border-collapse: collapse; margin: 12px 0; font-size:12px; }
+  table { width:100%; border-collapse: collapse; margin: 12px 0; font-size:12px; table-layout: fixed; }
+  th, td { word-wrap: break-word; overflow-wrap: break-word; }
   th { background:#f1f5f9; border:1px solid #94a3b8; padding:5px; }
-  .terms { font-size:12px; margin-top: 4px; }
-  .content { flex: 1 0 auto; }
+  .terms { font-size:12px; margin-top: 4px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
+  .content { flex: 1 0 auto; width: 100%; }
   .sign-block { margin-top: auto; padding-top: 24px; }
   .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:16px; padding-top:8px; font-size:10px; color:#64748b; }
-  @media print { body { padding: 0; min-height: 100vh; } }
+  @media print {
+    body { padding: 0; max-width: none; width: 100%; min-height: 267mm; }
+  }
 </style></head>
 <body>
   <div class="content">
@@ -1870,7 +2018,15 @@ function buildQuotationHTML(quote) {
     ${quote.subject ? `<p style="font-size:12px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
     <p style="font-size:12px;margin:4px 0 10px;">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
     <table>
-      <thead><tr><th>S.No</th><th>Item</th><th>Description</th><th>Rate</th><th>Qty</th><th>GST%</th><th>Amount</th></tr></thead>
+      <thead><tr>
+        <th style="width:7%;">S.No</th>
+        <th style="width:20%;">Item</th>
+        <th style="width:28%;">Description</th>
+        <th style="width:13%;">Rate</th>
+        <th style="width:7%;">Qty</th>
+        <th style="width:10%;">GST%</th>
+        <th style="width:15%;">Amount</th>
+      </tr></thead>
       <tbody>
         ${rows}
         <tr><td colspan="6" style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
@@ -1884,7 +2040,8 @@ function buildQuotationHTML(quote) {
   <div class="sign-block">
     <p class="terms">Yours faithfully,</p>
     <p class="terms" style="margin-top:14px;">For ${COMPANY.name}</p>
-    <p style="font-size:13px;font-weight:700;margin-top:30px;">(${COMPANY.contactName})</p>
+    ${signatureImg ? `<img src="${signatureImg}" style="height:70px;object-fit:contain;margin-top:8px;display:block;" />` : ''}
+    <p style="font-size:13px;font-weight:700;margin-top:${signatureImg ? '6px' : '30px'};">(${COMPANY.contactName})</p>
     <p class="small">Authorised Signatory · ${COMPANY.contactPhone}</p>
     <div class="footer">
       <div>${COMPANY.footer1}</div>
@@ -1895,8 +2052,8 @@ function buildQuotationHTML(quote) {
 </body></html>`;
 }
 
-function downloadQuotationHTML(quote) {
-  const html = buildQuotationHTML(quote);
+function downloadQuotationHTML(quote, signatureImg) {
+  const html = buildQuotationHTML(quote, signatureImg);
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1908,7 +2065,7 @@ function downloadQuotationHTML(quote) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onConvertToOrder }) {
+function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onConvertToOrder, signatureImg }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [showConvert, setShowConvert] = useState(false);
   const [orderNo, setOrderNo] = useState('');
@@ -1922,7 +2079,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
   const canShareFiles = typeof navigator !== 'undefined' && navigator.canShare;
 
   const handleDownload = () => {
-    downloadQuotationHTML(quote);
+    downloadQuotationHTML(quote, signatureImg);
     setDownloadMsg('File download shuru ho gayi hai. Ek popup aayega jisme "Download file" dabayein — file aapke phone ke Downloads folder mein save ho jayegi. Wahan se WhatsApp/Email par attach karke share kar sakte hain.');
   };
 
@@ -1932,7 +2089,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     try {
       window.print();
     } catch (e) {
-      downloadQuotationHTML(quote);
+      downloadQuotationHTML(quote, signatureImg);
     }
   };
 
@@ -1940,19 +2097,19 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     setSharing(true);
     setDownloadMsg('');
     try {
-      const html = buildQuotationHTML(quote);
+      const html = buildQuotationHTML(quote, signatureImg);
       const blob = new Blob([html], { type: 'text/html' });
       const fileName = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.html`;
       const file = new File([blob], fileName, { type: 'text/html' });
       if (canShareFiles && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: quote.quotNo || 'Quotation', text: `Quotation for ${quote.party || ''}` });
       } else {
-        downloadQuotationHTML(quote);
+        downloadQuotationHTML(quote, signatureImg);
         setDownloadMsg('Is device par direct Share support nahi hai, isliye file download kar di — wahan se WhatsApp/Email mein attach kar dein.');
       }
     } catch (e) {
       if (e && e.name !== 'AbortError') {
-        downloadQuotationHTML(quote);
+        downloadQuotationHTML(quote, signatureImg);
         setDownloadMsg('Share nahi ho paya, isliye file download kar di.');
       }
     }
@@ -1968,6 +2125,13 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
           #quot-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16px; }
         }
       `}</style>
+
+      {quote.department && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3">
+          <p className="text-[10px] text-teal-600 font-semibold">Department (internal reference)</p>
+          <p className="text-sm text-teal-800 font-medium">{quote.department}</p>
+        </div>
+      )}
 
       <div className="flex gap-1.5 mb-3">
         {statusOptions.map(s => (
@@ -2001,7 +2165,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
         )}
         <p className="text-xs mb-2">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
 
-        <table className="w-full text-[10px] border-collapse mb-2">
+        <table className="w-full text-[10px] border-collapse mb-2" style={{ tableLayout: 'fixed', wordBreak: 'break-word' }}>
           <thead>
             <tr className="bg-slate-100">
               <th className="border border-slate-300 px-1 py-1">S.No</th>
@@ -2044,7 +2208,8 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
         <div className="mt-auto pt-4">
           <p className="text-[10px] mt-1">Yours faithfully,</p>
           <p className="text-[10px] mt-2">For {COMPANY.name}</p>
-          <p className="text-xs font-semibold mt-4">({COMPANY.contactName})</p>
+          {signatureImg && <img src={signatureImg} alt="Signature" className="h-12 object-contain mt-1" />}
+          <p className={`text-xs font-semibold ${signatureImg ? 'mt-1' : 'mt-4'}`}>({COMPANY.contactName})</p>
           <p className="text-[10px]">Authorised Signatory · {COMPANY.contactPhone}</p>
 
           <div className="border-t border-slate-300 mt-3 pt-1.5 text-center">
@@ -2289,8 +2454,33 @@ function LogTab({ dailyLogs, setDailyLogs, tasks, setTasks, completeTask }) {
 
 function DailyLogSection({ dailyLogs, setDailyLogs }) {
   const [note, setNote] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const today = todayISO();
   const todayLogs = dailyLogs.filter(l => l.date === today);
+  const speechSupported = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current && recognitionRef.current.stop();
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = 'hi-IN';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setNote(prev => (prev ? prev.trim() + ' ' : '') + transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
 
   const addLog = () => {
     if (!note.trim()) return;
@@ -2318,9 +2508,17 @@ function DailyLogSection({ dailyLogs, setDailyLogs }) {
           rows={3}
           className="w-full border border-slate-300 rounded-lg px-3 py-2 text-base resize-none"
         />
-        <button onClick={addLog} disabled={!note.trim()} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mt-2 disabled:opacity-40">
-          Entry Jodein
-        </button>
+        <div className="flex gap-2 mt-2">
+          {speechSupported && (
+            <button
+              onClick={toggleVoice}
+              className={`px-4 rounded-xl text-sm font-semibold flex items-center gap-1.5 ${listening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-100 text-slate-700'}`}
+            >🎤 {listening ? 'Sun raha hun...' : 'Bolkar Likhein'}</button>
+          )}
+          <button onClick={addLog} disabled={!note.trim()} className="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-40">
+            Entry Jodein
+          </button>
+        </div>
       </Card>
 
       {todayLogs.length > 0 && (
@@ -2430,7 +2628,6 @@ function TasksSection({ tasks, setTasks, completeTask }) {
 }
 
 
-// ---- Mount ----
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
 
