@@ -1,4 +1,4 @@
-const CACHE_NAME = 'argus-tracker-v3';
+const CACHE_NAME = 'argus-tracker-v4';
 const ASSETS = [
   './',
   './index.html',
