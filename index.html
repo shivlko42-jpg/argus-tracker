@@ -2250,8 +2250,9 @@ function buildQuotationInnerHTML(quote, signatureImg) {
     ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:600;">${quote.attention}</p>` : ''}
     <p style="font-size:14px;font-weight:700;margin:2px 0 4px;">${quote.party || ''}</p>
     ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;white-space:pre-line;">${quote.recipientAddress}</p>` : ''}
-    ${quote.subject ? `<p style="font-size:12px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
-    <p style="font-size:12px;margin:4px 0 10px;">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
+    ${quote.subject ? `<p style="font-size:13px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
+    <p style="font-size:13px;margin:4px 0 2px;">Dear Sir,</p>
+    <p style="font-size:13px;margin:0 0 10px;">With reference to your requirements we are pleased to quote our rates.</p>
     <table>
       <thead><tr>
         <th style="width:4%;">S.No</th>
@@ -2489,9 +2490,10 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
         {quote.recipientAddress && <p className="text-xs text-slate-600 mb-2" style={{ whiteSpace: 'pre-line' }}>{quote.recipientAddress}</p>}
 
         {quote.subject && (
-          <p className="text-xs mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
+          <p className="text-sm mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
         )}
-        <p className="text-xs mb-2">Dear Sir, With reference to your requirements we are pleased to quote our rates.</p>
+        <p className="text-sm mb-0.5">Dear Sir,</p>
+        <p className="text-sm mb-2">With reference to your requirements we are pleased to quote our rates.</p>
 
         <table className="w-full text-[10px] border-collapse mb-2" style={{ tableLayout: 'fixed', wordBreak: 'break-word' }}>
           <thead>
