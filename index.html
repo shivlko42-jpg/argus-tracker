@@ -193,6 +193,34 @@ function normStatus(s) {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') { reject(new Error('no document')); return; }
+    if (document.querySelector(`script[data-lib="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.setAttribute('data-lib', src);
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Library load nahi hui: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function downloadQuotationPDF(quote, elementId) {
+  await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+  await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  const element = document.getElementById(elementId);
+  if (!element) throw new Error('Content nahi mila');
+  const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+  const imgData = canvas.toDataURL('image/png');
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  pdf.save(`Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`);
+}
+
 function parseUploadedFile(file) {
   return new Promise((resolve, reject) => {
     const name = file.name.toLowerCase();
@@ -2292,11 +2320,25 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
 
   const [downloadMsg, setDownloadMsg] = useState('');
   const [sharing, setSharing] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const canShareFiles = typeof navigator !== 'undefined' && navigator.canShare;
 
   const handleDownload = () => {
     downloadQuotationHTML(quote, signatureImg);
     setDownloadMsg('File download shuru ho gayi hai. Ek popup aayega jisme "Download file" dabayein — file aapke phone ke Downloads folder mein save ho jayegi. Wahan se WhatsApp/Email par attach karke share kar sakte hain.');
+  };
+
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    setDownloadMsg('');
+    try {
+      await downloadQuotationPDF(quote, 'quot-print-area');
+      setDownloadMsg('✔ Asli PDF file download ho gayi hai — ab seedhe WhatsApp/Email mein attach kar sakte hain.');
+    } catch (e) {
+      setDownloadMsg('PDF nahi ban paya (internet dheema ho sakta hai), isliye HTML file download kar di — usko khol kar "Save as PDF" kar lein.');
+      downloadQuotationHTML(quote, signatureImg);
+    }
+    setPdfLoading(false);
   };
 
   const handlePrint = () => {
@@ -2313,20 +2355,30 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     setSharing(true);
     setDownloadMsg('');
     try {
-      const html = buildQuotationHTML(quote, signatureImg);
-      const blob = new Blob([html], { type: 'text/html' });
-      const fileName = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.html`;
-      const file = new File([blob], fileName, { type: 'text/html' });
+      await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+      await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+      const element = document.getElementById('quot-print-area');
+      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
       if (canShareFiles && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: quote.quotNo || 'Quotation', text: `Quotation for ${quote.party || ''}` });
       } else {
-        downloadQuotationHTML(quote, signatureImg);
-        setDownloadMsg('Is device par direct Share support nahi hai, isliye file download kar di — wahan se WhatsApp/Email mein attach kar dein.');
+        pdf.save(fileName);
+        setDownloadMsg('Is device par direct Share support nahi hai, isliye PDF download kar di — wahan se WhatsApp/Email mein attach kar dein.');
       }
     } catch (e) {
       if (e && e.name !== 'AbortError') {
         downloadQuotationHTML(quote, signatureImg);
-        setDownloadMsg('Share nahi ho paya, isliye file download kar di.');
+        setDownloadMsg('PDF share nahi ho paya (internet dheema ho sakta hai), isliye HTML file download kar di.');
       }
     }
     setSharing(false);
@@ -2465,13 +2517,18 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
 
       <div className="grid grid-cols-2 gap-2 mt-3">
         <button onClick={handleShare} disabled={sharing} className="bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
-          {sharing ? 'Share ho raha...' : 'Share PDF'}
+          {sharing ? 'Bhej rahe...' : 'PDF Share Karein'}
         </button>
-        <button onClick={handlePrint} className="bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm">Print / Save PDF</button>
+        <button onClick={handleDownloadPDF} disabled={pdfLoading} className="bg-red-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
+          <Download size={16} /> {pdfLoading ? 'Ban raha...' : 'PDF Download'}
+        </button>
       </div>
-      <button onClick={handleDownload} className="w-full bg-white border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-sm mt-2 flex items-center justify-center gap-2">
-        <Download size={16} /> File Download Karein
-      </button>
+      <p className="text-[10px] text-slate-400 text-center mt-1.5">"PDF Share Karein" se seedhe WhatsApp/Email par bhej sakte hain</p>
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button onClick={handlePrint} className="bg-slate-100 text-slate-600 font-semibold py-2 rounded-xl text-xs">Print Karein</button>
+        <button onClick={handleDownload} className="bg-slate-100 text-slate-600 font-semibold py-2 rounded-xl text-xs flex items-center justify-center gap-1">HTML File</button>
+      </div>
       {downloadMsg && (
         <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mt-2">{downloadMsg}</p>
       )}
