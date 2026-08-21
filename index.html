@@ -206,12 +206,10 @@ function loadScriptOnce(src) {
   });
 }
 
-async function downloadQuotationPDF(quote, elementId) {
+async function downloadQuotationPDF(quote, signatureImg) {
   await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
   await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
-  const element = document.getElementById(elementId);
-  if (!element) throw new Error('Content nahi mila');
-  const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+  const canvas = await captureQuotationCanvas(quote, signatureImg);
   const imgData = canvas.toDataURL('image/png');
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('p', 'mm', 'a4');
@@ -2207,7 +2205,7 @@ function downloadMonthlyReport(payload) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function buildQuotationHTML(quote, signatureImg) {
+function buildQuotationInnerHTML(quote, signatureImg) {
   const lines = quote.lineItems || [];
   const rows = lines.map((l, i) => {
     const base = Number(l.rate||0) * Number(l.qty||0);
@@ -2223,28 +2221,7 @@ function buildQuotationHTML(quote, signatureImg) {
     </tr>`;
   }).join('');
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>${quote.quotNo || 'Quotation'}</title>
-<style>
-  @page { size: A4; margin: 12mm; }
-  html, body { height: 100%; }
-  * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#1e293b; padding: 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
-  .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
-  .company { font-size:19px; font-weight:800; color:#b91c1c; }
-  .small { font-size:12.5px; color:#64748b; }
-  table { width:100%; border-collapse: collapse; margin: 14px 0; font-size:13.5px; table-layout: fixed; }
-  th, td { word-wrap: break-word; overflow-wrap: break-word; }
-  th { background:#f1f5f9; border:1px solid #94a3b8; padding:6px; }
-  .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
-  .content { flex: 1 0 auto; width: 100%; }
-  .sign-block { margin-top: auto; padding-top: 28px; }
-  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:18px; padding-top:9px; font-size:11px; color:#64748b; }
-  @media print {
-    body { padding: 0; max-width: none; width: 100%; min-height: 273mm; }
-  }
-</style></head>
-<body>
+  return `
   <div class="content">
     <div class="header">
       <div class="company">${COMPANY.name}</div>
@@ -2291,9 +2268,70 @@ function buildQuotationHTML(quote, signatureImg) {
       <div>${COMPANY.footer1}</div>
       <div>${COMPANY.footer2}</div>
     </div>
-  </div>
+  </div>`;
+}
+
+const QUOTATION_STYLE_CSS = `
+  @page { size: A4; margin: 12mm; }
+  html, body { height: 100%; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#1e293b; padding: 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
+  .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
+  .company { font-size:19px; font-weight:800; color:#b91c1c; }
+  .small { font-size:12.5px; color:#64748b; }
+  table { width:100%; border-collapse: collapse; margin: 14px 0; font-size:13.5px; table-layout: fixed; }
+  th, td { word-wrap: break-word; overflow-wrap: break-word; }
+  th { background:#f1f5f9; border:1px solid #94a3b8; padding:6px; }
+  .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
+  .content { flex: 1 0 auto; width: 100%; }
+  .sign-block { margin-top: auto; padding-top: 28px; }
+  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:18px; padding-top:9px; font-size:11px; color:#64748b; }
+  @media print {
+    body { padding: 0; max-width: none; width: 100%; min-height: 273mm; }
+  }`;
+
+function buildQuotationHTML(quote, signatureImg) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${quote.quotNo || 'Quotation'}</title>
+<style>${QUOTATION_STYLE_CSS}</style></head>
+<body>
+${buildQuotationInnerHTML(quote, signatureImg)}
   <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script>
 </body></html>`;
+}
+
+// Renders the quotation (plain CSS, no Tailwind) into a temporary off-screen container so
+// html2canvas can capture it reliably — avoids modern CSS color functions Tailwind may use
+// that html2canvas cannot parse.
+async function captureQuotationCanvas(quote, signatureImg) {
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  container.style.background = '#ffffff';
+  const styleTag = document.createElement('style');
+  styleTag.textContent = QUOTATION_STYLE_CSS;
+  container.appendChild(styleTag);
+  const inner = document.createElement('div');
+  inner.style.display = 'flex';
+  inner.style.flexDirection = 'column';
+  inner.style.minHeight = '1000px';
+  inner.style.padding = '20px';
+  inner.style.fontFamily = 'Arial, Helvetica, sans-serif';
+  inner.style.fontSize = '14px';
+  inner.style.color = '#1e293b';
+  inner.innerHTML = buildQuotationInnerHTML(quote, signatureImg);
+  container.appendChild(inner);
+  document.body.appendChild(container);
+  try {
+    // wait a tick for the stamp <img> (data URI) to paint
+    await new Promise(r => setTimeout(r, 50));
+    const canvas = await window.html2canvas(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    return canvas;
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 function downloadQuotationHTML(quote, signatureImg) {
@@ -2332,10 +2370,10 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     setPdfLoading(true);
     setDownloadMsg('');
     try {
-      await downloadQuotationPDF(quote, 'quot-print-area');
+      await downloadQuotationPDF(quote, signatureImg);
       setDownloadMsg('✔ Asli PDF file download ho gayi hai — ab seedhe WhatsApp/Email mein attach kar sakte hain.');
     } catch (e) {
-      setDownloadMsg('PDF nahi ban paya (internet dheema ho sakta hai), isliye HTML file download kar di — usko khol kar "Save as PDF" kar lein.');
+      setDownloadMsg(`PDF nahi ban paya: ${e && e.message ? e.message : 'unknown error'} — isliye HTML file download kar di, usko khol kar "Save as PDF" kar lein.`);
       downloadQuotationHTML(quote, signatureImg);
     }
     setPdfLoading(false);
@@ -2357,8 +2395,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     try {
       await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
       await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
-      const element = document.getElementById('quot-print-area');
-      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const canvas = await captureQuotationCanvas(quote, signatureImg);
       const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
