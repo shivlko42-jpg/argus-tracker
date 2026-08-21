@@ -318,7 +318,7 @@ function App() {
       setTasks(tk);
       setItems(it);
       setTargets(t);
-      setSignatureImg(sig);
+      setSignatureImg(sig || DEFAULT_SIGNATURE);
       setDismissedToday(dm.filter(d => d.date === todayISO()));
       setReady(true);
     })();
@@ -1816,6 +1816,53 @@ function PartyPicker({ machines, value, onChange, onMachineNo }) {
   );
 }
 
+function DepartmentPicker({ machines, party, value, onChange }) {
+  const [q, setQ] = useState(value || '');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setQ(value || ''); }, [value]);
+
+  const suggestions = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    machines.forEach(m => {
+      if (!m.place) return;
+      if (party && m.party.toLowerCase() !== party.toLowerCase()) return;
+      if (seen.has(m.place)) return;
+      if (q && q.length >= 1 && !m.place.toLowerCase().includes(q.toLowerCase())) return;
+      seen.add(m.place);
+      list.push(m.place);
+    });
+    return list.slice(0, 6);
+  }, [q, machines, party]);
+
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        value={q}
+        onChange={e => { setQ(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Jaise: CCF HQ, Audit Section"
+      />
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-y-auto">
+          {suggestions.map(place => (
+            <button
+              key={place}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onClick={() => { setQ(place); onChange(place); setOpen(false); }}
+            >
+              {place}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function nextQuotNo(quotations) {
   const seq = quotations.length + 1;
   const yy = new Date().getFullYear() % 100;
@@ -1891,7 +1938,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
       <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
       <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
       <Field label="Address (To, block mein designation ke saath print hoga)"><textarea rows={2} className={inputCls + ' resize-none'} value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} placeholder="Jaise: 2nd Floor, Vidhan Bhawan, Lucknow" /></Field>
-      <Field label="Department (sirf jaankari ke liye — kis vibhag/adhikari ke liye hai)"><input className={inputCls} value={department} onChange={e => setDepartment(e.target.value)} placeholder="Jaise: CCF HQ, Audit Section" /></Field>
+      <Field label="Department (sirf jaankari ke liye — kis vibhag/adhikari ke liye hai)"><DepartmentPicker machines={machines} party={party} value={department} onChange={setDepartment} /></Field>
 
       {partyMachines.length > 0 && (
         <div className="mb-3">
@@ -1944,7 +1991,7 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
 
       <div className="space-y-2 mb-2">
         {lines.map(l => (
-          <QuotationLineEditor key={l.lineId} line={l} items={items} onUpdate={data => updateLine(l.lineId, data)} onRemove={() => removeLine(l.lineId)} />
+          <QuotationLineEditor key={l.lineId} line={l} items={items} selectedModel={selectedModel} onUpdate={data => updateLine(l.lineId, data)} onRemove={() => removeLine(l.lineId)} />
         ))}
       </div>
       <button onClick={() => addLine(null)} className="w-full border-2 border-dashed border-slate-300 text-slate-500 font-semibold py-2 rounded-lg text-sm mb-3">+ Item Line Jodein</button>
@@ -1966,14 +2013,28 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
   );
 }
 
-function QuotationLineEditor({ line, items, onUpdate, onRemove }) {
+function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove }) {
   const [q, setQ] = useState(line.name || '');
   const [open, setOpen] = useState(false);
   const matches = useMemo(() => {
-    if (!q) return items.slice(0, 8);
-    const s = q.toLowerCase();
-    return items.filter(it => it.name.toLowerCase().includes(s) || (it.description||'').toLowerCase().includes(s)).slice(0, 8);
-  }, [q, items]);
+    const modelLower = (selectedModel || '').toLowerCase();
+    const matchesModel = (it) => modelLower && (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (modelLower.includes(m) || m.includes(modelLower)));
+
+    let pool;
+    if (!q) {
+      pool = items.slice();
+    } else {
+      const s = q.toLowerCase();
+      pool = items.filter(it => it.name.toLowerCase().includes(s) || (it.description||'').toLowerCase().includes(s));
+    }
+    // Is machine model ke parts sabse upar dikhayein
+    pool.sort((a, b) => {
+      const am = matchesModel(a) ? 0 : 1;
+      const bm = matchesModel(b) ? 0 : 1;
+      return am - bm;
+    });
+    return pool.slice(0, 8);
+  }, [q, items, selectedModel]);
 
   const base = Number(line.rate || 0) * Number(line.qty || 0);
   const gstAmt = base * Number(line.gst || 0) / 100;
@@ -1990,20 +2051,24 @@ function QuotationLineEditor({ line, items, onUpdate, onRemove }) {
         />
         {open && matches.length > 0 && (
           <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-40 overflow-y-auto">
-            {matches.map(it => (
-              <button
-                key={it.id}
-                className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
-                onClick={() => {
-                  setQ(it.name);
-                  onUpdate({ name: it.name, description: it.description, rate: it.rate, gst: it.gst });
-                  setOpen(false);
-                }}
-              >
-                <p className="font-medium text-slate-700">{it.name}</p>
-                <p className="text-[11px] text-slate-400">{it.description} · ₹{it.rate} · GST {it.gst}%</p>
-              </button>
-            ))}
+            {matches.map(it => {
+              const modelLower = (selectedModel || '').toLowerCase();
+              const isModelMatch = modelLower && (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (modelLower.includes(m) || m.includes(modelLower)));
+              return (
+                <button
+                  key={it.id}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                  onClick={() => {
+                    setQ(it.name);
+                    onUpdate({ name: it.name, description: it.description, rate: it.rate, gst: it.gst });
+                    setOpen(false);
+                  }}
+                >
+                  <p className="font-medium text-slate-700">{it.name} {isModelMatch && <span className="text-[10px] text-teal-600 font-semibold">· is model ke liye</span>}</p>
+                  <p className="text-[11px] text-slate-400">{it.description} · ₹{it.rate} · GST {it.gst}%</p>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
