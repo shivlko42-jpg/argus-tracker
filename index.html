@@ -206,16 +206,30 @@ function loadScriptOnce(src) {
   });
 }
 
-async function downloadQuotationPDF(quote, signatureImg) {
+async function buildQuotationPdf(quote, signatureImg) {
   await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
   await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
   const canvas = await captureQuotationCanvas(quote, signatureImg);
   const imgData = canvas.toDataURL('image/png');
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  let renderWidth = pageWidth;
+  let renderHeight = (canvas.height * renderWidth) / canvas.width;
+  // Agar content ek page se lamba hai to poore page mein fit kar dein (chhota dikhega par ek hi page rahega)
+  if (renderHeight > pageHeight) {
+    renderHeight = pageHeight;
+    renderWidth = (canvas.width * renderHeight) / canvas.height;
+  }
+  const xOffset = (pageWidth - renderWidth) / 2;
+  const yOffset = (pageHeight - renderHeight) / 2;
+  pdf.addImage(imgData, 'PNG', xOffset, Math.max(0, yOffset), renderWidth, renderHeight);
+  return pdf;
+}
+
+async function downloadQuotationPDF(quote, signatureImg) {
+  const pdf = await buildQuotationPdf(quote, signatureImg);
   pdf.save(`Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`);
 }
 
@@ -2393,15 +2407,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
     setSharing(true);
     setDownloadMsg('');
     try {
-      await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
-      await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
-      const canvas = await captureQuotationCanvas(quote, signatureImg);
-      const imgData = canvas.toDataURL('image/png');
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdf = await buildQuotationPdf(quote, signatureImg);
       const pdfBlob = pdf.output('blob');
       const fileName = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
