@@ -2319,7 +2319,7 @@ ${buildQuotationInnerHTML(quote, signatureImg)}
 // that html2canvas cannot parse.
 async function captureQuotationCanvas(quote, signatureImg) {
   const container = document.createElement('div');
-  container.style.position = 'fixed';
+  container.style.position = 'absolute';
   container.style.left = '-9999px';
   container.style.top = '0';
   container.style.width = '800px';
@@ -2328,9 +2328,8 @@ async function captureQuotationCanvas(quote, signatureImg) {
   styleTag.textContent = QUOTATION_STYLE_CSS;
   container.appendChild(styleTag);
   const inner = document.createElement('div');
-  inner.style.display = 'flex';
-  inner.style.flexDirection = 'column';
-  inner.style.minHeight = '1000px';
+  inner.style.display = 'block';
+  inner.style.width = '100%';
   inner.style.padding = '20px';
   inner.style.fontFamily = 'Arial, Helvetica, sans-serif';
   inner.style.fontSize = '14px';
@@ -2339,9 +2338,26 @@ async function captureQuotationCanvas(quote, signatureImg) {
   container.appendChild(inner);
   document.body.appendChild(container);
   try {
-    // wait a tick for the stamp <img> (data URI) to paint
-    await new Promise(r => setTimeout(r, 50));
-    const canvas = await window.html2canvas(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    // wait a tick for the stamp <img> (data URI) to paint and layout to settle
+    await new Promise(r => setTimeout(r, 100));
+    const fullHeight = Math.ceil(Math.max(container.scrollHeight, container.offsetHeight, inner.scrollHeight, inner.offsetHeight));
+    const fullWidth = Math.ceil(Math.max(container.scrollWidth, container.offsetWidth, 800));
+    const canvas = await window.html2canvas(container, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      width: fullWidth,
+      height: fullHeight,
+      windowWidth: fullWidth,
+      windowHeight: fullHeight,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+    });
+    if (!canvas || canvas.height < 10) throw new Error('Canvas khaali bani (capture fail hua)');
     return canvas;
   } finally {
     document.body.removeChild(container);
