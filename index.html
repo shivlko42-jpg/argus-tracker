@@ -2225,13 +2225,13 @@ function buildQuotationInnerHTML(quote, signatureImg) {
     const base = Number(l.rate||0) * Number(l.qty||0);
     const amt = base + base * Number(l.gst||0) / 100;
     return `<tr>
-      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${i+1}</td>
-      <td style="border:1.5px solid #64748b;padding:4px;">${l.name || ''}</td>
-      <td style="border:1.5px solid #64748b;padding:4px;">${l.description || ''}</td>
-      <td style="border:1.5px solid #64748b;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
-      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${l.qty}</td>
-      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${l.gst}%</td>
-      <td style="border:1.5px solid #64748b;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;">${l.name || ''}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;">${l.description || ''}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.qty}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.gst}%</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
     </tr>`;
   }).join('');
 
@@ -2244,7 +2244,7 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       <div class="small" style="font-weight:600;color:#334155;">GSTIN: ${COMPANY.gstin}  PAN NO. ${COMPANY.pan}</div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">
-      <b>${quote.quotNo || ''}</b><span>Date: ${formatDateDMY(quote.date)}</span>
+      <b>${quote.quotNo || ''}</b><span style="font-weight:700;">Date: ${formatDateDMY(quote.date)}</span>
     </div>
     <p style="font-size:13px;margin:4px 0;">To,</p>
     ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:600;">${quote.attention}</p>` : ''}
@@ -2265,7 +2265,7 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       </tr></thead>
       <tbody>
         ${rows}
-        <tr><td colspan="6" style="border:1.5px solid #64748b;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1.5px solid #64748b;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
+        <tr><td colspan="6" style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
       </tbody>
     </table>
     ${quote.deliveryPeriod ? `<p class="terms"><b>Delivery Period: </b>${quote.deliveryPeriod}</p>` : ''}
@@ -2296,12 +2296,12 @@ const QUOTATION_STYLE_CSS = `
   .small { font-size:12.5px; color:#334155; font-weight:500; }
   table { width:100%; border-collapse: collapse; margin: 14px 0; font-size:13.5px; table-layout: fixed; }
   th, td { word-wrap: break-word; overflow-wrap: break-word; }
-  th { background:#e2e8f0; border:1.5px solid #475569; padding:6px; font-weight:700; color:#0f172a; }
-  td { border:1.5px solid #64748b; color:#0f172a; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:6px; font-weight:700; color:#0f172a; }
+  td { border:1px solid #cbd5e1; color:#0f172a; }
   .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; color:#0f172a; }
   .content { flex: 1 0 auto; width: 100%; }
   .sign-block { margin-top: auto; padding-top: 28px; }
-  .footer { text-align:center; border-top:1.5px solid #64748b; margin-top:18px; padding-top:9px; font-size:11px; color:#334155; font-weight:600; }
+  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:18px; padding-top:9px; font-size:11px; color:#334155; font-weight:600; }
   @media print {
     body { padding: 0; max-width: none; width: 100%; min-height: 273mm; }
   }`;
@@ -2482,7 +2482,7 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
 
         <div className="flex justify-between text-xs mb-2">
           <span className="font-semibold">{quote.quotNo}</span>
-          <span>Date: {formatDateDMY(quote.date)}</span>
+          <span className="font-bold">Date: {formatDateDMY(quote.date)}</span>
         </div>
 
         <p className="text-xs mb-1">To,</p>
