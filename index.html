@@ -2228,10 +2228,10 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${i+1}</td>
       <td style="border:1px solid #cbd5e1;padding:4px;">${l.name || ''}</td>
       <td style="border:1px solid #cbd5e1;padding:4px;">${l.description || ''}</td>
-      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
       <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.qty}</td>
       <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.gst}%</td>
-      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
     </tr>`;
   }).join('');
 
@@ -2265,7 +2265,7 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       </tr></thead>
       <tbody>
         ${rows}
-        <tr><td colspan="6" style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
+        <tr><td colspan="6" style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>
       </tbody>
     </table>
     ${quote.deliveryPeriod ? `<p class="terms"><b>Delivery Period: </b>${quote.deliveryPeriod}</p>` : ''}
@@ -2517,16 +2517,16 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
                   <td className="border border-slate-300 px-1 py-1 text-center">{i+1}</td>
                   <td className="border border-slate-300 px-1 py-1">{l.name}</td>
                   <td className="border border-slate-300 px-1 py-1">{l.description}</td>
-                  <td className="border border-slate-300 px-1 py-1 text-right">{Number(l.rate).toLocaleString('en-IN')}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{Number(l.rate).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                   <td className="border border-slate-300 px-1 py-1 text-center">{l.qty}</td>
                   <td className="border border-slate-300 px-1 py-1 text-center">{l.gst}%</td>
-                  <td className="border border-slate-300 px-1 py-1 text-right">{amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{amt.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                 </tr>
               );
             })}
             <tr>
               <td colSpan={6} className="border border-slate-300 px-1 py-1 text-right font-bold">Grand Total</td>
-              <td className="border border-slate-300 px-1 py-1 text-right font-bold">₹{Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+              <td className="border border-slate-300 px-1 py-1 text-right font-bold">₹{Number(quote.amount||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
             </tr>
           </tbody>
         </table>
