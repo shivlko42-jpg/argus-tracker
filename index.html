@@ -2225,13 +2225,13 @@ function buildQuotationInnerHTML(quote, signatureImg) {
     const base = Number(l.rate||0) * Number(l.qty||0);
     const amt = base + base * Number(l.gst||0) / 100;
     return `<tr>
-      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${i+1}</td>
-      <td style="border:1px solid #94a3b8;padding:4px;">${l.name || ''}</td>
-      <td style="border:1px solid #94a3b8;padding:4px;">${l.description || ''}</td>
-      <td style="border:1px solid #94a3b8;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
-      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${l.qty}</td>
-      <td style="border:1px solid #94a3b8;padding:4px;text-align:center;">${l.gst}%</td>
-      <td style="border:1px solid #94a3b8;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${i+1}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;">${l.name || ''}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;">${l.description || ''}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN')}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${l.qty}</td>
+      <td style="border:1.5px solid #64748b;padding:4px;text-align:center;">${l.gst}%</td>
+      <td style="border:1.5px solid #64748b;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
     </tr>`;
   }).join('');
 
@@ -2265,7 +2265,7 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       </tr></thead>
       <tbody>
         ${rows}
-        <tr><td colspan="6" style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #94a3b8;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
+        <tr><td colspan="6" style="border:1.5px solid #64748b;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1.5px solid #64748b;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td></tr>
       </tbody>
     </table>
     ${quote.deliveryPeriod ? `<p class="terms"><b>Delivery Period: </b>${quote.deliveryPeriod}</p>` : ''}
@@ -2287,20 +2287,21 @@ function buildQuotationInnerHTML(quote, signatureImg) {
 }
 
 const QUOTATION_STYLE_CSS = `
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 6mm 12mm; }
   html, body { height: 100%; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#1e293b; padding: 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#0f172a; padding: 6px 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
   .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
   .company { font-size:19px; font-weight:800; color:#b91c1c; }
-  .small { font-size:12.5px; color:#64748b; }
+  .small { font-size:12.5px; color:#334155; font-weight:500; }
   table { width:100%; border-collapse: collapse; margin: 14px 0; font-size:13.5px; table-layout: fixed; }
   th, td { word-wrap: break-word; overflow-wrap: break-word; }
-  th { background:#f1f5f9; border:1px solid #94a3b8; padding:6px; }
-  .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
+  th { background:#e2e8f0; border:1.5px solid #475569; padding:6px; font-weight:700; color:#0f172a; }
+  td { border:1.5px solid #64748b; color:#0f172a; }
+  .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; color:#0f172a; }
   .content { flex: 1 0 auto; width: 100%; }
   .sign-block { margin-top: auto; padding-top: 28px; }
-  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:18px; padding-top:9px; font-size:11px; color:#64748b; }
+  .footer { text-align:center; border-top:1.5px solid #64748b; margin-top:18px; padding-top:9px; font-size:11px; color:#334155; font-weight:600; }
   @media print {
     body { padding: 0; max-width: none; width: 100%; min-height: 273mm; }
   }`;
