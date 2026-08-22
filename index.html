@@ -343,10 +343,11 @@ function App() {
   const [targets, setTargets] = useState({});
   const [signatureImg, setSignatureImg] = useState('');
   const [dismissedToday, setDismissedToday] = useState([]);
+  const [challans, setChallans] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [m, q, o, p, l, tk, it, t, sig, dm] = await Promise.all([
+      const [m, q, o, p, l, tk, it, t, sig, dm, ch] = await Promise.all([
         loadKey('argus-machines', SEED_MACHINES),
         loadKey('argus-quotations', []),
         loadKey('argus-orders', []),
@@ -357,6 +358,7 @@ function App() {
         loadKey('argus-targets', {}),
         loadKey('argus-signature', DEFAULT_SIGNATURE),
         loadKey('argus-dismissed-today', []),
+        loadKey('argus-challans', []),
       ]);
       setMachines(m);
       setQuotations(q);
@@ -368,6 +370,7 @@ function App() {
       setTargets(t);
       setSignatureImg(sig || DEFAULT_SIGNATURE);
       setDismissedToday(dm.filter(d => d.date === todayISO()));
+      setChallans(ch);
       setReady(true);
     })();
   }, []);
@@ -382,6 +385,7 @@ function App() {
   useEffect(() => { if (ready) saveKey('argus-tasks', tasks); }, [tasks, ready]);
   useEffect(() => { if (ready) saveKey('argus-items', items); }, [items, ready]);
   useEffect(() => { if (ready) saveKey('argus-targets', targets); }, [targets, ready]);
+  useEffect(() => { if (ready) saveKey('argus-challans', challans); }, [challans, ready]);
 
   const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
 
@@ -449,6 +453,7 @@ function App() {
             quotations={quotations}
             orders={orders}
             payments={payments}
+            challans={challans}
             outstanding={outstanding}
             thisMonthTarget={thisMonthTarget}
             thisMonthAchieved={thisMonthAchieved}
@@ -474,6 +479,8 @@ function App() {
             payments={payments}
             setPayments={setPayments}
             signatureImg={signatureImg}
+            challans={challans}
+            setChallans={setChallans}
           />
         )}
         {tab === 'payments' && (
@@ -627,7 +634,7 @@ function SectionTitle({ children, action }) {
 }
 
 // ---------------- HOME TAB ----------------
-function HomeTab({ machines, expiringSoon, quotations, orders, payments, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
   const [editTarget, setEditTarget] = useState(false);
   const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
   const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
@@ -734,8 +741,25 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, outstan
       });
     }
 
+    // 6. Oldest pending Challan (bill nahi bana abhi tak)
+    const pendingChallans = (challans || []).filter(c => c.status === 'Pending').sort((a,b) => (a.date||'').localeCompare(b.date||''));
+    if (pendingChallans.length > 0) {
+      const c = pendingChallans[0];
+      const daysPending = Math.round((new Date() - new Date(c.date)) / 86400000);
+      const key = 'challan-' + c.id;
+      list.push({
+        key,
+        icon: '🚚',
+        title: `${c.party} — Challan ka bill banana hai`,
+        subtitle: `${c.challanNo || ''} · ${daysPending} din se pending hai`,
+        urgent: daysPending >= 5,
+        onClick: () => goTo('sales'),
+        onMarkDone: (note) => markSuggestionDone(key, `${c.party} — Challan bill follow-up`, note),
+      });
+    }
+
     return list.filter(item => !dismissedKeys.has(item.key)).slice(0, 5);
-  }, [dueTasks, duePartiesGrouped, payments, quotations, orders, dismissedToday]);
+  }, [dueTasks, duePartiesGrouped, payments, quotations, orders, challans, dismissedToday]);
 
   return (
     <div className="px-4 pt-4 space-y-4">
@@ -1616,7 +1640,7 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
 }
 
 // ---------------- SALES TAB (Quotations + Orders + Items) ----------------
-function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg }) {
+function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg, challans, setChallans }) {
   const [sub, setSub] = useState('quotes');
   const [showAdd, setShowAdd] = useState(false);
   const [viewQuote, setViewQuote] = useState(null);
@@ -1672,6 +1696,26 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
   const updateItem = (id, data) => setItems(items.map(i => i.id === id ? { ...i, ...data } : i));
   const deleteItem = (id) => setItems(items.filter(i => i.id !== id));
 
+  const addChallan = (data) => {
+    setChallans([{ ...data, id: uid(), status: 'Pending' }, ...challans]);
+    setShowAdd(false);
+  };
+  const markChallanBilled = (id, billAmount, billDate) => {
+    const ch = challans.find(c => c.id === id);
+    if (!ch) return;
+    setChallans(challans.map(c => c.id === id ? { ...c, status: 'Billed', billDate, billAmount } : c));
+    setPayments([{
+      id: uid(),
+      party: ch.party,
+      machineNo: ch.machineNo || '',
+      invoiceAmount: Number(billAmount) || 0,
+      receivedAmount: 0,
+      date: billDate,
+      note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
+    }, ...payments]);
+  };
+  const deleteChallan = (id) => setChallans(challans.filter(c => c.id !== id));
+
   const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
 
   return (
@@ -1679,12 +1723,28 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
       <div className="flex bg-slate-100 rounded-xl p-1 mb-3">
         <button onClick={() => setSub('quotes')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'quotes' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Quotations</button>
         <button onClick={() => setSub('orders')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'orders' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Orders</button>
+        <button onClick={() => setSub('challan')} className={`flex-1 text-xs font-semibold py-2 rounded-lg relative ${sub === 'challan' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>
+          Challan
+          {challans.filter(c => c.status === 'Pending').length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{challans.filter(c => c.status === 'Pending').length}</span>
+          )}
+        </button>
         <button onClick={() => setSub('items')} className={`flex-1 text-xs font-semibold py-2 rounded-lg ${sub === 'items' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Items</button>
       </div>
 
       <button onClick={() => setShowAdd(true)} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mb-3 flex items-center justify-center gap-1">
-        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : 'Naya Item Jodein'}
+        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : sub === 'challan' ? 'Naya Challan Jodein' : 'Naya Item Jodein'}
       </button>
+
+      {sub === 'challan' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi saman challan par bhejein, yahan entry daal dein — jab tak bill nahi banta, ye "Aaj Ke Kaam" mein reminder ki tarah dikhta rahega.</p>
+          {challans.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi challan nahi</Card>}
+          {challans.map(c => (
+            <ChallanCard key={c.id} challan={c} onMarkBilled={markChallanBilled} onDelete={deleteChallan} />
+          ))}
+        </div>
+      )}
 
       {sub === 'quotes' && (
         <div className="space-y-2">
@@ -1742,6 +1802,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
       )}
       {showAdd && sub === 'orders' && <OrderForm machines={machines} onSave={addOrder} onClose={() => setShowAdd(false)} />}
       {showAdd && sub === 'items' && <ItemForm onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'challan' && <ChallanForm machines={machines} onSave={addChallan} onClose={() => setShowAdd(false)} />}
 
       {viewQuote && !editQuote && (
         <QuotationView
@@ -1799,6 +1860,74 @@ function ItemRow({ item, onUpdate, onDelete }) {
           )}
         </div>
       </div>
+    </Card>
+  );
+}
+
+function ChallanForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', challanNo: '', date: todayISO(), items: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Naya Challan" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Challan No"><input className={inputCls} value={f.challanNo} onChange={e => set('challanNo', e.target.value)} placeholder="Jaise: CH-045" /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Saman / Items ka vivaran"><textarea rows={2} className={inputCls + ' resize-none'} value={f.items} onChange={e => set('items', e.target.value)} placeholder="Jaise: 1 Drum, 1 Developer bheja" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.challanNo} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Challan Save Karein</button>
+    </Modal>
+  );
+}
+
+function ChallanCard({ challan, onMarkBilled, onDelete }) {
+  const [showBill, setShowBill] = useState(false);
+  const [billAmount, setBillAmount] = useState('');
+  const [billDate, setBillDate] = useState(todayISO());
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const daysPending = challan.status === 'Pending' ? Math.round((new Date() - new Date(challan.date)) / 86400000) : null;
+  const isOverdue = daysPending !== null && daysPending >= 5;
+
+  return (
+    <Card className="!p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-800 truncate">{challan.party}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{challan.challanNo} · {formatDateDMY(challan.date)}</p>
+          {challan.items && <p className="text-xs text-slate-400 mt-0.5">{challan.items}</p>}
+          {challan.status === 'Billed' && <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">✔ Bill ban gaya — ₹{Number(challan.billAmount||0).toLocaleString('en-IN')}</p>}
+        </div>
+        {challan.status === 'Pending' ? (
+          <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${isOverdue ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {isOverdue ? `${daysPending}d se pending` : 'Pending'}
+          </span>
+        ) : (
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">Billed</span>
+        )}
+      </div>
+
+      {challan.status === 'Pending' && (
+        <>
+          {!showBill ? (
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setShowBill(true)} className="flex-1 bg-slate-800 text-white font-semibold py-2 rounded-lg text-sm">Bill Bana Diya</button>
+              {!confirmDel ? (
+                <button onClick={() => setConfirmDel(true)} className="text-xs text-red-600 font-semibold px-3">Delete</button>
+              ) : (
+                <button onClick={() => onDelete(challan.id)} className="text-xs bg-red-600 text-white font-semibold px-3 rounded-lg">Sure?</button>
+              )}
+            </div>
+          ) : (
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={billAmount} onChange={e => setBillAmount(e.target.value)} /></Field>
+              <Field label="Bill Date"><input type="date" className={inputCls} value={billDate} onChange={e => setBillDate(e.target.value)} /></Field>
+              <div className="flex gap-2">
+                <button onClick={() => setShowBill(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+                <button onClick={() => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }} disabled={!billAmount} className="flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40">Confirm</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </Card>
   );
 }
