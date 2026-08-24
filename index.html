@@ -344,10 +344,12 @@ function App() {
   const [signatureImg, setSignatureImg] = useState('');
   const [dismissedToday, setDismissedToday] = useState([]);
   const [challans, setChallans] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [holidays, setHolidays] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [m, q, o, p, l, tk, it, t, sig, dm, ch] = await Promise.all([
+      const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd] = await Promise.all([
         loadKey('argus-machines', SEED_MACHINES),
         loadKey('argus-quotations', []),
         loadKey('argus-orders', []),
@@ -359,6 +361,8 @@ function App() {
         loadKey('argus-signature', DEFAULT_SIGNATURE),
         loadKey('argus-dismissed-today', []),
         loadKey('argus-challans', []),
+        loadKey('argus-visits', []),
+        loadKey('argus-holidays', []),
       ]);
       setMachines(m);
       setQuotations(q);
@@ -371,6 +375,8 @@ function App() {
       setSignatureImg(sig || DEFAULT_SIGNATURE);
       setDismissedToday(dm.filter(d => d.date === todayISO()));
       setChallans(ch);
+      setVisits(vs);
+      setHolidays(hd);
       setReady(true);
     })();
   }, []);
@@ -386,6 +392,8 @@ function App() {
   useEffect(() => { if (ready) saveKey('argus-items', items); }, [items, ready]);
   useEffect(() => { if (ready) saveKey('argus-targets', targets); }, [targets, ready]);
   useEffect(() => { if (ready) saveKey('argus-challans', challans); }, [challans, ready]);
+  useEffect(() => { if (ready) saveKey('argus-visits', visits); }, [visits, ready]);
+  useEffect(() => { if (ready) saveKey('argus-holidays', holidays); }, [holidays, ready]);
 
   const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
 
@@ -431,6 +439,19 @@ function App() {
     setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
   }, []);
 
+  const markPartyVisited = useCallback((party, key, extraNote) => {
+    const today = todayISO();
+    setDismissedToday(prev => [...prev, { date: today, key }]);
+    setVisits(prev => [{ id: uid(), party, date: today }, ...prev]);
+    const noteText = extraNote && extraNote.trim() ? `✔ Party visit: ${party} — ${extraNote.trim()}` : `✔ Party visit: ${party}`;
+    setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
+  }, []);
+
+  const toggleHoliday = useCallback(() => {
+    const today = todayISO();
+    setHolidays(prev => prev.includes(today) ? prev.filter(d => d !== today) : [...prev, today]);
+  }, []);
+
   if (!ready) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
@@ -454,6 +475,10 @@ function App() {
             orders={orders}
             payments={payments}
             challans={challans}
+            visits={visits}
+            holidays={holidays}
+            toggleHoliday={toggleHoliday}
+            markPartyVisited={markPartyVisited}
             outstanding={outstanding}
             thisMonthTarget={thisMonthTarget}
             thisMonthAchieved={thisMonthAchieved}
@@ -634,7 +659,7 @@ function SectionTitle({ children, action }) {
 }
 
 // ---------------- HOME TAB ----------------
-function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
   const [editTarget, setEditTarget] = useState(false);
   const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
   const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
@@ -758,8 +783,57 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
       });
     }
 
-    return list.filter(item => !dismissedKeys.has(item.key)).slice(0, 5);
+    return list.filter(item => !dismissedKeys.has(item.key));
   }, [dueTasks, duePartiesGrouped, payments, quotations, orders, challans, dismissedToday]);
+
+  // Aaj kaunsi 5 parties visit ki jayein — jo party sabse zyada dino se contact nahi hui, wo pehle
+  const today = todayISO();
+  const isSunday = new Date().getDay() === 0;
+  const isHoliday = (holidays || []).includes(today);
+  const isWorkingDay = !isSunday && !isHoliday;
+
+  const visitSuggestions = useMemo(() => {
+    if (!isWorkingDay) return [];
+    const dismissedKeys = new Set(dismissedToday.map(d => d.key));
+    const parties = Array.from(new Set(machines.map(m => m.party).filter(Boolean)));
+    const lastTouch = {};
+    parties.forEach(p => { lastTouch[p] = null; });
+    const bump = (party, date) => {
+      if (!party || !date) return;
+      if (!(party in lastTouch)) return;
+      if (!lastTouch[party] || date > lastTouch[party]) lastTouch[party] = date;
+    };
+    quotations.forEach(q => bump(q.party, q.date));
+    orders.forEach(o => bump(o.party, o.poDate));
+    payments.forEach(p => bump(p.party, p.date));
+    (challans || []).forEach(c => bump(c.party, c.date));
+    (visits || []).forEach(v => bump(v.party, v.date));
+
+    const ranked = parties
+      .filter(p => lastTouch[p] !== today) // aaj already touched ho to skip
+      .sort((a, b) => {
+        const da = lastTouch[a] || '0000-00-00';
+        const db = lastTouch[b] || '0000-00-00';
+        return da.localeCompare(db); // sabse purani/never wali pehle
+      });
+
+    return ranked.slice(0, 5).map(party => {
+      const key = 'visit-' + party;
+      const last = lastTouch[party];
+      const cityMachine = machines.find(m => m.party === party);
+      return {
+        key,
+        icon: '🧑‍💼',
+        title: `${party} — visit karein`,
+        subtitle: last ? `Aakhri contact: ${formatDateDMY(last)}` : 'Kabhi contact nahi hua',
+        urgent: !last,
+        onClick: () => goTo('machines', 'parties', party),
+        onMarkDone: (note) => markPartyVisited(party, key, note),
+      };
+    }).filter(item => !dismissedKeys.has(item.key));
+  }, [isWorkingDay, machines, quotations, orders, payments, challans, visits, dismissedToday, today]);
+
+  const combinedSuggestions = [...suggestedActions, ...visitSuggestions].slice(0, 10);
 
   return (
     <div className="px-4 pt-4 space-y-4">
@@ -785,12 +859,21 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
       </div>
 
       <div>
-        <SectionTitle>Aaj Ke Kaam</SectionTitle>
-        {suggestedActions.length === 0 ? (
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-sm font-bold text-slate-800">Aaj Ke Kaam {isWorkingDay && combinedSuggestions.length > 0 ? `(${combinedSuggestions.length})` : ''}</p>
+          <button onClick={toggleHoliday} className={`text-[11px] font-semibold ${isHoliday ? 'text-red-600' : 'text-slate-400'}`}>
+            {isHoliday ? '✔ Aaj Holiday Hai' : 'Aaj Holiday Mark Karein'}
+          </button>
+        </div>
+        {!isWorkingDay ? (
+          <Card className="text-center text-sm text-slate-500 py-6">
+            {isSunday ? '🌞 Aaj Sunday hai — Aaram kijiye!' : '🎉 Aaj Holiday hai — Aaram kijiye!'}
+          </Card>
+        ) : combinedSuggestions.length === 0 ? (
           <Card className="text-center text-sm text-slate-400 py-6">Sab kuch clear hai — koi urgent kaam nahi 🎉</Card>
         ) : (
           <div className="space-y-2">
-            {suggestedActions.map(a => (
+            {combinedSuggestions.map(a => (
               <SuggestionCard key={a.key} action={a} />
             ))}
           </div>
