@@ -789,8 +789,10 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
 
   // Aaj kaunsi 5 parties visit ki jayein — jo party sabse zyada dino se contact nahi hui, wo pehle
   const today = todayISO();
-  const isSunday = new Date().getDay() === 0;
-  const isHoliday = (holidays || []).includes(today);
+  const nowDate = new Date();
+  const isSunday = nowDate.getDay() === 0;
+  const isSecondSaturday = nowDate.getDay() === 6 && nowDate.getDate() >= 8 && nowDate.getDate() <= 14;
+  const isHoliday = (holidays || []).includes(today) || isSecondSaturday;
   const isWorkingDay = !isSunday && !isHoliday;
 
   const visitSuggestions = useMemo(() => {
@@ -799,8 +801,11 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
     const parties = Array.from(new Set(machines.map(m => m.party).filter(Boolean)));
     const lastTouch = {};
     parties.forEach(p => { lastTouch[p] = null; });
+    // Sirf AAJ SE PEHLE ki activity se rank karein — taaki aaj kisi ko "visit" mark karne se
+    // uska turant list se hatna aur ek NAYI (6th) party ka aa jaana na ho. Aaj ke top-5 fix rahein.
     const bump = (party, date) => {
       if (!party || !date) return;
+      if (date >= today) return;
       if (!(party in lastTouch)) return;
       if (!lastTouch[party] || date > lastTouch[party]) lastTouch[party] = date;
     };
@@ -811,7 +816,6 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
     (visits || []).forEach(v => bump(v.party, v.date));
 
     const ranked = parties
-      .filter(p => lastTouch[p] !== today) // aaj already touched ho to skip
       .sort((a, b) => {
         const da = lastTouch[a] || '0000-00-00';
         const db = lastTouch[b] || '0000-00-00';
@@ -871,7 +875,7 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
         )}
         {!isWorkingDay ? (
           <Card className="text-center text-sm text-slate-500 py-6">
-            {isSunday ? '🌞 Aaj Sunday hai — Aaram kijiye!' : '🎉 Aaj Holiday hai — Aaram kijiye!'}
+            {isSunday ? '🌞 Aaj Sunday hai — Aaram kijiye!' : isSecondSaturday ? '🎉 Aaj 2nd Saturday hai — Office Off!' : '🎉 Aaj Holiday hai — Aaram kijiye!'}
           </Card>
         ) : combinedSuggestions.length === 0 ? (
           <Card className="text-center text-sm text-slate-400 py-6">Sab kuch clear hai — koi urgent kaam nahi 🎉</Card>
@@ -2064,10 +2068,12 @@ function ItemForm({ onSave, onClose, initial, inline, items }) {
   const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
 
+  const normalizeItemName = (s) => (s || '').toLowerCase().replace(/[\s\-_.]/g, '');
+
   const duplicate = useMemo(() => {
     if (!items || !f.name || !f.name.trim()) return null;
-    const target = f.name.trim().toLowerCase();
-    return items.find(it => it.name.trim().toLowerCase() === target && (!initial || it.id !== initial.id)) || null;
+    const target = normalizeItemName(f.name);
+    return items.find(it => normalizeItemName(it.name) === target && (!initial || it.id !== initial.id)) || null;
   }, [items, f.name, initial]);
 
   const body = (
