@@ -447,9 +447,9 @@ function App() {
     setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
   }, []);
 
-  const toggleHoliday = useCallback(() => {
-    const today = todayISO();
-    setHolidays(prev => prev.includes(today) ? prev.filter(d => d !== today) : [...prev, today]);
+  const toggleHoliday = useCallback((dateStr) => {
+    const d = dateStr || todayISO();
+    setHolidays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   }, []);
 
   if (!ready) {
@@ -661,6 +661,7 @@ function SectionTitle({ children, action }) {
 // ---------------- HOME TAB ----------------
 function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
   const [editTarget, setEditTarget] = useState(false);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
   const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
   const pendingOrders = orders.filter(o => o.deliveryStatus !== 'Delivered').length;
@@ -861,10 +862,13 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
           <p className="text-sm font-bold text-slate-800">Aaj Ke Kaam {isWorkingDay && combinedSuggestions.length > 0 ? `(${combinedSuggestions.length})` : ''}</p>
-          <button onClick={toggleHoliday} className={`text-[11px] font-semibold ${isHoliday ? 'text-red-600' : 'text-slate-400'}`}>
-            {isHoliday ? '✔ Aaj Holiday Hai' : 'Aaj Holiday Mark Karein'}
+          <button onClick={() => setShowHolidayModal(true)} className={`text-[11px] font-semibold ${isHoliday ? 'text-red-600' : 'text-teal-700'}`}>
+            {isHoliday ? '✔ Aaj Holiday Hai' : 'Holidays Manage Karein'}
           </button>
         </div>
+        {showHolidayModal && (
+          <HolidayModal holidays={holidays} toggleHoliday={toggleHoliday} onClose={() => setShowHolidayModal(false)} />
+        )}
         {!isWorkingDay ? (
           <Card className="text-center text-sm text-slate-500 py-6">
             {isSunday ? '🌞 Aaj Sunday hai — Aaram kijiye!' : '🎉 Aaj Holiday hai — Aaram kijiye!'}
@@ -955,6 +959,39 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
         )}
       </div>
     </div>
+  );
+}
+
+function HolidayModal({ holidays, toggleHoliday, onClose }) {
+  const [newDate, setNewDate] = useState(todayISO());
+  const sorted = [...(holidays || [])].sort();
+
+  return (
+    <Modal title="Holidays Manage Karein" onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">Jis din bhi chhutti ho (aaj ya aage ki koi tareek), use yahan add kar dein — us din "Aaj Ke Kaam" suggestions nahi aayengi.</p>
+      <Field label="Naya Holiday Jodein">
+        <div className="flex gap-2">
+          <input type="date" className={inputCls} value={newDate} onChange={e => setNewDate(e.target.value)} />
+          <button
+            onClick={() => { if (newDate && !holidays.includes(newDate)) toggleHoliday(newDate); }}
+            className="bg-teal-700 text-white font-semibold px-4 rounded-lg text-sm shrink-0"
+          >Add</button>
+        </div>
+      </Field>
+
+      {sorted.length === 0 ? (
+        <p className="text-sm text-slate-400 text-center py-4">Abhi koi holiday mark nahi hai</p>
+      ) : (
+        <div className="space-y-1.5 mt-2">
+          {sorted.map(d => (
+            <div key={d} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <span className="text-sm text-slate-700">{formatDateDMY(d)} {d === todayISO() && <span className="text-teal-600 font-semibold">(Aaj)</span>}</span>
+              <button onClick={() => toggleHoliday(d)} className="text-xs text-red-600 font-semibold">Hatayein</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -1880,7 +1917,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           <p className="text-xs text-slate-400 mb-1 px-1">Ek baar item add karein, quotation banate waqt select karte hi rate apne aap aa jayega</p>
           {items.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi item nahi</Card>}
           {items.map(it => (
-            <ItemRow key={it.id} item={it} onUpdate={data => updateItem(it.id, data)} onDelete={() => deleteItem(it.id)} />
+            <ItemRow key={it.id} item={it} items={items} onUpdate={data => updateItem(it.id, data)} onDelete={() => deleteItem(it.id)} />
           ))}
         </div>
       )}
@@ -1889,7 +1926,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         <QuotationBuilder machines={machines} items={items} quotations={quotations} onSave={addQuote} onClose={() => setShowAdd(false)} />
       )}
       {showAdd && sub === 'orders' && <OrderForm machines={machines} onSave={addOrder} onClose={() => setShowAdd(false)} />}
-      {showAdd && sub === 'items' && <ItemForm onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'items' && <ItemForm items={items} onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
       {showAdd && sub === 'challan' && <ChallanForm machines={machines} onSave={addChallan} onClose={() => setShowAdd(false)} />}
       {editChallan && <ChallanForm machines={machines} initial={editChallan} onSave={(data) => updateChallan(editChallan.id, data)} onClose={() => setEditChallan(null)} />}
 
@@ -1918,13 +1955,14 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
   );
 }
 
-function ItemRow({ item, onUpdate, onDelete }) {
+function ItemRow({ item, items, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   if (editing) {
     return (
       <ItemForm
         initial={item}
+        items={items}
         onSave={(data) => { onUpdate(data); setEditing(false); }}
         onClose={() => setEditing(false)}
         inline
@@ -2022,12 +2060,25 @@ function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
   );
 }
 
-function ItemForm({ onSave, onClose, initial, inline }) {
+function ItemForm({ onSave, onClose, initial, inline, items }) {
   const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
+
+  const duplicate = useMemo(() => {
+    if (!items || !f.name || !f.name.trim()) return null;
+    const target = f.name.trim().toLowerCase();
+    return items.find(it => it.name.trim().toLowerCase() === target && (!initial || it.id !== initial.id)) || null;
+  }, [items, f.name, initial]);
+
   const body = (
     <>
       <Field label="Item / Part No"><input className={inputCls} value={f.name} onChange={e => set('name', e.target.value)} placeholder="Jaise: MX-312AR" /></Field>
+      {duplicate && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-3">
+          <p className="text-xs text-amber-800 font-semibold">⚠️ Ye item pehle se saved hai</p>
+          <p className="text-xs text-amber-700 mt-0.5">{duplicate.description} · ₹{duplicate.rate} · GST {duplicate.gst}% — dubara add karne se pehle check kar lein.</p>
+        </div>
+      )}
       <Field label="Description"><input className={inputCls} value={f.description} onChange={e => set('description', e.target.value)} placeholder="Jaise: Drum" /></Field>
       <Field label="Machine Model(s)"><input className={inputCls} value={f.machineModel} onChange={e => set('machineModel', e.target.value)} placeholder="Jaise: 20M22, MX-2010U (comma se alag karein)" /></Field>
       <div className="grid grid-cols-2 gap-3">
