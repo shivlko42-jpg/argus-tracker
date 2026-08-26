@@ -601,11 +601,19 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
         }
         // 3. Biggest outstanding party — collection follow-up
         const byPartyOutstanding = {};
+        const partyDisplayName = {};
         payments.forEach(p => {
+            const rawName = (p.party || '').trim();
+            if (!rawName)
+                return;
+            const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+            if (!partyDisplayName[key])
+                partyDisplayName[key] = rawName;
             const pend = Number(p.invoiceAmount || 0) - Number(p.receivedAmount || 0);
-            byPartyOutstanding[p.party] = (byPartyOutstanding[p.party] || 0) + pend;
+            byPartyOutstanding[key] = (byPartyOutstanding[key] || 0) + pend;
         });
-        const topOutstanding = Object.entries(byPartyOutstanding).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0];
+        const topOutstandingEntry = Object.entries(byPartyOutstanding).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0];
+        const topOutstanding = topOutstandingEntry ? [partyDisplayName[topOutstandingEntry[0]], topOutstandingEntry[1]] : null;
         if (topOutstanding) {
             const key = 'due-' + topOutstanding[0];
             list.push({
@@ -2337,13 +2345,14 @@ function PaymentsTab({ machines, payments, setPayments }) {
     const byParty = useMemo(() => {
         const map = {};
         payments.forEach(p => {
-            const key = p.party || 'Unknown';
+            const rawName = (p.party || 'Unknown').trim();
+            const key = rawName.toLowerCase().replace(/\s+/g, ' ');
             if (!map[key])
-                map[key] = { invoiced: 0, received: 0 };
+                map[key] = { party: rawName, invoiced: 0, received: 0 };
             map[key].invoiced += Number(p.invoiceAmount || 0);
             map[key].received += Number(p.receivedAmount || 0);
         });
-        return Object.entries(map).map(([party, v]) => ({ party, ...v, pending: v.invoiced - v.received })).filter(x => x.pending > 0).sort((a, b) => b.pending - a.pending);
+        return Object.values(map).map(v => ({ ...v, pending: v.invoiced - v.received })).filter(x => x.pending > 0).sort((a, b) => b.pending - a.pending);
     }, [payments]);
     const searchLower = search.trim().toLowerCase();
     const filteredByParty = searchLower ? byParty.filter(p => p.party.toLowerCase().includes(searchLower)) : byParty;
