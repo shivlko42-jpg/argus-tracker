@@ -297,6 +297,7 @@ function formatDateDMY(isoDate) {
     const [yyyy, mm, dd] = parts;
     return `${dd}/${mm}/${yyyy}`;
 }
+function normalizeItemName(s) { return (s || '').toLowerCase().replace(/[\s\-_.]/g, ''); }
 function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 // ---- Storage helpers ----
 async function loadKey(key, fallback) {
@@ -351,9 +352,10 @@ function App() {
     const [challans, setChallans] = useState([]);
     const [visits, setVisits] = useState([]);
     const [holidays, setHolidays] = useState([]);
+    const [amcHistory, setAmcHistory] = useState([]);
     useEffect(() => {
         (async () => {
-            const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd] = await Promise.all([
+            const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd, amh] = await Promise.all([
                 loadKey('argus-machines', SEED_MACHINES),
                 loadKey('argus-quotations', []),
                 loadKey('argus-orders', []),
@@ -367,6 +369,7 @@ function App() {
                 loadKey('argus-challans', []),
                 loadKey('argus-visits', []),
                 loadKey('argus-holidays', []),
+                loadKey('argus-amchistory', []),
             ]);
             setMachines(m);
             setQuotations(q);
@@ -381,6 +384,7 @@ function App() {
             setChallans(ch);
             setVisits(vs);
             setHolidays(hd);
+            setAmcHistory(amh);
             setReady(true);
         })();
     }, []);
@@ -410,6 +414,8 @@ function App() {
         saveKey('argus-visits', visits); }, [visits, ready]);
     useEffect(() => { if (ready)
         saveKey('argus-holidays', holidays); }, [holidays, ready]);
+    useEffect(() => { if (ready)
+        saveKey('argus-amchistory', amcHistory); }, [amcHistory, ready]);
     const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
     const expiringSoon = useMemo(() => {
         // Sirf wahi machines jinki AMC/warranty jaldi khatam ho rahi hai ya abhi-abhi khatam hui hai —
@@ -469,7 +475,7 @@ function App() {
         React.createElement(Header, { expiringCount: expiringSoon.length, tab: tab, onBack: () => setTab('home'), onOpenBackup: () => setShowBackup(true), onOpenAlerts: () => setShowAlerts(true) }),
         React.createElement("div", { className: "flex-1 overflow-y-auto pb-20" },
             tab === 'home' && (React.createElement(HomeTab, { machines: machines, expiringSoon: expiringSoon, quotations: quotations, orders: orders, payments: payments, challans: challans, visits: visits, holidays: holidays, toggleHoliday: toggleHoliday, markPartyVisited: markPartyVisited, outstanding: outstanding, thisMonthTarget: thisMonthTarget, thisMonthAchieved: thisMonthAchieved, setTargets: setTargets, targets: targets, dueTasks: dueTasks, completeTask: completeTask, dismissedToday: dismissedToday, markSuggestionDone: markSuggestionDone, goTo: goTo })),
-            tab === 'machines' && React.createElement(MachinesTab, { machines: machines, setMachines: setMachines, view: machinesView, setView: setMachinesView, jumpToParty: jumpToParty, payments: payments, setPayments: setPayments }),
+            tab === 'machines' && React.createElement(MachinesTab, { machines: machines, setMachines: setMachines, view: machinesView, setView: setMachinesView, jumpToParty: jumpToParty, payments: payments, setPayments: setPayments, quotations: quotations, orders: orders, challans: challans, amcHistory: amcHistory, setAmcHistory: setAmcHistory }),
             tab === 'sales' && (React.createElement(SalesTab, { machines: machines, quotations: quotations, setQuotations: setQuotations, orders: orders, setOrders: setOrders, items: items, setItems: setItems, payments: payments, setPayments: setPayments, signatureImg: signatureImg, challans: challans, setChallans: setChallans })),
             tab === 'payments' && (React.createElement(PaymentsTab, { machines: machines, payments: payments, setPayments: setPayments })),
             tab === 'log' && (React.createElement(LogTab, { dailyLogs: dailyLogs, setDailyLogs: setDailyLogs, tasks: tasks, setTasks: setTasks, completeTask: completeTask }))),
@@ -846,7 +852,7 @@ function SuggestionCard({ action }) {
                 React.createElement(ChevronRight, { size: 14, className: "text-slate-300 shrink-0" })))));
 }
 // ---------------- MACHINES TAB ----------------
-function MachinesTab({ machines, setMachines, view, setView, jumpToParty, payments, setPayments }) {
+function MachinesTab({ machines, setMachines, view, setView, jumpToParty, payments, setPayments, quotations, orders, challans, amcHistory, setAmcHistory }) {
     const [search, setSearch] = useState('');
     const [cityFilter, setCityFilter] = useState('All');
     const [statusFilter, setStatusFilter] = useState('ACTIVE');
@@ -881,14 +887,45 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
         const map = {};
         machines.forEach(m => {
             if (!map[m.party])
-                map[m.party] = { party: m.party, count: 0, active: 0, city: m.city || '', models: new Set() };
+                map[m.party] = { party: m.party, count: 0, active: 0, city: m.city || '', models: new Set(), hasExpiredAmc: false, hasNearAmc: false };
             map[m.party].count += 1;
-            if (normStatus(m.status) === 'ACTIVE')
+            if (normStatus(m.status) === 'ACTIVE') {
                 map[m.party].active += 1;
+                const d = daysUntil(m.amcTo);
+                if (d !== null) {
+                    if (d < 0)
+                        map[m.party].hasExpiredAmc = true;
+                    else if (d <= 30)
+                        map[m.party].hasNearAmc = true;
+                }
+            }
             if (m.model)
                 map[m.party].models.add(m.model.toLowerCase());
         });
-        let list = Object.values(map);
+        // Payment behaviour per party (normalized, case/space-insensitive match)
+        const payMap = {};
+        (payments || []).forEach(p => {
+            const rawName = (p.party || '').trim();
+            if (!rawName)
+                return;
+            const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+            if (!payMap[key])
+                payMap[key] = { invoiced: 0, received: 0 };
+            payMap[key].invoiced += Number(p.invoiceAmount || 0);
+            payMap[key].received += Number(p.receivedAmount || 0);
+        });
+        let list = Object.values(map).map(p => {
+            const key = p.party.trim().toLowerCase().replace(/\s+/g, ' ');
+            const pay = payMap[key] || { invoiced: 0, received: 0 };
+            const pending = pay.invoiced - pay.received;
+            const pendingRatio = pay.invoiced > 0 ? pending / pay.invoiced : 0;
+            let health = 'good';
+            if (p.hasExpiredAmc || (pending > 5000 && pendingRatio > 0.5))
+                health = 'risk';
+            else if (p.hasNearAmc || pending > 0)
+                health = 'watch';
+            return { ...p, pending, health };
+        });
         const s = search.trim().toLowerCase();
         if (s)
             list = list.filter(p => p.party.toLowerCase().includes(s) || Array.from(p.models).some(mod => mod.includes(s)));
@@ -901,12 +938,26 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
                 return a.city.localeCompare(b.city);
             return a.party.localeCompare(b.party);
         });
-    }, [machines, search]);
+    }, [machines, search, payments]);
     const addMachine = (data) => {
         setMachines([{ ...data, id: uid() }, ...machines]);
         setShowAdd(false);
     };
     const updateMachine = (id, data, closeModal = true) => {
+        const before = machines.find(m => m.id === id);
+        if (before && setAmcHistory && ('amcFrom' in data || 'amcTo' in data)) {
+            const newFrom = 'amcFrom' in data ? data.amcFrom : before.amcFrom;
+            const newTo = 'amcTo' in data ? data.amcTo : before.amcTo;
+            if (newFrom !== before.amcFrom || newTo !== before.amcTo) {
+                setAmcHistory(prev => [{
+                        id: uid(),
+                        machineNo: before.machineNo,
+                        oldFrom: before.amcFrom, oldTo: before.amcTo,
+                        newFrom, newTo,
+                        changedDate: todayISO(),
+                    }, ...prev]);
+            }
+        }
         setMachines(machines.map(m => m.id === id ? { ...m, ...data } : m));
         if (closeModal)
             setSelected(null);
@@ -998,6 +1049,16 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
                     parties.length,
                     " parties"),
                 React.createElement("button", { onClick: () => setShowMerge(true), className: "text-xs text-teal-700 font-semibold" }, "Parties Merge Karein")),
+            React.createElement("div", { className: "flex items-center gap-3 mb-3 px-1 text-[10px] text-slate-400" },
+                React.createElement("span", { className: "flex items-center gap-1" },
+                    React.createElement("span", { className: "w-2 h-2 rounded-full bg-emerald-500" }),
+                    "Good"),
+                React.createElement("span", { className: "flex items-center gap-1" },
+                    React.createElement("span", { className: "w-2 h-2 rounded-full bg-amber-400" }),
+                    "Watch"),
+                React.createElement("span", { className: "flex items-center gap-1" },
+                    React.createElement("span", { className: "w-2 h-2 rounded-full bg-red-500" }),
+                    "Risk")),
             React.createElement("div", { className: "space-y-2" }, parties.map((p, idx) => {
                 const showHeader = idx === 0 || parties[idx - 1].city !== p.city;
                 return (React.createElement(React.Fragment, { key: p.party },
@@ -1005,11 +1066,17 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
                     React.createElement(Card, { className: "!p-3" },
                         React.createElement("button", { className: "w-full text-left", onClick: () => setSelectedParty(p.party) },
                             React.createElement("div", { className: "flex items-center justify-between gap-2" },
-                                React.createElement("div", { className: "min-w-0" },
-                                    React.createElement("p", { className: "text-sm font-semibold text-slate-800 truncate" }, p.party),
+                                React.createElement("div", { className: "min-w-0 flex-1" },
+                                    React.createElement("div", { className: "flex items-center gap-1.5" },
+                                        React.createElement("span", { className: `w-2 h-2 rounded-full shrink-0 ${p.health === 'risk' ? 'bg-red-500' : p.health === 'watch' ? 'bg-amber-400' : 'bg-emerald-500'}`, title: p.health === 'risk' ? 'Risk' : p.health === 'watch' ? 'Watch' : 'Good' }),
+                                        React.createElement("p", { className: "text-sm font-semibold text-slate-800 truncate" }, p.party)),
                                     React.createElement("p", { className: "text-xs text-slate-400 mt-0.5 flex items-center gap-1" },
                                         React.createElement(MapPin, { size: 11 }),
-                                        p.city)),
+                                        p.city,
+                                        p.pending > 0 && React.createElement("span", { className: "text-red-500 font-medium ml-1" },
+                                            "\u00B7 \u20B9",
+                                            p.pending.toLocaleString('en-IN'),
+                                            " due"))),
                                 React.createElement("div", { className: "text-right shrink-0" },
                                     React.createElement("p", { className: "text-sm font-bold text-slate-800" }, p.count),
                                     React.createElement("p", { className: "text-[10px] text-slate-400" },
@@ -1018,7 +1085,7 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
             })))),
         showMerge && React.createElement(MergePartiesModal, { machines: machines, setMachines: setMachines, onClose: () => setShowMerge(false) }),
         showAdd && React.createElement(MachineForm, { onSave: addMachine, onClose: () => setShowAdd(false), defaultParty: selectedParty }),
-        selected && (React.createElement(MachineDetail, { machine: selected, onClose: () => setSelected(null), onStatusChange: (data) => updateMachine(selected.id, data, false), onSave: (data) => updateMachine(selected.id, data, true), onDelete: () => deleteMachine(selected.id), payments: payments, setPayments: setPayments })),
+        selected && (React.createElement(MachineDetail, { machine: selected, onClose: () => setSelected(null), onStatusChange: (data) => updateMachine(selected.id, data, false), onSave: (data) => updateMachine(selected.id, data, true), onDelete: () => deleteMachine(selected.id), payments: payments, setPayments: setPayments, quotations: quotations, orders: orders, challans: challans, amcHistory: amcHistory })),
         selectedParty && !selected && (React.createElement(PartyDetail, { party: selectedParty, machines: machines.filter(m => m.party === selectedParty), onClose: () => setSelectedParty(null), onSelectMachine: setSelected, onAddMachine: () => setShowAdd(true) }))));
 }
 function ImportModal({ title, hint, onImport, onClose }) {
@@ -1302,9 +1369,10 @@ function MachineForm({ onSave, onClose, initial, defaultParty }) {
                 React.createElement("input", { className: inputCls, value: f.amcTo, onChange: e => set('amcTo', e.target.value), placeholder: "31/12/26" }))),
         React.createElement("button", { onClick: () => onSave(f), disabled: !f.machineNo || !f.party, className: "w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40" }, "Save")));
 }
-function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, payments, setPayments }) {
+function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, payments, setPayments, quotations, orders, challans, amcHistory }) {
     const [editing, setEditing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
     const [showAmcBilling, setShowAmcBilling] = useState(false);
     const [amcAmount, setAmcAmount] = useState('');
     const [amcDate, setAmcDate] = useState(todayISO());
@@ -1316,6 +1384,36 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
     const currentStatus = normStatus(machine.status);
     const days = daysUntil(machine.amcTo);
     const badge = currentStatus === 'ACTIVE' ? amcBadge(days, machine.contType) : { label: STATUS_LABELS[currentStatus], color: STATUS_COLORS[currentStatus] };
+    const history = useMemo(() => {
+        const events = [];
+        (quotations || []).forEach(q => {
+            if (q.machineNo === machine.machineNo) {
+                events.push({ date: q.date, type: 'Quotation', label: `${q.quotNo || ''} — ₹${Number(q.amount || 0).toLocaleString('en-IN')}`, status: q.status, icon: '📄' });
+            }
+        });
+        (orders || []).forEach(o => {
+            if (o.machineNo === machine.machineNo) {
+                events.push({ date: o.poDate, type: 'Order', label: `PO ${o.orderNo || ''} — ₹${Number(o.amount || 0).toLocaleString('en-IN')}`, status: o.deliveryStatus, icon: '📦' });
+            }
+        });
+        (challans || []).forEach(c => {
+            if (c.machineNo === machine.machineNo) {
+                events.push({ date: c.date, type: 'Challan', label: `${c.challanNo || ''} — ${c.items || ''}`, status: c.status, icon: '🚚' });
+            }
+        });
+        (payments || []).forEach(p => {
+            if (p.machineNo === machine.machineNo) {
+                const label = Number(p.receivedAmount || 0) > 0 ? `Collection — ₹${Number(p.receivedAmount).toLocaleString('en-IN')}` : `Billing — ₹${Number(p.invoiceAmount || 0).toLocaleString('en-IN')}`;
+                events.push({ date: p.date, type: 'Payment', label, status: p.note || '', icon: '💰' });
+            }
+        });
+        (amcHistory || []).forEach(a => {
+            if (a.machineNo === machine.machineNo) {
+                events.push({ date: a.changedDate, type: 'AMC Renewal', label: `${formatDateDMY(a.newFrom)} se ${formatDateDMY(a.newTo)} tak`, status: a.oldTo ? `Pehle: ${formatDateDMY(a.oldFrom)} - ${formatDateDMY(a.oldTo)}` : 'Pehli baar set hui', icon: '🛠️' });
+            }
+        });
+        return events.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }, [quotations, orders, challans, payments, amcHistory, machine.machineNo]);
     const saveNote = () => {
         onStatusChange({ note: noteDraft });
         setNoteSaved(true);
@@ -1382,8 +1480,22 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
                         React.createElement("button", { onClick: () => setShowAmcBilling(false), className: "flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm" }, "Cancel"),
                         React.createElement("button", { onClick: saveAmcBilling, disabled: !amcAmount, className: "flex-1 bg-amber-600 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40" }, "Save"))))),
             React.createElement("div", { className: "flex gap-2 pt-2" },
-                React.createElement("button", { onClick: () => setEditing(true), className: "flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm" }, "Party/Machine Info Edit")),
-            React.createElement("div", { className: "flex gap-2" }, !confirmDelete ? (React.createElement("button", { onClick: () => setConfirmDelete(true), className: "flex-1 bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm" }, "Permanently Hatayein")) : (React.createElement("button", { onClick: onDelete, className: "flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm" }, "Confirm \u2014 Hamesha Ke Liye Delete"))))));
+                React.createElement("button", { onClick: () => setShowHistory(true), className: "flex-1 bg-teal-50 text-teal-700 font-semibold py-2.5 rounded-xl text-sm" },
+                    "History",
+                    history.length > 0 ? ` (${history.length})` : ''),
+                React.createElement("button", { onClick: () => setEditing(true), className: "flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm" }, "Info Edit")),
+            React.createElement("div", { className: "flex gap-2" }, !confirmDelete ? (React.createElement("button", { onClick: () => setConfirmDelete(true), className: "flex-1 bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm" }, "Permanently Hatayein")) : (React.createElement("button", { onClick: onDelete, className: "flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm" }, "Confirm \u2014 Hamesha Ke Liye Delete")))),
+        showHistory && (React.createElement(Modal, { title: `${machine.machineNo} — History`, onClose: () => setShowHistory(false) },
+            React.createElement("p", { className: "text-xs text-slate-500 mb-3" }, "Is machine se judi sabhi Quotations, Orders, Challan aur Payments \u2014 nayi se purani."),
+            history.length === 0 ? (React.createElement(Card, { className: "text-center text-sm text-slate-400 py-8" }, "Abhi tak koi history nahi hai. Ye tab banegi jab is machine se koi Quotation, Challan ya Billing judegi.")) : (React.createElement("div", { className: "space-y-2" }, history.map((h, i) => (React.createElement(Card, { key: i, className: "!p-3" },
+                React.createElement("div", { className: "flex items-start gap-2.5" },
+                    React.createElement("span", { className: "text-lg shrink-0" }, h.icon),
+                    React.createElement("div", { className: "min-w-0 flex-1" },
+                        React.createElement("div", { className: "flex items-center justify-between gap-2" },
+                            React.createElement("p", { className: "text-xs font-semibold text-teal-700" }, h.type),
+                            React.createElement("p", { className: "text-[10px] text-slate-400 whitespace-nowrap" }, formatDateDMY(h.date))),
+                        React.createElement("p", { className: "text-sm text-slate-800 mt-0.5" }, h.label),
+                        h.status && React.createElement("p", { className: "text-[11px] text-slate-400 mt-0.5 truncate" }, h.status))))))))))));
 }
 // ---------------- SALES TAB (Quotations + Orders + Items) ----------------
 function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg, challans, setChallans }) {
@@ -1391,6 +1503,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
     const [showAdd, setShowAdd] = useState(false);
     const [viewQuote, setViewQuote] = useState(null);
     const [editQuote, setEditQuote] = useState(null);
+    const [duplicateSource, setDuplicateSource] = useState(null);
     const [editChallan, setEditChallan] = useState(null);
     const addQuote = (data) => {
         setQuotations([{ ...data, id: uid() }, ...quotations]);
@@ -1410,6 +1523,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         setShowAdd(false);
     };
     const convertQuoteToOrder = (quote, orderNo, poDate) => {
+        const linkedMachineNo = quote.machineNo || quote.subject || (quote.lineItems && quote.lineItems[0] ? quote.lineItems[0].name : '');
         setOrders([{
                 id: uid(),
                 orderNo,
@@ -1417,7 +1531,8 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
                 party: quote.party,
                 department: quote.department || '',
                 machineModel: quote.machineModel || '',
-                machineNo: quote.subject || (quote.lineItems && quote.lineItems[0] ? quote.lineItems[0].name : ''),
+                machineNo: linkedMachineNo,
+                quotationId: quote.id,
                 amount: quote.amount,
                 quotNo: quote.quotNo,
                 deliveryStatus: 'Pending',
@@ -1426,7 +1541,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         setPayments([{
                 id: uid(),
                 party: quote.party,
-                machineNo: quote.subject || '',
+                machineNo: linkedMachineNo,
                 invoiceAmount: quote.amount,
                 receivedAmount: 0,
                 date: poDate,
@@ -1498,7 +1613,8 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
                                 formatDateDMY(q.date)),
                             q.subject && React.createElement("p", { className: "text-xs text-slate-400 mt-0.5 truncate" }, q.subject),
                             q.convertedToOrder && React.createElement("p", { className: "text-[11px] text-emerald-600 font-semibold mt-0.5" }, "\u2714 Order banaya")),
-                        React.createElement("span", { className: `text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[q.status]}` }, q.status)))))))),
+                        React.createElement("span", { className: `text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[q.status]}` }, q.status))),
+                React.createElement("button", { onClick: (e) => { e.stopPropagation(); setDuplicateSource(q); }, className: "mt-2 text-xs text-teal-700 font-semibold flex items-center gap-1" }, "\uD83D\uDCCB Isi Jaisi Nayi Quotation Banayein")))))),
         sub === 'orders' && (React.createElement("div", { className: "space-y-2" },
             orders.length === 0 && React.createElement(Card, { className: "text-center text-sm text-slate-400 py-6" }, "Abhi tak koi order nahi"),
             orders.map(o => (React.createElement(Card, { key: o.id, className: "!p-3" },
@@ -1523,13 +1639,25 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
             React.createElement("p", { className: "text-xs text-slate-400 mb-1 px-1" }, "Ek baar item add karein, quotation banate waqt select karte hi rate apne aap aa jayega"),
             items.length === 0 && React.createElement(Card, { className: "text-center text-sm text-slate-400 py-6" }, "Abhi tak koi item nahi"),
             items.map(it => (React.createElement(ItemRow, { key: it.id, item: it, items: items, onUpdate: data => updateItem(it.id, data), onDelete: () => deleteItem(it.id) }))))),
-        showAdd && sub === 'quotes' && (React.createElement(QuotationBuilder, { machines: machines, items: items, quotations: quotations, onSave: addQuote, onClose: () => setShowAdd(false) })),
+        showAdd && sub === 'quotes' && (React.createElement(QuotationBuilder, { machines: machines, items: items, setItems: setItems, quotations: quotations, onSave: addQuote, onClose: () => setShowAdd(false) })),
         showAdd && sub === 'orders' && React.createElement(OrderForm, { machines: machines, onSave: addOrder, onClose: () => setShowAdd(false) }),
         showAdd && sub === 'items' && React.createElement(ItemForm, { items: items, onSave: (d) => { addItem(d); setShowAdd(false); }, onClose: () => setShowAdd(false) }),
         showAdd && sub === 'challan' && React.createElement(ChallanForm, { machines: machines, onSave: addChallan, onClose: () => setShowAdd(false) }),
         editChallan && React.createElement(ChallanForm, { machines: machines, initial: editChallan, onSave: (data) => updateChallan(editChallan.id, data), onClose: () => setEditChallan(null) }),
         viewQuote && !editQuote && (React.createElement(QuotationView, { quote: viewQuote, onClose: () => setViewQuote(null), onEdit: () => setEditQuote(viewQuote), onDelete: () => deleteQuote(viewQuote.id), onStatusChange: (status) => updateQuote(viewQuote.id, { status }), onConvertToOrder: (orderNo, poDate) => convertQuoteToOrder(viewQuote, orderNo, poDate), signatureImg: signatureImg })),
-        editQuote && (React.createElement(QuotationBuilder, { machines: machines, items: items, quotations: quotations, initial: editQuote, onSave: (data) => updateQuote(editQuote.id, data), onClose: () => setEditQuote(null) }))));
+        editQuote && (React.createElement(QuotationBuilder, { machines: machines, items: items, setItems: setItems, quotations: quotations, initial: editQuote, onSave: (data) => updateQuote(editQuote.id, data), onClose: () => setEditQuote(null) })),
+        duplicateSource && (React.createElement(QuotationBuilder, { machines: machines, items: items, setItems: setItems, quotations: quotations, initial: {
+                party: duplicateSource.party,
+                attention: duplicateSource.attention,
+                department: duplicateSource.department,
+                machineNo: duplicateSource.machineNo,
+                recipientAddress: duplicateSource.recipientAddress,
+                subject: duplicateSource.subject,
+                machineModel: duplicateSource.machineModel,
+                lineItems: (duplicateSource.lineItems || []).map(l => ({ ...l, lineId: uid() })),
+                deliveryPeriod: duplicateSource.deliveryPeriod,
+                serviceTerms: duplicateSource.serviceTerms,
+            }, onSave: (data) => { addQuote(data); setDuplicateSource(null); }, onClose: () => setDuplicateSource(null), isDuplicate: true }))));
 }
 function ItemRow({ item, items, onUpdate, onDelete }) {
     const [editing, setEditing] = useState(false);
@@ -1604,7 +1732,6 @@ function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
 function ItemForm({ onSave, onClose, initial, inline, items }) {
     const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
     const set = (k, v) => setF({ ...f, [k]: v });
-    const normalizeItemName = (s) => (s || '').toLowerCase().replace(/[\s\-_.]/g, '');
     const duplicate = useMemo(() => {
         if (!items || !f.name || !f.name.trim())
             return null;
@@ -1693,10 +1820,34 @@ function nextQuotNo(quotations) {
     const yy = new Date().getFullYear() % 100;
     return `ABM/SD/${String(seq).padStart(3, '0')}/${yy}-${yy + 1}`;
 }
-function QuotationBuilder({ machines, items, quotations, onSave, onClose, initial }) {
+function MachineSearchPicker({ machines, value, onSelect }) {
+    const [q, setQ] = useState(value || '');
+    const [open, setOpen] = useState(false);
+    useEffect(() => { setQ(value || ''); }, [value]);
+    const matches = useMemo(() => {
+        if (!q || q.trim().length < 2)
+            return [];
+        const s = q.toLowerCase();
+        return machines.filter(m => (m.party || '').toLowerCase().includes(s) ||
+            (m.machineNo || '').toLowerCase().includes(s)).slice(0, 8);
+    }, [q, machines]);
+    return (React.createElement("div", { className: "relative" },
+        React.createElement("input", { className: inputCls, value: q, onChange: e => { setQ(e.target.value); setOpen(true); }, onFocus: () => setOpen(true), onBlur: () => setTimeout(() => setOpen(false), 150), placeholder: "Party naam ya PH/Machine No se dhundein..." }),
+        open && matches.length > 0 && (React.createElement("div", { className: "absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-56 overflow-y-auto" }, matches.map(m => (React.createElement("button", { key: m.id, className: "block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0", onMouseDown: (e) => { e.preventDefault(); setQ(`${m.machineNo} · ${m.party}`); onSelect(m); setOpen(false); } },
+            React.createElement("p", { className: "font-medium text-slate-700 truncate" },
+                m.machineNo,
+                " \u00B7 ",
+                m.model),
+            React.createElement("p", { className: "text-[11px] text-slate-400 truncate" },
+                m.party,
+                " ",
+                m.place ? '· ' + m.place : ''))))))));
+}
+function QuotationBuilder({ machines, items, quotations, setItems, onSave, onClose, initial, isDuplicate }) {
     const [party, setParty] = useState(initial?.party || '');
     const [attention, setAttention] = useState(initial?.attention || 'The Director');
     const [department, setDepartment] = useState(initial?.department || '');
+    const [machineNo, setMachineNo] = useState(initial?.machineNo || '');
     const [recipientAddress, setRecipientAddress] = useState(initial?.recipientAddress || '');
     const [quotNo, setQuotNo] = useState(initial?.quotNo || nextQuotNo(quotations));
     const [date, setDate] = useState(initial?.date || todayISO());
@@ -1706,6 +1857,15 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     const [lines, setLines] = useState(initial?.lineItems || []);
     const [deliveryPeriod, setDeliveryPeriod] = useState(initial?.deliveryPeriod || '0-15 days from the date of receipt of purchase order.');
     const [serviceTerms, setServiceTerms] = useState(initial?.serviceTerms || 'Service Charge is valid for one day only. Another per call charge would be applicable for any other day except the day machine has been repaired.');
+    const handleMachineSelect = (m) => {
+        setDepartment(m.place || '');
+        setMachineNo(m.machineNo || '');
+        setSelectedModel(m.model || '');
+        setModelDraft(m.model || '');
+        setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`);
+        if (!party)
+            setParty(m.party);
+    };
     const partyMachines = useMemo(() => {
         if (!party)
             return [];
@@ -1720,8 +1880,8 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     const suggestedItems = useMemo(() => {
         if (!selectedModel)
             return [];
-        const s = selectedModel.toLowerCase();
-        return items.filter(it => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (s.includes(m) || m.includes(s))));
+        const s = selectedModel.trim().toLowerCase();
+        return items.filter(it => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || m === s));
     }, [selectedModel, items]);
     const addLine = (item) => {
         setLines([...lines, {
@@ -1743,31 +1903,52 @@ function QuotationBuilder({ machines, items, quotations, onSave, onClose, initia
     const grandTotal = computed.reduce((s, l) => s + l.total, 0);
     const canSave = party.trim() && lines.length > 0 && lines.every(l => l.name && l.rate);
     const handleSave = () => {
+        // Manually-typed naye items (jo master mein pehle se nahi hain) ko aage ke liye auto-save kar dein
+        if (setItems) {
+            const existingNames = new Set(items.map(it => normalizeItemName ? normalizeItemName(it.name) : it.name.trim().toLowerCase()));
+            const newOnes = [];
+            computed.forEach(l => {
+                const key = (l.name || '').trim().toLowerCase().replace(/[\s\-_.]/g, '');
+                if (key && !existingNames.has(key) && !newOnes.some(n => n._key === key)) {
+                    newOnes.push({ _key: key, id: uid(), name: l.name, description: l.description, rate: Number(l.rate) || 0, gst: Number(l.gst) || 18, machineModel: selectedModel || '' });
+                }
+            });
+            if (newOnes.length > 0) {
+                setItems([...newOnes.map(({ _key, ...rest }) => rest), ...items]);
+            }
+        }
         onSave({
-            party, attention, department, recipientAddress, quotNo, date, subject, machineModel: selectedModel,
+            party, attention, department, machineNo, recipientAddress, quotNo, date, subject, machineModel: selectedModel,
             lineItems: computed.map(({ lineId, name, description, rate, qty, gst }) => ({ lineId, name, description, rate: Number(rate), qty: Number(qty), gst: Number(gst) })),
             amount: grandTotal,
             deliveryPeriod, serviceTerms,
             status: initial?.status || 'Sent',
         });
     };
-    return (React.createElement(Modal, { title: initial ? 'Quotation Edit Karein' : 'Nayi Quotation', onClose: onClose },
+    return (React.createElement(Modal, { title: isDuplicate ? 'Nayi Quotation (Copy)' : initial ? 'Quotation Edit Karein' : 'Nayi Quotation', onClose: onClose },
         React.createElement(Field, { label: "Party" },
             React.createElement(PartyPicker, { machines: machines, value: party, onChange: setParty })),
         React.createElement(Field, { label: "Addressed To (jaise: The Director)" },
             React.createElement("input", { className: inputCls, value: attention, onChange: e => setAttention(e.target.value), placeholder: "The Director / The Manager" })),
         React.createElement(Field, { label: "Address (To, block mein designation ke saath print hoga)" },
             React.createElement("textarea", { rows: 2, className: inputCls + ' resize-none', value: recipientAddress, onChange: e => setRecipientAddress(e.target.value), placeholder: "Jaise: 2nd Floor, Vidhan Bhawan, Lucknow" })),
-        React.createElement(Field, { label: "Department (sirf jaankari ke liye \u2014 kis vibhag/adhikari ke liye hai)" },
-            React.createElement(DepartmentPicker, { machines: machines, party: party, value: department, onChange: setDepartment })),
+        React.createElement(Field, { label: "Machine Dhundein (Party ya PH/Machine No se) \u2014 quotation isi se connect rahegi" },
+            React.createElement(MachineSearchPicker, { machines: machines, value: machineNo ? `${machineNo} · ${party}` : '', onSelect: handleMachineSelect })),
+        machineNo && (React.createElement("div", { className: "bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between" },
+            React.createElement("div", { className: "min-w-0" },
+                React.createElement("p", { className: "text-xs font-semibold text-teal-800 truncate" },
+                    machineNo,
+                    " ",
+                    department && `· ${department}`),
+                React.createElement("p", { className: "text-[10px] text-teal-600" }, "Ye quotation is machine se connect hai \u2014 Order/Outstanding mein bhi yehi dikhega")),
+            React.createElement("button", { onClick: () => { setMachineNo(''); setDepartment(''); }, className: "text-[11px] text-red-600 font-semibold shrink-0 ml-2" }, "Hatayein"))),
         partyMachines.length > 0 && (React.createElement("div", { className: "mb-3" },
             React.createElement("p", { className: "text-xs font-semibold text-slate-500 mb-1.5" }, "Is Party Ki Machines (tap to select)"),
             React.createElement("div", { className: "flex flex-wrap gap-1.5" }, partyMachines.map(m => {
                 const days = daysUntil(m.amcTo);
                 const st = normStatus(m.status);
                 const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
-                return (React.createElement("button", { key: m.id, onClick: () => { setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`); setSelectedModel(m.model); setModelDraft(m.model); if (m.place)
-                        setDepartment(m.place); }, className: `text-left border rounded-lg px-2.5 py-1.5 ${selectedModel === m.model ? 'border-teal-600 bg-teal-50' : 'border-slate-200'}` },
+                return (React.createElement("button", { key: m.id, onClick: () => handleMachineSelect(m), className: `text-left border rounded-lg px-2.5 py-1.5 ${selectedModel === m.model ? 'border-teal-600 bg-teal-50' : 'border-slate-200'}` },
                     React.createElement("p", { className: "text-xs font-medium text-slate-700" },
                         m.machineNo,
                         " \u00B7 ",
@@ -1813,22 +1994,20 @@ function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove })
     const [q, setQ] = useState(line.name || '');
     const [open, setOpen] = useState(false);
     const matches = useMemo(() => {
-        const modelLower = (selectedModel || '').toLowerCase();
-        const matchesModel = (it) => modelLower && (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (modelLower.includes(m) || m.includes(modelLower)));
-        let pool;
-        if (!q) {
-            pool = items.slice();
-        }
-        else {
+        const modelLower = (selectedModel || '').trim().toLowerCase();
+        const matchesModel = (it) => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || (modelLower && m === modelLower));
+        let pool = items.slice();
+        if (q) {
             const s = q.toLowerCase();
-            pool = items.filter(it => it.name.toLowerCase().includes(s) || (it.description || '').toLowerCase().includes(s));
+            pool = pool.filter(it => it.name.toLowerCase().includes(s) || (it.description || '').toLowerCase().includes(s));
         }
-        // Is machine model ke parts sabse upar dikhayein
-        pool.sort((a, b) => {
-            const am = matchesModel(a) ? 0 : 1;
-            const bm = matchesModel(b) ? 0 : 1;
-            return am - bm;
-        });
+        if (modelLower) {
+            const narrowed = pool.filter(matchesModel);
+            // Agar is exact model ke items maujood hain to sirf wahi dikhayein (narrow).
+            // Warna (koi match nahi) poori list dikha dein taaki user manually dhundh sake.
+            if (narrowed.length > 0)
+                pool = narrowed;
+        }
         return pool.slice(0, 8);
     }, [q, items, selectedModel]);
     const base = Number(line.rate || 0) * Number(line.qty || 0);
@@ -1837,9 +2016,10 @@ function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove })
         React.createElement("div", { className: "relative mb-2" },
             React.createElement("input", { className: inputCls, value: q, onChange: e => { setQ(e.target.value); onUpdate({ name: e.target.value }); setOpen(true); }, onFocus: () => setOpen(true), placeholder: "Item search / naya naam likhein" }),
             open && matches.length > 0 && (React.createElement("div", { className: "absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-40 overflow-y-auto" }, matches.map(it => {
-                const modelLower = (selectedModel || '').toLowerCase();
-                const isModelMatch = modelLower && (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m && (modelLower.includes(m) || m.includes(modelLower)));
-                return (React.createElement("button", { key: it.id, className: "block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0", onClick: () => {
+                const modelLower = (selectedModel || '').trim().toLowerCase();
+                const isModelMatch = (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || (modelLower && m === modelLower));
+                return (React.createElement("button", { key: it.id, className: "block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0", onMouseDown: (e) => {
+                        e.preventDefault();
                         setQ(it.name);
                         onUpdate({ name: it.name, description: it.description, rate: it.rate, gst: it.gst });
                         setOpen(false);
