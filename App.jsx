@@ -1,0 +1,3732 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Search, Home, Printer, FileText, IndianRupee, ClipboardList, Plus, X, Bell, TrendingUp, Phone, MapPin, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Clock, Eye, Upload, Settings, Download, DatabaseBackup } from 'lucide-react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+
+const SEED_MACHINES = [{"id": "PH-493-1", "machineNo": "PH-493", "model": "AR-5316E", "party": "MAHATMA GANDHI INSTITUTE OF PHARMACY", "contact": "9450396665, 3012576, 3208180", "place": "", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/11/18", "amcTo": "31/10/19", "status": "ACTIVE"}, {"id": "PH-1048-2", "machineNo": "PH-1048", "model": "AR-5516", "party": "MEGHA SOFT INFORMATHION SYSTEMS PVT. LTD.", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/09/22", "amcTo": "31/08/23", "status": "ACTIVE"}, {"id": "PH-1285-3", "machineNo": "PH-1285", "model": "AR-5316", "party": "DROSIA CONSTRUCTION P. LTD.", "contact": "3919313", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/10/20", "amcTo": "30/09/21", "status": "ACTIVE"}, {"id": "PH-1300-4", "machineNo": "PH-1300", "model": "AR-5520D", "party": "ADARSH PURVA PARIKSHA PRASHIKSHAN KENDRA", "contact": "5222205738", "place": "ALIGANJ", "city": "LUCKNOW", "contType": "LA", "amcFrom": "06/03/22", "amcTo": "05/03/23", "status": "ACTIVE"}, {"id": "PH-1351-5", "machineNo": "PH-1351", "model": "AR-5516", "party": "THE PRAMUKH SACHIV FISHERIES", "contact": "5222740067", "place": "5FT FLOOR, R.NO", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/03/11", "amcTo": "28/03/12", "status": "ACTIVE"}, {"id": "PH-1366-6", "machineNo": "PH-1366", "model": "AR-5516", "party": "DIPLOMA ENGINEERING SANGH", "contact": "N/A", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/05/11", "amcTo": "19/05/12", "status": "ACTIVE"}, {"id": "PH-1390-7", "machineNo": "PH-1390", "model": "AR-5516", "party": "FISHERIES", "contact": "9415576971", "place": "DY. DIRECTOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/06/11", "amcTo": "14/06/12", "status": "ACTIVE"}, {"id": "PH-1394-8", "machineNo": "PH-1394", "model": "AR-5520D", "party": "TRAINING & EMPLOYMENT", "contact": "9795816435", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/03/11", "amcTo": "09/03/12", "status": "ACTIVE"}, {"id": "PH-1503-9", "machineNo": "PH-1503", "model": "AR-5520", "party": "JOINT DIR. TECHNICAL EDUCATION", "contact": "0522-2683840", "place": "CENTRAL ZONE", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/01/12", "amcTo": "10/01/13", "status": "ACTIVE"}, {"id": "PH-1529-10", "machineNo": "PH-1529", "model": "AR-5620D", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "", "place": "SAMPATI PRABA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/03/12", "amcTo": "12/03/13", "status": "ACTIVE"}, {"id": "PH-1555-11", "machineNo": "PH-1555", "model": "AR-5618S", "party": "DIPLOMA ENGINEERS SANGH", "contact": "0522-2621484", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/06/12", "amcTo": "07/06/13", "status": "ACTIVE"}, {"id": "PH-1629-12", "machineNo": "PH-1629", "model": "AR-5618", "party": "U.P.GO SEWA AYOG", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/02/13", "amcTo": "14/02/14", "status": "ACTIVE"}, {"id": "PH-1631-13", "machineNo": "PH-1631", "model": "AR-5620N", "party": "ZILA VIKLANG KALYAN ADHIKARI", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/02/13", "amcTo": "27/02/14", "status": "ACTIVE"}, {"id": "PH-1648-14", "machineNo": "PH-1648", "model": "AR-5620", "party": "VIKLANG KALYAN VIBHAG", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/03/15", "amcTo": "09/03/16", "status": "ACTIVE"}, {"id": "PH-1715-15", "machineNo": "PH-1715", "model": "AR-5618", "party": "NAYAY-9", "contact": "0522-2213116", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/10/13", "amcTo": "06/10/14", "status": "ACTIVE"}, {"id": "PH-1840-16", "machineNo": "PH-1840", "model": "AR-5620N", "party": "ALL INDIA RADIO(SHARP)", "contact": "9415751104", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/08/14", "amcTo": "13/08/15", "status": "ACTIVE"}, {"id": "PH-1852-17", "machineNo": "PH-1852", "model": "MX-M452N", "party": "TRAINING & EMPLOYMENT", "contact": "9935636827", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/14", "amcTo": "29/09/15", "status": "ACTIVE"}, {"id": "PH-1853-18", "machineNo": "PH-1853", "model": "AR-5620N", "party": "TRAINING & EMPLOYMENT", "contact": "9935636827", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/14", "amcTo": "29/09/15", "status": "ACTIVE"}, {"id": "PH-1866-19", "machineNo": "PH-1866", "model": "AR-5618S", "party": "AZAD EDUCATIONAL SOCIETY", "contact": "9415766424", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/14", "amcTo": "20/11/15", "status": "ACTIVE"}, {"id": "PH-1874-20", "machineNo": "PH-1874", "model": "AR-5618S", "party": "AZAD INSTITUTE OF PHARMACY & RESEARCH", "contact": "9415766424", "place": "LIBRARY", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/12/14", "amcTo": "15/12/15", "status": "ACTIVE"}, {"id": "PH-1893-21", "machineNo": "PH-1893", "model": "MX-M452N", "party": "PCCF, FOREST", "contact": "2206168/ 9670725033", "place": "CAMP OFF.", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/15", "amcTo": "20/01/16", "status": "ACTIVE"}, {"id": "PH-1894-22", "machineNo": "PH-1894", "model": "AR-5620N", "party": "AD. PCCF FOREST", "contact": "2207956", "place": "AUDIT & NON PLA", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/15", "amcTo": "20/01/16", "status": "ACTIVE"}, {"id": "PH-1901-23", "machineNo": "PH-1901", "model": "MX-M452N", "party": "ADD. CCF FOREST", "contact": "0522-2205120", "place": "COURT CASE", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/02/15", "amcTo": "08/02/16", "status": "ACTIVE"}, {"id": "PH-2017-24", "machineNo": "PH-2017", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9919870735/052 2-2204253", "place": "CCF PROJECT", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/11/18", "amcTo": "31/10/19", "status": "ACTIVE"}, {"id": "PH-2026-25", "machineNo": "PH-2026", "model": "AR-6020N", "party": "CCF(U.P. FOREST)", "contact": "9451133719", "place": "MANAV SANSADH", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/09/15", "amcTo": "07/09/16", "status": "ACTIVE"}, {"id": "PH-2027-26", "machineNo": "PH-2027", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "0522-2207982/ 9453137924", "place": "ADMIN", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/09/15", "amcTo": "08/09/16", "status": "ACTIVE"}, {"id": "PH-2028-27", "machineNo": "PH-2028", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "9415578953", "place": "VIGILENCE", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/09/15", "amcTo": "09/09/16", "status": "ACTIVE"}, {"id": "PH-2029-28", "machineNo": "PH-2029", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "7080908800/ 7417969710", "place": "BHU ABHILESH", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/09/15", "amcTo": "09/09/16", "status": "ACTIVE"}, {"id": "PH-2037-29", "machineNo": "PH-2037", "model": "AR-6020", "party": "MALERIA MUKHYALAYA", "contact": "0522-2287611", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/09/15", "amcTo": "13/09/16", "status": "ACTIVE"}, {"id": "PH-2084-30", "machineNo": "PH-2084", "model": "MX-2010U", "party": "CCF (U.P. FOREST)", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/11/15", "amcTo": "08/11/16", "status": "ACTIVE"}, {"id": "PH-2089-31", "machineNo": "PH-2089", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "0522-2288515", "place": "INSTALL @ SULT", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/01/17", "amcTo": "31/12/17", "status": "ACTIVE"}, {"id": "PH-2096-32", "machineNo": "PH-2096", "model": "MX-2010U", "party": "ADD. CCF (U.P. FOREST)", "contact": "0522-2206195, 2206186", "place": "CHIEF SOCIAL &", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/12/15", "amcTo": "01/12/16", "status": "ACTIVE"}, {"id": "PH-2103-33", "machineNo": "PH-2103", "model": "MX-M464N", "party": "CCF ( U.P. FOREST)", "contact": "n/a", "place": "ADMINISTRATION", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/11/15", "amcTo": "16/11/16", "status": "ACTIVE"}, {"id": "PH-2115-34", "machineNo": "PH-2115", "model": "AR-6020N", "party": "PCCF (U.P. FOREST)", "contact": "8574929950/ 9450001032", "place": "AUDIT", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/11/15", "amcTo": "09/11/16", "status": "ACTIVE"}, {"id": "PH-2125-35", "machineNo": "PH-2125", "model": "AR-6020N", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795810732/ 0522-2340484", "place": "GROUND FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/01/16", "amcTo": "07/01/17", "status": "ACTIVE"}, {"id": "PH-2126-36", "machineNo": "PH-2126", "model": "MX-M464N", "party": "CCF CAMPA ( U.P. FOREST)", "contact": "0522-2206121/ 2206053", "place": "NITI VISHLESHAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/01/16", "amcTo": "10/01/17", "status": "ACTIVE"}, {"id": "PH-2154-37", "machineNo": "PH-2154", "model": "MX-M464N", "party": "CCF ( U.P. FOREST)", "contact": "7839435388/ 7839435387", "place": "COMMAND CENT", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/03/16", "amcTo": "03/03/17", "status": "ACTIVE"}, {"id": "PH-2155-38", "machineNo": "PH-2155", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "0522-2206176/ 9415910928", "place": "PLANNING", "city": "LUCKNOW", "contType": "LA", "amcFrom": "01/10/18", "amcTo": "30/09/19", "status": "ACTIVE"}, {"id": "PH-2156-39", "machineNo": "PH-2156", "model": "MX-M464N", "party": "PCCF FOREST", "contact": "9415083819/ 0522-2715741", "place": "CENTRAL ZONE", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "17/05/17", "amcTo": "16/05/18", "status": "ACTIVE"}, {"id": "PH-2164-40", "machineNo": "PH-2164", "model": "MX-M464N", "party": "UPPER PRAMUKH VAN SANRAKSH", "contact": "n/a", "place": "VAN SCAHIV", "city": "LUCKNOW", "contType": "W", "amcFrom": "14/03/16", "amcTo": "13/03/17", "status": "ACTIVE"}, {"id": "PH-2203-41", "machineNo": "PH-2203", "model": "MX-2010U", "party": "UPPER PRADHAN MUKYA VAN SANRAKSHAK", "contact": "7639435243/ 0522-2716619", "place": "IT CELL", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "20/06/17", "amcTo": "19/06/18", "status": "ACTIVE"}, {"id": "PH-2205-42", "machineNo": "PH-2205", "model": "AR-6020N", "party": "233BN,C.R.P.F", "contact": "0522-2817945/8 543094885", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/04/16", "amcTo": "24/04/17", "status": "ACTIVE"}, {"id": "PH-2208-43", "machineNo": "PH-2208", "model": "MX-M464N", "party": "CCF (U.P.FOREST)", "contact": "0522-2205891", "place": "STATISTICS", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/16", "amcTo": "11/05/17", "status": "ACTIVE"}, {"id": "PH-2219-44", "machineNo": "PH-2219", "model": "AR-6020", "party": "GO SEWA AYOG", "contact": "9415514546", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/06/16", "amcTo": "14/06/17", "status": "ACTIVE"}, {"id": "PH-2223-45", "machineNo": "PH-2223", "model": "AR-6020N", "party": "CCF Cheif Vigilance", "contact": "5222204103", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/07/16", "amcTo": "04/07/17", "status": "ACTIVE"}, {"id": "PH-2228-46", "machineNo": "PH-2228", "model": "AR-6020", "party": "SOCIAL WELFARE", "contact": "9454413251", "place": "ANUBHAG-2", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/07/16", "amcTo": "18/07/17", "status": "ACTIVE"}, {"id": "PH-2246-47", "machineNo": "PH-2246", "model": "AR-6020N", "party": "Awas Evam Vikas Parishad", "contact": "7705003424", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/09/16", "amcTo": "18/09/17", "status": "ACTIVE"}, {"id": "PH-2251-48", "machineNo": "PH-2251", "model": "MX-M354N", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811925/879 5811789", "place": "VRINDAVAN CIRC", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/04/19", "amcTo": "31/03/20", "status": "ACTIVE"}, {"id": "PH-2275-49", "machineNo": "PH-2275", "model": "AR-6020N", "party": "URBAN TRANSPORT", "contact": "7080507157", "place": "ROOM NO - 305", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/12/16", "amcTo": "18/12/17", "status": "ACTIVE"}, {"id": "PH-2277-50", "machineNo": "PH-2277", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "0522-2288515", "place": "M/C INSTALL AT I", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/12/16", "amcTo": "25/12/17", "status": "ACTIVE"}, {"id": "PH-2287-51", "machineNo": "PH-2287", "model": "AR-6020", "party": "Minor Irrigation", "contact": "9454119481/945 463024", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/02/17", "amcTo": "12/02/18", "status": "ACTIVE"}, {"id": "PH-2350-52", "machineNo": "PH-2350", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "9454410617, 0522-2238466", "place": "JAWAHAR BHAW", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/04/17", "amcTo": "09/04/18", "status": "ACTIVE"}, {"id": "PH-2387-53", "machineNo": "PH-2387", "model": "MX-M464N", "party": "CCF Campa ( U.P. Forest)", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/06/17", "amcTo": "27/06/18", "status": "ACTIVE"}, {"id": "PH-2389-54", "machineNo": "PH-2389", "model": "MX-M464N", "party": "PCCF (U.P. FOREST)", "contact": "5222206184", "place": "DDO OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/06/17", "amcTo": "27/06/18", "status": "ACTIVE"}, {"id": "PH-2390-55", "machineNo": "PH-2390", "model": "DX-2000U", "party": "CCF (U.P. FOREST)", "contact": "05222204253/ 7839435379", "place": "PROJECT & PLAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/08/17", "amcTo": "20/08/18", "status": "ACTIVE"}, {"id": "PH-2406-56", "machineNo": "PH-2406", "model": "AR-6020N", "party": "UNANI NIDESHALAYA", "contact": "9838716945", "place": "INSTALL @ REGI", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/10/17", "amcTo": "24/10/18", "status": "ACTIVE"}, {"id": "PH-2411-57", "machineNo": "PH-2411", "model": "AR-6020N", "party": "APCCF Project", "contact": "9452676662, 9415910928", "place": "PARIYOJNA", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/11/17", "amcTo": "29/11/18", "status": "ACTIVE"}, {"id": "PH-2412-58", "machineNo": "PH-2412", "model": "AR-6020N", "party": "CCF ( U.P. Forest)", "contact": "n/a", "place": "MANAV SANSHAD", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/17", "amcTo": "20/11/18", "status": "ACTIVE"}, {"id": "PH-2413-59", "machineNo": "PH-2413", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9305408123", "place": "VITA & LEKHA, R.", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/17", "amcTo": "20/11/18", "status": "ACTIVE"}, {"id": "PH-2426-60", "machineNo": "PH-2426", "model": "AR-6020N", "party": "CCF FOREST", "contact": "9044821723", "place": "MONITERING & E", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/01/22", "amcTo": "31/12/22", "status": "ACTIVE"}, {"id": "PH-2453-61", "machineNo": "PH-2453", "model": "AR-6020N", "party": "PCCF ( U.P. Forest)/staff officer", "contact": "9451014932/220 684", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/02/18", "amcTo": "19/02/19", "status": "ACTIVE"}, {"id": "PH-2454-62", "machineNo": "PH-2454", "model": "AR-6020N", "party": "PCCF (U.P. Forest)", "contact": "9956868558/ 7376633200", "place": "LEKHA ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/02/18", "amcTo": "21/02/19", "status": "ACTIVE"}, {"id": "PH-2471-63", "machineNo": "PH-2471", "model": "AR-6020N", "party": "MEDICAL EDUCATION", "contact": "9919521574/ 9839227173", "place": "N/A", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "06/06/19", "amcTo": "05/06/20", "status": "ACTIVE"}, {"id": "PH-2472-64", "machineNo": "PH-2472", "model": "AR-6020N", "party": "MEDICAL EDUCATION", "contact": "9919521574/ 947360453", "place": "DIRECTOR CAMP", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "06/06/19", "amcTo": "05/06/20", "status": "ACTIVE"}, {"id": "PH-2481-65", "machineNo": "PH-2481", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9415910928", "place": "PLANNING", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/03/18", "amcTo": "20/03/19", "status": "ACTIVE"}, {"id": "PH-2530-66", "machineNo": "PH-2530", "model": "MX-M265N", "party": "SS TRAVELS", "contact": "9839120877", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/04/18", "amcTo": "12/04/19", "status": "ACTIVE"}, {"id": "PH-2557-67", "machineNo": "PH-2557", "model": "MX-M464N", "party": "SOCIAL WELFARE", "contact": "na", "place": "LEKHA", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/09/18", "amcTo": "10/09/19", "status": "ACTIVE"}, {"id": "PH-2640-68", "machineNo": "PH-2640", "model": "AR-6026NV", "party": "FINANCIAL STATISTICAL DIRECTORATE", "contact": "9415085759", "place": "ROOM NO - 148", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "25/02/20", "amcTo": "24/02/21", "status": "ACTIVE"}, {"id": "PH-2694-69", "machineNo": "PH-2694", "model": "AR-6020NV", "party": "GO SEWA AYOG", "contact": "9412311692 / 8433099679", "place": "ROOM NO - 811, I", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/03/19", "amcTo": "25/03/20", "status": "ACTIVE"}, {"id": "PH-2695-70", "machineNo": "PH-2695", "model": "DX-2000U", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "0522-2238181, 9454410021", "place": "NEW SACHIVALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/19", "amcTo": "15/04/21", "status": "ACTIVE"}, {"id": "PH-2696-71", "machineNo": "PH-2696", "model": "DX-2000U", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "9839879814, 9451250016", "place": "DIRECTOR CIVIL", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/04/19", "amcTo": "31/03/21", "status": "ACTIVE"}, {"id": "PH-2697-72", "machineNo": "PH-2697", "model": "AR-6026NV", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "0522-2215118, 8887121328", "place": "NEW SACHIVALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/19", "amcTo": "15/04/21", "status": "ACTIVE"}, {"id": "PH-2714-73", "machineNo": "PH-2714", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "NA", "place": "NIRMAN KHAND -", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/19", "amcTo": "01/04/20", "status": "ACTIVE"}, {"id": "PH-2715-74", "machineNo": "PH-2715", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811734, 7705003754", "place": "EXE. ENGG.", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/04/19", "amcTo": "31/03/20", "status": "ACTIVE"}, {"id": "PH-2718-75", "machineNo": "PH-2718", "model": "AR-6023NV", "party": "AWAS EVAM VIKAS PARISHAD", "contact": "8795811432", "place": "OFFICE SAMPATT", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/04/19", "amcTo": "07/04/20", "status": "ACTIVE"}, {"id": "PH-2732-76", "machineNo": "PH-2732", "model": "AR-6020NV", "party": "Social Welfare Department", "contact": "0522-2209259", "place": "DIRECTOR ROOM", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/06/19", "amcTo": "12/06/20", "status": "ACTIVE"}, {"id": "PH-2733-77", "machineNo": "PH-2733", "model": "AR-6020NV", "party": "SOCIAL WELFARE DEPARTMENT - IGRM", "contact": "9568485462", "place": "ANUBHAG VIBHA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/06/19", "amcTo": "12/06/20", "status": "ACTIVE"}, {"id": "PH-2737-78", "machineNo": "PH-2737", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9838104452", "place": "EDUCATION (B) S", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/06/19", "amcTo": "20/06/20", "status": "ACTIVE"}, {"id": "PH-2738-79", "machineNo": "PH-2738", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9453222342", "place": "E-1 ( STHAPNA 1", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/06/19", "amcTo": "20/06/20", "status": "ACTIVE"}, {"id": "PH-2740-80", "machineNo": "PH-2740", "model": "AR-6020NV", "party": "MADHYANCHAL VIDYUT VITRAN NIGAM", "contact": "9919503063, 8005493138", "place": "D P SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/07/19", "amcTo": "17/07/20", "status": "ACTIVE"}, {"id": "PH-2741-81", "machineNo": "PH-2741", "model": "AR-6020NV", "party": "MADHYANCHAL VIDYUT VITRAN NIGAM", "contact": "8004923160", "place": "COMERCIAL DIRE", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/07/19", "amcTo": "17/07/20", "status": "ACTIVE"}, {"id": "PH-2767-82", "machineNo": "PH-2767", "model": "AR-6020NV", "party": "Forest Corporation", "contact": "9454410222", "place": "VAN RAJYA MANT", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/09/19", "amcTo": "03/09/20", "status": "ACTIVE"}, {"id": "PH-2780-83", "machineNo": "PH-2780", "model": "AR-6020V", "party": "MEDIGULF DIAGNOSTIC CENTRE", "contact": "0522-2727727, 2727730", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/09/19", "amcTo": "29/09/20", "status": "ACTIVE"}, {"id": "PH-2782-84", "machineNo": "PH-2782", "model": "AR-6020NV", "party": "SCHOLARS HOME", "contact": "9450396556, 9453022798 / 8423807871", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/19", "amcTo": "15/10/20", "status": "ACTIVE"}, {"id": "PH-2783-85", "machineNo": "PH-2783", "model": "AR-6020V", "party": "Shram Vidya Peeth", "contact": "8299800105", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/19", "amcTo": "15/10/20", "status": "ACTIVE"}, {"id": "PH-2797-86", "machineNo": "PH-2797", "model": "AR-6020NV", "party": "CYREX HEALTH CARE", "contact": "9956474125", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/11/19", "amcTo": "11/11/20", "status": "ACTIVE"}, {"id": "PH-2811-87", "machineNo": "PH-2811", "model": "AR-6023NV", "party": "Awas Evam Vikas Parishad", "contact": "9125824387", "place": "C D - 3, OFFICE C", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/12/19", "amcTo": "11/12/20", "status": "ACTIVE"}, {"id": "PH-2818-88", "machineNo": "PH-2818", "model": "AR-6020NV", "party": "NATIONAL WATER DEVELOPMENT AGENCY", "contact": "7905693989, 0522-2340643", "place": "INVESTIGATION D", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/01/20", "amcTo": "07/01/22", "status": "ACTIVE"}, {"id": "PH-2821-89", "machineNo": "PH-2821", "model": "DX-2000U", "party": "YASHASVI ADVERTISING", "contact": "9936275496, 7080865555", "place": "LAVKUSH ENTER", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/01/20", "amcTo": "14/01/21", "status": "ACTIVE"}, {"id": "PH-2822-90", "machineNo": "PH-2822", "model": "AR-6023NV", "party": "Lucknow Model Public Inter College", "contact": "8090041030", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/01/20", "amcTo": "28/01/21", "status": "ACTIVE"}, {"id": "PH-2835-91", "machineNo": "PH-2835", "model": "AR-6031NV", "party": "YASHI ENTERPRISES", "contact": "9559900782, 7704943153", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/02/20", "amcTo": "05/02/21", "status": "ACTIVE"}, {"id": "PH-2879-92", "machineNo": "PH-2879", "model": "BP-20C20Z", "party": "CIVIL DEFENCE", "contact": "6387680637", "place": "BAKSHI KA TALA", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/03/20", "amcTo": "12/03/22", "status": "ACTIVE"}, {"id": "PH-2894-93", "machineNo": "PH-2894", "model": "AR-6023NV", "party": "AWAS VIKAS PARISHAD", "contact": "7705003639", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/03/20", "amcTo": "19/03/21", "status": "ACTIVE"}, {"id": "PH-2929-94", "machineNo": "PH-2929", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9415560860, 8382844424", "place": "RESIDENCE OF H", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2930-95", "machineNo": "PH-2930", "model": "AR-6020NV", "party": "SOCIAL WELFARE - 2", "contact": "8115915040, 9454413251", "place": "ROOM NO - 441", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2931-96", "machineNo": "PH-2931", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9454413658", "place": "ANUBHAG - 1", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2932-97", "machineNo": "PH-2932", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9450627274", "place": "DIRECTOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2933-98", "machineNo": "PH-2933", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9651019424", "place": "ANUBHAG - 3", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2934-99", "machineNo": "PH-2934", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9260970072, 9454410113", "place": "ROOM NO. 112 D", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/20", "amcTo": "07/07/22", "status": "ACTIVE"}, {"id": "PH-2935-100", "machineNo": "PH-2935", "model": "AR-6020NV", "party": "SOCIAL WELFARE", "contact": "9891540389", "place": "ROOM NO - 36, 2N", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/07/20", "amcTo": "08/07/22", "status": "ACTIVE"}, {"id": "PH-2936-101", "machineNo": "PH-2936", "model": "MX-M356NV", "party": "SOCIAL WELFARE", "contact": "9935324967", "place": "VIDHI ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/07/20", "amcTo": "08/07/22", "status": "ACTIVE"}, {"id": "PH-2954-102", "machineNo": "PH-2954", "model": "AR-6020NV", "party": "SHISHIR CHANDRA & ASSOCIATE", "contact": "9415026325", "place": "NEAR SHERWOO", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/09/20", "amcTo": "28/09/21", "status": "ACTIVE"}, {"id": "PH-2969-103", "machineNo": "PH-2969", "model": "MX-M5050", "party": "CCF - COURT CASE", "contact": "81423773822", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/10/20", "amcTo": "27/10/21", "status": "ACTIVE"}, {"id": "PH-2973-104", "machineNo": "PH-2973", "model": "AR-6031NV", "party": "CIVIL DEFENCE DEPARTMENT", "contact": "9451250016", "place": "DIRECTOR GENE", "city": "LUCKNOW", "contType": "W", "amcFrom": "13/11/20", "amcTo": "12/11/21", "status": "ACTIVE"}, {"id": "PH-2987-105", "machineNo": "PH-2987", "model": "BP-20C20Z", "party": "Forest Department", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/01/21", "amcTo": "01/01/23", "status": "ACTIVE"}, {"id": "PH-3001-106", "machineNo": "PH-3001", "model": "AR-6020NV", "party": "STATE DISASTER RESPONCE FORCE", "contact": "8318590883", "place": "BIJNOUR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/21", "amcTo": "20/01/22", "status": "ACTIVE"}, {"id": "PH-3005-107", "machineNo": "PH-3005", "model": "AR-6020NV", "party": "Joint Director Pension", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/01/21", "amcTo": "27/01/23", "status": "ACTIVE"}, {"id": "PH-3021-108", "machineNo": "PH-3021", "model": "AR-6026NV", "party": "UNANI Nideshalaya", "contact": "0522-2286907, 9415578640", "place": "8TH FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "10/03/21", "amcTo": "09/03/24", "status": "ACTIVE"}, {"id": "PH-3030-109", "machineNo": "PH-3030", "model": "AR-6023NV", "party": "AWAS VIKAS PARISHAD", "contact": "8795811509", "place": "C D - 2", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/03/21", "amcTo": "21/03/22", "status": "ACTIVE"}, {"id": "PH-3075-110", "machineNo": "PH-3075", "model": "AR-6031NV", "party": "SAMAJ KALYAN NIDESHALAYA", "contact": "9450627274", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/08/21", "amcTo": "24/08/24", "status": "ACTIVE"}, {"id": "PH-3076-111", "machineNo": "PH-3076", "model": "AR-6031NV", "party": "SAMAJ KALYAN NIDESHALAY", "contact": "8299336700", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/08/21", "amcTo": "24/08/24", "status": "ACTIVE"}, {"id": "PH-3109-112", "machineNo": "PH-3109", "model": "AR-6020NV", "party": "AMRIT BOTTLERS PVT. LTD.", "contact": "9555022344, 9794963336", "place": "4TH FLOOR AMRI", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/09/21", "amcTo": "23/09/22", "status": "ACTIVE"}, {"id": "PH-3233-113", "machineNo": "PH-3233", "model": "BP-30M35T", "party": "ADARSH PURV PARIKSHA", "contact": "9984023111, 7880363764", "place": "PARIKSHAN KEN", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/04/22", "amcTo": "20/04/23", "status": "ACTIVE"}, {"id": "PH-3273-114", "machineNo": "PH-3273", "model": "BP-20M28T", "party": "DIRECTORATE OF PENSION", "contact": "9454412172", "place": "VITT ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/09/22", "amcTo": "21/09/23", "status": "ACTIVE"}, {"id": "PH-3278-115", "machineNo": "PH-3278", "model": "BP-20M28T", "party": "MVVNL", "contact": "8004012470", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/10/22", "amcTo": "05/10/23", "status": "ACTIVE"}, {"id": "PH-3285-116", "machineNo": "PH-3285", "model": "BP-20M22T", "party": "MEGHA SOFT INFORMATION SYSTEMS PVT. LTD.", "contact": "8400206666, 8175992081", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/10/22", "amcTo": "06/10/23", "status": "ACTIVE"}, {"id": "PH-3290-117", "machineNo": "PH-3290", "model": "BP-20M22T", "party": "MAHATMA GANDHI INSTITUTE OF PHARMACY", "contact": "", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/11/22", "amcTo": "27/11/23", "status": "ACTIVE"}, {"id": "PH-673-118", "machineNo": "PH-673", "model": "AR-5127", "party": "U P FOREST CORPORATION", "contact": "2238669, Extn 4564, 2716506", "place": "BAPU BHAWAN", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "19/10/12", "amcTo": "18/10/13", "status": "ACTIVE"}, {"id": "PH-674-119", "machineNo": "PH-674", "model": "AR-M205", "party": "U P FOREST CORPORATION", "contact": "2716619 & 2715741", "place": "CH CONSERVA", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "28/11/15", "amcTo": "27/11/16", "status": "ACTIVE"}, {"id": "PH-675-120", "machineNo": "PH-675", "model": "AR-5320E", "party": "U P FOREST CORPORATION", "contact": "9453007056, 9451308740", "place": "MINISTER FOR", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/09/11", "amcTo": "31/08/12", "status": "ACTIVE"}, {"id": "PH-676-121", "machineNo": "PH-676", "model": "AR-5316E", "party": "U P FOREST CORPORATION", "contact": "2716506", "place": "MARKETING SE", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/06/13", "amcTo": "31/05/14", "status": "ACTIVE"}, {"id": "PH-677-122", "machineNo": "PH-677", "model": "AR-5316", "party": "U P FOREST CORPORATION", "contact": "2715760", "place": "YOJNA & MULY", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/02/13", "amcTo": "31/01/14", "status": "ACTIVE"}, {"id": "PH-678-123", "machineNo": "PH-678", "model": "AR-5316", "party": "U P FOREST CORPORATION", "contact": "2716506", "place": "KARMIK ANUBH", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "01/02/13", "amcTo": "31/01/14", "status": "ACTIVE"}, {"id": "PH-679-124", "machineNo": "PH-679", "model": "AR-5320E", "party": "U P FOREST CORPORATION", "contact": "2238773 Extn. 4789,2238412", "place": "ADDITIONAL M", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "25/10/13", "amcTo": "24/10/14", "status": "ACTIVE"}, {"id": "PH-876-125", "machineNo": "PH-876", "model": "AR-5320E", "party": "DSM, FOREST CORPORATION", "contact": "2716437", "place": "NA", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "03/07/21", "amcTo": "02/07/22", "status": "ACTIVE"}, {"id": "PH-999-126", "machineNo": "PH-999", "model": "AR-5520D", "party": "CCF, O/O PCCF, FOREST", "contact": "2206121, 2206053", "place": "CCF HQ", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1000-127", "machineNo": "PH-1000", "model": "AR-5520D", "party": "PCCF, FOREST", "contact": "2207982", "place": "AUDIT SECTION", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1101-128", "machineNo": "PH-1101", "model": "AR-5520D", "party": "PCCF, FOREST HQ", "contact": "NA", "place": "BHU ABHILEKH", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "06/07/22", "amcTo": "05/07/23", "status": "ACTIVE"}, {"id": "PH-1261-129", "machineNo": "PH-1261", "model": "AR-5625", "party": "RML", "contact": "0522-2306249", "place": "LUCKNOW", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "14/10/19", "amcTo": "13/10/21", "status": "ACTIVE"}, {"id": "PH-1296-130", "machineNo": "PH-1296", "model": "AR-5520", "party": "U P FOREST DEPARTMENT", "contact": "2214566/9454 410564", "place": "BAPU BHAWAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/11/10", "amcTo": "23/11/11", "status": "ACTIVE"}, {"id": "PH-1475-131", "machineNo": "PH-1475", "model": "MX-M310N", "party": "RML", "contact": "n/a", "place": "N/A", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "14/10/19", "amcTo": "13/10/21", "status": "ACTIVE"}, {"id": "PH-1563-132", "machineNo": "PH-1563", "model": "AR-5620N", "party": "CCF FOREST(CAMPA)", "contact": "2204365", "place": "N/A", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "01/04/15", "amcTo": "31/03/16", "status": "ACTIVE"}, {"id": "PH-1702-133", "machineNo": "PH-1702", "model": "AR-5620N", "party": "U P FOREST CORPORATION", "contact": "0522-2238465", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/08/13", "amcTo": "11/08/14", "status": "ACTIVE"}, {"id": "PH-1703-134", "machineNo": "PH-1703", "model": "AR-5620N", "party": "U P FOREST CORPORATION", "contact": "n/a", "place": "GENERAL SEC.", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/08/13", "amcTo": "11/08/14", "status": "ACTIVE"}, {"id": "PH-2032-135", "machineNo": "PH-2032", "model": "AR-6020N", "party": "CCF (U.P. FOREST)", "contact": "0522-2715328 /9453193802", "place": "WORKING PLA", "city": "LUCKNOW", "contType": "LA", "amcFrom": "16/08/19", "amcTo": "15/08/20", "status": "ACTIVE"}, {"id": "PH-2139-136", "machineNo": "PH-2139", "model": "MX-2010U", "party": "PCCF WILD LIFE", "contact": "0522-2206584 /9415668654", "place": "N/A", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "31/10/23", "amcTo": "30/10/24", "status": "ACTIVE"}, {"id": "PH-2222-137", "machineNo": "PH-2222", "model": "AR-6020N", "party": "U P FOREST CORPORATION LTD.", "contact": "9455336765", "place": "ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/06/16", "amcTo": "21/06/17", "status": "ACTIVE"}, {"id": "PH-2322-138", "machineNo": "PH-2322", "model": "AR-6020N", "party": "APCCF FOREST DEPARTMENT", "contact": "9616017188,9 415460923", "place": "IT CELL, SHEES", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/03/17", "amcTo": "17/03/18", "status": "ACTIVE"}, {"id": "PH-2324-139", "machineNo": "PH-2324", "model": "AR-6020N", "party": "DFO AWADH", "contact": "9307811286", "place": "AWADH 1 PRAB", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/10/22", "amcTo": "09/10/23", "status": "ACTIVE"}, {"id": "PH-2378-140", "machineNo": "PH-2378", "model": "AR-6020N", "party": "PCCF,ESP Project", "contact": "7499248557/9 598996627", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/05/17", "amcTo": "22/05/18", "status": "ACTIVE"}, {"id": "PH-2391-141", "machineNo": "PH-2391", "model": "MX-M464N", "party": "DFO AWADH", "contact": "n/a", "place": "", "city": "LUCKNOW", "contType": "SSA", "amcFrom": "10/10/22", "amcTo": "09/10/23", "status": "ACTIVE"}, {"id": "PH-2394-142", "machineNo": "PH-2394", "model": "AR-6020N", "party": "DLM, U P FOREST CORPORATION", "contact": "9532090315/9 451260614", "place": "N/A", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/08/17", "amcTo": "15/08/18", "status": "ACTIVE"}, {"id": "PH-2424-143", "machineNo": "PH-2424", "model": "AR-6020N", "party": "APCCF FOREST", "contact": "9580182292", "place": "WILD LIFE", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "07/05/23", "amcTo": "06/05/24", "status": "ACTIVE"}, {"id": "PH-2425-144", "machineNo": "PH-2425", "model": "AR-6020N", "party": "APCCF FOREST", "contact": "9931927985/9 415470753", "place": "PROJECT TIGE", "city": "LUCKNOW", "contType": "FSMA", "amcFrom": "07/05/21", "amcTo": "06/05/22", "status": "ACTIVE"}, {"id": "PH-2482-145", "machineNo": "PH-2482", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "9807631679/0 5222715328", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/03/18", "amcTo": "27/03/19", "status": "ACTIVE"}, {"id": "PH-2866-146", "machineNo": "PH-2866", "model": "AR-6020NV", "party": "RML", "contact": "7275046011", "place": "2nd FLOOR, HOSPITAL BLOCK", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2867-147", "machineNo": "PH-2867", "model": "AR-6020NV", "party": "RML", "contact": "7275881910", "place": "PHARMACY OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2868-148", "machineNo": "PH-2868", "model": "AR-6020NV", "party": "RML", "contact": "9559649300, 8840506288", "place": "DISPATCH SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2869-149", "machineNo": "PH-2869", "model": "AR-6020NV", "party": "RML", "contact": "7839127462", "place": "BIO MEDICAL", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2870-150", "machineNo": "PH-2870", "model": "AR-6020NV", "party": "RML", "contact": "NA", "place": "2ND FLOOR, ROOM NO - 25", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/02/20", "amcTo": "26/02/22", "status": "ACTIVE"}, {"id": "PH-2980-151", "machineNo": "PH-2980", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 7007066094", "place": "ESTABLISHMEN", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2981-152", "machineNo": "PH-2981", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 7355798275", "place": "EPF SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2982-153", "machineNo": "PH-2982", "model": "AR-6020NV", "party": "U P FOREST CORPORATION", "contact": "8787071764, 6394311700", "place": "UTPADAN", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/12/20", "amcTo": "16/12/22", "status": "ACTIVE"}, {"id": "PH-2986-154", "machineNo": "PH-2986", "model": "AR-6020NV", "party": "RML", "contact": "9140159273", "place": "EXAMINATION", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/12/20", "amcTo": "30/12/22", "status": "ACTIVE"}, {"id": "PH-3078-155", "machineNo": "PH-3078", "model": "AR-6020NV", "party": "RML", "contact": "6393338639, 8299488779", "place": "CHIEF NURSIN", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/08/21", "amcTo": "29/08/23", "status": "ACTIVE"}, {"id": "PH-3082-156", "machineNo": "PH-3082", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9958256184", "place": "COMPUTER SE", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3083-157", "machineNo": "PH-3083", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9807722851", "place": "ACCOUNT SEC", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3084-158", "machineNo": "PH-3084", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9454414179", "place": "ANUBHAG-3", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3085-159", "machineNo": "PH-3085", "model": "AR-6020NV", "party": "U P Forest Corporation", "contact": "9454412488", "place": "ANUBHAG-4", "city": "LUCKNOW", "contType": "W", "amcFrom": "07/09/21", "amcTo": "05/09/23", "status": "ACTIVE"}, {"id": "PH-3115-160", "machineNo": "PH-3115", "model": "AR-6020NV", "party": "RML", "contact": "7275068922", "place": "7TH FLOOR, PA", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/10/21", "amcTo": "16/10/23", "status": "ACTIVE"}, {"id": "PH-3223-161", "machineNo": "PH-3223", "model": "AR-6020NV", "party": "UP FOREST CORPORATION (DSM)", "contact": "8299035989", "place": "FOREST", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/03/22", "amcTo": "28/03/23", "status": "ACTIVE"}, {"id": "PH-3242-162", "machineNo": "PH-3242", "model": "AR-6020NV", "party": "UP FOREST CORPORATION", "contact": "9454410071", "place": "Forest Minister, Bapu Bhawan", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/05/22", "amcTo": "27/05/24", "status": "ACTIVE"}, {"id": "PH-3259-163", "machineNo": "PH-3259", "model": "BP-20M22T", "party": "RML", "contact": "8318833734, 7275068927", "place": "Administrative block", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/07/22", "amcTo": "29/07/23", "status": "ACTIVE"}, {"id": "PH-3293-164", "machineNo": "PH-3293", "model": "AR-6020N", "party": "RML", "contact": "", "place": "MS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/12/21", "amcTo": "30/11/22", "status": "ACTIVE"}, {"id": "PH-3356-165", "machineNo": "PH-3356", "model": "BP-20M22T", "party": "RML", "contact": "8052321561, 7355966610", "place": "CMS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/23", "amcTo": "11/05/24", "status": "ACTIVE"}, {"id": "PH-3357-166", "machineNo": "PH-3357", "model": "BP-20M22T", "party": "RML", "contact": "9451322899", "place": "RADIODIAGNOSIS OFFICE", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/05/23", "amcTo": "11/05/24", "status": "ACTIVE"}, {"id": "PH-3398-167", "machineNo": "PH-3398", "model": "BP-20M22T", "party": "RML", "contact": "9450681868", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/10/23", "amcTo": "08/10/24", "status": "ACTIVE"}, {"id": "PH-3399-168", "machineNo": "PH-3399", "model": "BP-20M22T", "party": "RML", "contact": "7275068940, 8957485981", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/10/23", "amcTo": "08/10/24", "status": "ACTIVE"}, {"id": "PH-3424-169", "machineNo": "PH-3424", "model": "BP-20M22T", "party": "U P Forest Corporation", "contact": "8853474734", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "04/12/23", "amcTo": "03/12/24", "status": "ACTIVE"}, {"id": "PH-3427-170", "machineNo": "PH-3427", "model": "BP-20M31T", "party": "UP FOREST, COURT CASE", "contact": "8182810202", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/12/23", "amcTo": "27/12/24", "status": "ACTIVE"}, {"id": "PH-3447-171", "machineNo": "PH-3447", "model": "BP-20M22T", "party": "RML", "contact": "7355674977", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/02/24", "amcTo": "22/02/25", "status": "ACTIVE"}, {"id": "PH-3448-172", "machineNo": "PH-3448", "model": "BP-20M22T", "party": "RML", "contact": "9696295907", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/02/24", "amcTo": "22/02/25", "status": "ACTIVE"}, {"id": "PH-3470-173", "machineNo": "PH-3470", "model": "BP-20M28T", "party": "FOREST DEPARTMENT", "contact": "7839435241, 7839435244", "place": "IT CELL", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/04/24", "amcTo": "15/04/25", "status": "ACTIVE"}, {"id": "PH-3493-174", "machineNo": "PH-3493", "model": "BP-50M55T", "party": "CCF-COURT CASE", "contact": "7839434792", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/05/24", "amcTo": "14/05/25", "status": "ACTIVE"}, {"id": "PH-3509-175", "machineNo": "PH-3509", "model": "BP-20M22T", "party": "UP FOREST CORPORATION", "contact": "8707744154, 8565079788", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/06/24", "amcTo": "25/06/26", "status": "ACTIVE"}, {"id": "PH-3527-176", "machineNo": "PH-3527", "model": "BP-20M22T", "party": "RML", "contact": "9450447890", "place": "PHYSIOLOGY DEPARTMENT", "city": "LUCKNOW", "contType": "W", "amcFrom": "08/07/24", "amcTo": "07/07/25", "status": "ACTIVE"}, {"id": "PH-3549-177", "machineNo": "PH-3549", "model": "BP-20M22T", "party": "UP FOREST CORPORATION", "contact": "9454410277, 0522-2237001", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/08/24", "amcTo": "29/08/26", "status": "ACTIVE"}, {"id": "PH-3596-178", "machineNo": "PH-3596", "model": "BP-20C25Z", "party": "FOREST DEPARTMENT", "contact": "9452242069, 8960317945", "place": "PPCF WILD LIFE", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/01/25", "amcTo": "15/01/26", "status": "ACTIVE"}, {"id": "PH-3597-179", "machineNo": "PH-3597", "model": "BP-20M22T", "party": "RML", "contact": "8176007032", "place": "IRF, 23", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3598-180", "machineNo": "PH-3598", "model": "BP-20M22T", "party": "RML", "contact": "9670222324", "place": "P. S. OFFICE, 1st FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3599-181", "machineNo": "PH-3599", "model": "BP-20M22T", "party": "RML", "contact": "8299265881", "place": "UG CELL", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3600-182", "machineNo": "PH-3600", "model": "BP-20M22T", "party": "RML", "contact": "9598442916", "place": "GROUND FLOOR, ROOM NO. 24", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3601-183", "machineNo": "PH-3601", "model": "BP-20M22T", "party": "RML", "contact": "7275052899", "place": "Medical Record", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3602-184", "machineNo": "PH-3602", "model": "BP-20M22T", "party": "RML", "contact": "7398143316", "place": "Research Cell", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3606-185", "machineNo": "PH-3606", "model": "BP-20M31T", "party": "UP FOREST DEPARTMENT", "contact": "7839435391", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/02/25", "amcTo": "02/02/26", "status": "ACTIVE"}, {"id": "PH-3607-186", "machineNo": "PH-3607", "model": "BP-20M24T", "party": "UP FOREST DEPARTMENT", "contact": "9369266690", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/02/25", "amcTo": "04/02/26", "status": "ACTIVE"}, {"id": "PH-3609-187", "machineNo": "PH-3609", "model": "BP-20M24T", "party": "UP FOREST DEPARTMENT", "contact": "6394056802", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "06/02/25", "amcTo": "05/02/26", "status": "ACTIVE"}, {"id": "PH-3613-188", "machineNo": "PH-3613", "model": "BP-20M31T", "party": "FOREST DEPARTMENT (DFO)", "contact": "9918596413", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "18/02/25", "amcTo": "17/02/26", "status": "ACTIVE"}, {"id": "PH-3614-189", "machineNo": "PH-3614", "model": "BP-20M31T", "party": "PCCF WILD LIFE", "contact": "9580182292", "place": "ROOM No. 313, 2nd FLOOR", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/02/25", "amcTo": "20/02/26", "status": "ACTIVE"}, {"id": "PH-3636-190", "machineNo": "PH-3636", "model": "BP-30C25", "party": "PCCF WILD LIFE", "contact": "9452679823", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/03/25", "amcTo": "26/03/26", "status": "ACTIVE"}, {"id": "PH-3654-191", "machineNo": "PH-3654", "model": "BP-20M22T", "party": "RML", "contact": "8052163222", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/06/25", "amcTo": "01/06/26", "status": "ACTIVE"}, {"id": "PH-3657-192", "machineNo": "PH-3657", "model": "BP-30C25ZT", "party": "RML", "contact": "8115981873", "place": "LIBRARY", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/06/25", "amcTo": "11/06/26", "status": "ACTIVE"}, {"id": "PH-3658-193", "machineNo": "PH-3658", "model": "BP-20M22T", "party": "RML", "contact": "7275068936", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/07/25", "amcTo": "02/07/26", "status": "ACTIVE"}, {"id": "PH-3694-194", "machineNo": "PH-3694", "model": "BP-30M35T", "party": "FOREST CORPORATION", "contact": "7518377087, 9651217420", "place": "Office of the Managing Director", "city": "LUCKNOW", "contType": "W", "amcFrom": "22/09/25", "amcTo": "21/09/26", "status": "ACTIVE"}, {"id": "PH-3371-195", "machineNo": "PH-3371", "model": "BP-30M35T", "party": "SOCIAL WELFARE", "contact": "7985522071", "place": "NAJARAT ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "27/03/23", "amcTo": "26/03/24", "status": "ACTIVE"}, {"id": "PH-3407-196", "machineNo": "PH-3407", "model": "BP-20M22T", "party": "DIPLOMA ENGINEERING SANGH", "contact": "9412389684, 9453936486", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "01/11/23", "amcTo": "31/10/24", "status": "ACTIVE"}, {"id": "PH-3422-197", "machineNo": "PH-3422", "model": "BP-20M22T", "party": "NBFGR", "contact": "7985869131", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "24/11/23", "amcTo": "23/11/24", "status": "ACTIVE"}, {"id": "PH-3423-198", "machineNo": "PH-3423", "model": "BP-20M22T", "party": "MAHATMA GANDHI AYURVEDIC MEDICAL COLLEGE & RESEARCH CENTER", "contact": "9415929663", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/12/23", "amcTo": "01/12/24", "status": "ACTIVE"}, {"id": "PH-3439-199", "machineNo": "PH-3439", "model": "BP-50M55", "party": "INTERNAL AUDIT DIRECTORATE", "contact": "9005464071", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "31/01/24", "amcTo": "30/01/25", "status": "ACTIVE"}, {"id": "PH-3450-200", "machineNo": "PH-3450", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "7985522071", "place": "VIKAS ANUBHAG", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/03/24", "amcTo": "25/02/25", "status": "ACTIVE"}, {"id": "PH-3558-201", "machineNo": "PH-3558", "model": "BP-20M24T", "party": "FCI", "contact": "9807180000", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "09/09/24", "amcTo": "08/09/25", "status": "ACTIVE"}, {"id": "PH-3570-202", "machineNo": "PH-3570", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "8417926511", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/10/24", "amcTo": "15/10/25", "status": "ACTIVE"}, {"id": "PH-3574-203", "machineNo": "PH-3574", "model": "BP-30M35T", "party": "DM OFFICE", "contact": "9936815286", "place": "ROOM No. 52", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/10/24", "amcTo": "14/10/27", "status": "ACTIVE"}, {"id": "PH-3575-204", "machineNo": "PH-3575", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "7355929923", "place": "1st FLOOR, NSAP SECTION", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/10/24", "amcTo": "28/10/25", "status": "ACTIVE"}, {"id": "PH-3577-205", "machineNo": "PH-3577", "model": "BP-30M35T", "party": "DM OFFICE", "contact": "8318198653", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "15/10/24", "amcTo": "14/10/27", "status": "ACTIVE"}, {"id": "PH-3583-206", "machineNo": "PH-3583", "model": "BP-20M22T", "party": "MINORITY COMMISSION", "contact": "9005698923", "place": "6th FLOOR, ROOM NO. 609", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/11/24", "amcTo": "20/11/25", "status": "ACTIVE"}, {"id": "PH-3589-207", "machineNo": "PH-3589", "model": "BP-20M24T", "party": "PASSPORT OFFICE", "contact": "9415087882", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/12/24", "amcTo": "11/12/25", "status": "ACTIVE"}, {"id": "PH-3603-208", "machineNo": "PH-3603", "model": "BP-20M22T", "party": "APPLIATE AUTHORITY", "contact": "9936850756, 9451427414", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/25", "amcTo": "20/01/26", "status": "ACTIVE"}, {"id": "PH-3626-209", "machineNo": "PH-3626", "model": "BP-20M22T", "party": "Central Soil Salinity Research Institute", "contact": "7881199890", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/03/25", "amcTo": "18/03/26", "status": "ACTIVE"}, {"id": "PH-3637-210", "machineNo": "PH-3637", "model": "BP-20M22T", "party": "G. R. MAINTENANCE & SERVICES LTD.", "contact": "7042340544", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "28/03/25", "amcTo": "27/03/26", "status": "ACTIVE"}, {"id": "PH-3641-211", "machineNo": "PH-3641", "model": "BP-20M22T", "party": "RANJAN KUMAR DEV (SHOP)", "contact": "8081182990", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/03/25", "amcTo": "24/03/26", "status": "ACTIVE"}, {"id": "PH-3647-212", "machineNo": "PH-3647", "model": "BP-50C31", "party": "UNANI SERVICES UP", "contact": "9415578640", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "29/04/25", "amcTo": "28/04/26", "status": "ACTIVE"}, {"id": "PH-3651-213", "machineNo": "PH-3651", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "0522-2209259", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/05/25", "amcTo": "18/05/26", "status": "ACTIVE"}, {"id": "PH-3653-214", "machineNo": "PH-3653", "model": "BP-50M55T", "party": "SOCIAL WELFARE", "contact": "9807629896", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "19/05/25", "amcTo": "18/05/26", "status": "ACTIVE"}, {"id": "PH-3696-215", "machineNo": "PH-3696", "model": "Apeos 3060", "party": "POLLUTION CONTROL BOARD", "contact": "9454558049", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3697-216", "machineNo": "PH-3697", "model": "BP-20M22T", "party": "CIPET", "contact": "8115011176", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3698-217", "machineNo": "PH-3698", "model": "BP-50M55T", "party": "UP FOREST DEPARTMENT", "contact": "8933049677", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "26/09/25", "amcTo": "25/09/26", "status": "ACTIVE"}, {"id": "PH-3712-218", "machineNo": "PH-3712", "model": "BP-50M55T", "party": "UP FOREST DEPARTMENT", "contact": "8957099991", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "25/11/25", "amcTo": "24/11/26", "status": "ACTIVE"}, {"id": "PH-3718-219", "machineNo": "PH-3718", "model": "BP-20M22T", "party": "DIPLOMA ENGINEERING SANGH", "contact": "9621812239, 8799188883", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/12/25", "amcTo": "10/12/26", "status": "ACTIVE"}, {"id": "PH-3721-220", "machineNo": "PH-3721", "model": "AR-6020NV", "party": "DIVYANG JAN NIDESALAY", "contact": "NA", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "16/12/22", "amcTo": "15/12/23", "status": "ACTIVE"}, {"id": "PH-3749-221", "machineNo": "PH-3749", "model": "BP-22C20", "party": "DRDO - ITFB", "contact": "9557233469, 8115997997", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/01/26", "amcTo": "20/01/27", "status": "ACTIVE"}, {"id": "PH-3752-222", "machineNo": "PH-3752", "model": "BP-50C26", "party": "TAJ MAHAL HOTEL", "contact": "9455520732", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/02/26", "amcTo": "02/02/27", "status": "ACTIVE"}, {"id": "PH-3753-223", "machineNo": "PH-3753", "model": "BP-20M22T", "party": "SAMARJEET JANSEVA KENDRA", "contact": "7388810715", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "12/02/26", "amcTo": "11/02/27", "status": "ACTIVE"}, {"id": "PH-3754 (Fujifilm)-224", "machineNo": "PH-3754 (Fujifilm)", "model": "APEOSC2060", "party": "JTRI", "contact": "9935638273", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "11/02/26", "amcTo": "10/02/27", "status": "ACTIVE"}, {"id": "PH-3755 (Fujifilm)-225", "machineNo": "PH-3755 (Fujifilm)", "model": "APEOS4620SX", "party": "KRISHNA DIGITAL STUDIO", "contact": "8808687392", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "23/01/26", "amcTo": "22/01/27", "status": "ACTIVE"}, {"id": "PH-3760-226", "machineNo": "PH-3760", "model": "BP-20M31T", "party": "RML", "contact": "9628216443", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/03/26", "amcTo": "04/03/27", "status": "ACTIVE"}, {"id": "PH-3768-227", "machineNo": "PH-3768", "model": "BP-20M22T", "party": "RML", "contact": "9453982146", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "PH-3769-228", "machineNo": "PH-3769", "model": "BP-20M31T", "party": "RML", "contact": "9012905888", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "PH-3770-229", "machineNo": "PH-3770", "model": "BP-20M31T", "party": "RML", "contact": "9012905888", "place": "", "city": "LUCKNOW", "contType": "W", "amcFrom": "02/04/26", "amcTo": "01/04/27", "status": "ACTIVE"}, {"id": "0006-230", "machineNo": "0006", "model": "BP-20M22T", "party": "SSRM-POST OFFICE", "contact": "9451566529", "place": "SOLD BY SAMARTH", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/03/26", "amcTo": "29/03/27", "status": "ACTIVE"}, {"id": "PH-352-231", "machineNo": "PH-352", "model": "AR-5316N", "party": "NALKOOP KHAND", "contact": "05547-223580", "place": "", "city": "SANT KABIR NAGAR", "contType": "SSA", "amcFrom": "08/01/19", "amcTo": "07/01/20", "status": "ACTIVE"}, {"id": "PH-2033-232", "machineNo": "PH-2033", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYAN", "contact": "9451363230/ 05547226187", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2370-233", "machineNo": "PH-2370", "model": "AR-6020N", "party": "D.F.O", "contact": "9918381696", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "12/05/17", "amcTo": "11/05/18", "status": "ACTIVE"}, {"id": "PH-2462-234", "machineNo": "PH-2462", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9839394984/ 9453639997", "place": "N/A", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "27/02/18", "amcTo": "26/02/19", "status": "ACTIVE"}, {"id": "PH-2688-235", "machineNo": "PH-2688", "model": "AR-6020V", "party": "CMO", "contact": "7007933932, 9415875875", "place": "", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "26/03/19", "amcTo": "25/03/20", "status": "ACTIVE"}, {"id": "PH-2857-236", "machineNo": "PH-2857", "model": "AR-6023NV", "party": "Govt I T I", "contact": "9412365529, 8285459241", "place": "", "city": "SANT KABIR NAGAR", "contType": "W", "amcFrom": "19/02/20", "amcTo": "18/02/21", "status": "ACTIVE"}, {"id": "PH-2030-237", "machineNo": "PH-2030", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "8756259449", "place": "N/A", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "25/07/15", "amcTo": "24/07/16", "status": "ACTIVE"}, {"id": "PH-2451-238", "machineNo": "PH-2451", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9918033239", "place": "NA", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "16/02/18", "amcTo": "15/02/19", "status": "ACTIVE"}, {"id": "PH-3013-239", "machineNo": "PH-3013", "model": "AR-6020V", "party": "RESERVE POLICE LINE", "contact": "9170196622, 6307744952", "place": "", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "26/02/21", "amcTo": "25/02/22", "status": "ACTIVE"}, {"id": "PH-3020-240", "machineNo": "PH-3020", "model": "AR-6020NV", "party": "NALKOOP KHAND", "contact": "9454414685", "place": "", "city": "SIDDHARTH NAGAR", "contType": "W", "amcFrom": "09/03/21", "amcTo": "08/03/22", "status": "ACTIVE"}, {"id": "PH-1710-241", "machineNo": "PH-1710", "model": "AR-5620N", "party": "RAJYA KRISHI UTPADAN MANDI PARISHAD", "contact": "9415519230/8004757658", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "01/10/13", "amcTo": "30/09/14", "status": "ACTIVE"}, {"id": "PH-182-242", "machineNo": "PH-182", "model": "AR-5316N", "party": "TUBEWELL DIVISION, CIRCLE OFFICE", "contact": "05542-246423, 9415175632", "place": "CIRCLE OFFICE 1", "city": "BASTI", "contType": "SSA", "amcFrom": "01/04/11", "amcTo": "31/03/12", "status": "ACTIVE"}, {"id": "PH-2009-243", "machineNo": "PH-2009", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9235250607", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2107-244", "machineNo": "PH-2107", "model": "AR-6020", "party": "EXECUTIVE ENGINEER", "contact": "8127715213/983 9459929", "place": "N/A", "city": "BASTI", "contType": "W", "amcFrom": "21/11/15", "amcTo": "20/11/16", "status": "ACTIVE"}, {"id": "PH-2679-245", "machineNo": "PH-2679", "model": "AR-6020NV", "party": "NALKOOP KHAND", "contact": "9454415203", "place": "", "city": "BASTI", "contType": "W", "amcFrom": "15/03/19", "amcTo": "14/03/21", "status": "ACTIVE"}, {"id": "PH-3196-246", "machineNo": "PH-3196", "model": "AR-6031NV", "party": "DIRECTORATE OF PENSION", "contact": "9335342111, 9140551907", "place": "", "city": "BASTI", "contType": "W", "amcFrom": "02/03/22", "amcTo": "01/03/23", "status": "ACTIVE"}, {"id": "PH-1792-247", "machineNo": "PH-1792", "model": "AR-5620N", "party": "TUBEWELL DIVISION", "contact": "9450883501", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "21/03/14", "amcTo": "20/03/15", "status": "ACTIVE"}, {"id": "PH-2007-248", "machineNo": "PH-2007", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9415810648", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "07/08/15", "amcTo": "06/08/16", "status": "ACTIVE"}, {"id": "PH-2373-249", "machineNo": "PH-2373", "model": "AR-6020N", "party": "D.F.O", "contact": "8765941080/ 9415693909", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "18/05/17", "amcTo": "17/05/18", "status": "ACTIVE"}, {"id": "PH-2525-250", "machineNo": "PH-2525", "model": "AR-6020N", "party": "GOVT. I.T.I", "contact": "9450878863", "place": "N/A", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "09/04/18", "amcTo": "08/04/20", "status": "ACTIVE"}, {"id": "PH-3106-251", "machineNo": "PH-3106", "model": "AR-6020NV", "party": "BARODA UP BANK", "contact": "9452043221, 7007297118", "place": "", "city": "MAHARAJG ANJ", "contType": "W", "amcFrom": "15/09/21", "amcTo": "13/09/23", "status": "ACTIVE"}, {"id": "PH-1664-252", "machineNo": "PH-1664", "model": "AR-5620N", "party": "TUBEWELL CIRCLE", "contact": "0551-2201288", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "01/08/21", "amcTo": "31/07/22", "status": "ACTIVE"}, {"id": "PH-1764-253", "machineNo": "PH-1764", "model": "AR-5618", "party": "U.P. BRIDGE CORPORATION LTD.", "contact": "9695479706", "place": "N/A", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "11/08/21", "amcTo": "10/08/22", "status": "ACTIVE"}, {"id": "PH-2002-254", "machineNo": "PH-2002", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9450739816/893", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "14/07/15", "amcTo": "13/07/16", "status": "ACTIVE"}, {"id": "PH-2161-255", "machineNo": "PH-2161", "model": "AR-6020", "party": "DRAINAGE KHAND(EXECUTIVE ENGINEER)", "contact": "9889595104/ 8004963488", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "09/03/16", "amcTo": "08/03/17", "status": "ACTIVE"}, {"id": "PH-2328-256", "machineNo": "PH-2328", "model": "AR-6020N", "party": "D.F.O.", "contact": "9415380289/ 0551-2333108", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "21/03/17", "amcTo": "20/03/18", "status": "ACTIVE"}, {"id": "PH-2418-257", "machineNo": "PH-2418", "model": "AR-6020N", "party": "D.F.O.", "contact": "n/a", "place": "N/A", "city": "GORAKHPU R", "contType": "W", "amcFrom": "24/11/17", "amcTo": "23/11/18", "status": "ACTIVE"}, {"id": "PH-251-258", "machineNo": "PH-251", "model": "AR-5320", "party": "CMS, MALE", "contact": "0551-2833500, 9415692558", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "04/06/20", "amcTo": "03/06/21", "status": "ACTIVE"}, {"id": "PH-2999-259", "machineNo": "PH-2999", "model": "AR-6020NV", "party": "ZILA KARAGAR", "contact": "0551-2282325", "place": "", "city": "GORAKHPU R", "contType": "W", "amcFrom": "18/01/21", "amcTo": "17/01/23", "status": "ACTIVE"}, {"id": "PH-3028-260", "machineNo": "PH-3028", "model": "AR-6023NV", "party": "TUBEWELL CONSTRUCTION DIVISION", "contact": "6394111575, 8299674225, 9670559765", "place": "", "city": "GORAKHPU R", "contType": "SSA", "amcFrom": "01/09/22", "amcTo": "31/08/23", "status": "ACTIVE"}, {"id": "PH-2187-261", "machineNo": "PH-2187", "model": "AR-6020N", "party": "NALKOOP KHAND-I", "contact": "9807310325", "place": "N/A", "city": "GORAKHPUR", "contType": "SSA", "amcFrom": "10/08/22", "amcTo": "09/08/23", "status": "ACTIVE"}, {"id": "PH-3563-262", "machineNo": "PH-3563", "model": "BP-20M28T", "party": "PENSION DIRECTORATE", "contact": "8756641544", "place": "", "city": "GORAKHPUR", "contType": "W", "amcFrom": "25/09/24", "amcTo": "24/09/25", "status": "ACTIVE"}, {"id": "PH-2063-263", "machineNo": "PH-2063", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9839509057 /9450266011", "place": "N/A", "city": "KUSHI NAGAR", "contType": "W", "amcFrom": "23/07/15", "amcTo": "22/07/16", "status": "ACTIVE"}, {"id": "PH-2160-264", "machineNo": "PH-2160", "model": "AR-6020N", "party": "D.F.O", "contact": "9721275325/ 9415767143", "place": "N/A", "city": "KUSHI NAGAR", "contType": "W", "amcFrom": "10/03/16", "amcTo": "09/03/17", "status": "ACTIVE"}, {"id": "PH-2062-265", "machineNo": "PH-2062", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05568-227268/9 450676667", "place": "N/A", "city": "DEORIA", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2242-266", "machineNo": "PH-2242", "model": "AR-6020N", "party": "GOVT. I.T.I", "contact": "9984824003", "place": "N/A", "city": "DEORIA", "contType": "SSA", "amcFrom": "09/11/17", "amcTo": "08/11/18", "status": "ACTIVE"}, {"id": "PH-2622-267", "machineNo": "PH-2622", "model": "AR-6020N", "party": "EXECUTIVE ENGG NALKOOP", "contact": "9454414948", "place": "TUBEWELL DIVIS", "city": "DEORIA", "contType": "W", "amcFrom": "17/01/19", "amcTo": "16/01/21", "status": "ACTIVE"}, {"id": "PH-2939-268", "machineNo": "PH-2939", "model": "AR-6031NV", "party": "BHARAT PETROLEUM", "contact": "8947052877, 7311119927", "place": "MACHINE SOLD B", "city": "DEORIA", "contType": "W", "amcFrom": "10/08/20", "amcTo": "09/08/21", "status": "ACTIVE"}, {"id": "PH-3037-269", "machineNo": "PH-3037", "model": "AR-6020NV", "party": "NALKOOP KHAND - 2", "contact": "8931997216", "place": "SALEMPUR", "city": "DEORIA", "contType": "W", "amcFrom": "26/03/21", "amcTo": "25/03/23", "status": "ACTIVE"}, {"id": "PH-2258-270", "machineNo": "PH-2258", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "PURCHASE", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2259-271", "machineNo": "PH-2259", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "QUALITY", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2260-272", "machineNo": "PH-2260", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "C & M", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2261-273", "machineNo": "PH-2261", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "", "place": "CONTRACT", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2262-274", "machineNo": "PH-2262", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "9650998814", "place": "HOSPITAL", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2263-275", "machineNo": "PH-2263", "model": "AR-6026N", "party": "NTPC TANDA", "contact": "9473584231", "place": "H R HALL", "city": "AMBEDKAR NAGAR", "contType": "SSA", "amcFrom": "01/08/18", "amcTo": "31/07/23", "status": "ACTIVE"}, {"id": "PH-2806-276", "machineNo": "PH-2806", "model": "MX-M315NV", "party": "NTPC TANDA", "contact": "7379764175, 9450982314, 05273-284099", "place": "DR. AMRIT LAL IS", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "02/12/19", "amcTo": "01/12/20", "status": "ACTIVE"}, {"id": "PH-3045-277", "machineNo": "PH-3045", "model": "AR-6020NV", "party": "MAHAMAYA RAJKIYA ALLOPATHIC MEDICAL COLLEGE", "contact": "9719430490, 9839320222", "place": "CMS OFFICE", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "17/05/21", "amcTo": "16/05/23", "status": "ACTIVE"}, {"id": "PH-2142-278", "machineNo": "PH-2142", "model": "AR-6020N", "party": "NALKOOP KHAND", "contact": "9451704708/ 9454415390", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "15/02/16", "amcTo": "14/02/17", "status": "ACTIVE"}, {"id": "PH-2008-279", "machineNo": "PH-2008", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "n/a", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "20/07/15", "amcTo": "19/07/16", "status": "ACTIVE"}, {"id": "PH-2006-280", "machineNo": "PH-2006", "model": "AR-5618S", "party": "R K PUBLIC SCHOOL", "contact": "9450493447/ 9918231590", "place": "N/A", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "18/08/15", "amcTo": "17/08/16", "status": "ACTIVE"}, {"id": "PH-3679-281", "machineNo": "PH-3679", "model": "BP-20M22T", "party": "R.K. PUBLIC SCHOOL", "contact": "9005889889", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "24/07/25", "amcTo": "23/07/26", "status": "ACTIVE"}, {"id": "PH-2012-282", "machineNo": "PH-2012", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "52281244865", "place": "N/A", "city": "MAHOBA", "contType": "W", "amcFrom": "23/07/15", "amcTo": "22/07/16", "status": "ACTIVE"}, {"id": "PH-1762-283", "machineNo": "PH-1762", "model": "AR-5620N", "party": "D.T.O.OFFICE(C.M.O.)", "contact": "9935930981/ 05282225684", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "24/02/14", "amcTo": "23/02/15", "status": "ACTIVE"}, {"id": "PH-2014-284", "machineNo": "PH-2014", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "n/a", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2176-285", "machineNo": "PH-2176", "model": "AR-6020N", "party": "ZILA MISSION PRABHANDAN EKAIN/A", "contact": "9415266207/ 9450263080", "place": "N/A", "city": "HAMIRPUR", "contType": "W", "amcFrom": "05/04/16", "amcTo": "04/04/17", "status": "ACTIVE"}, {"id": "PH-2226-286", "machineNo": "PH-2226", "model": "AR-6020N", "party": "D M OFFICE", "contact": "9919172513", "place": "", "city": "HAMIRPUR", "contType": "W", "amcFrom": "13/07/16", "amcTo": "12/07/17", "status": "ACTIVE"}, {"id": "PH-2227-287", "machineNo": "PH-2227", "model": "AR-6020N", "party": "D M OFFICE", "contact": "9454416011", "place": "DM RESIDENCE", "city": "HAMIRPUR", "contType": "W", "amcFrom": "13/07/16", "amcTo": "12/07/17", "status": "ACTIVE"}, {"id": "PH-2652-288", "machineNo": "PH-2652", "model": "AR-6026NV", "party": "MAUDAHA BANDH NIRMAN KHAND", "contact": "8858121537", "place": "NA", "city": "HAMIRPUR", "contType": "W", "amcFrom": "28/02/19", "amcTo": "27/02/20", "status": "ACTIVE"}, {"id": "PH-1289-289", "machineNo": "PH-1289", "model": "AR-5516", "party": "IRRIGATION DIVISION", "contact": "9415179303, 9415104111", "place": "MINOR IRRIGATIO", "city": "LALITPUR", "contType": "SSA", "amcFrom": "16/02/21", "amcTo": "15/02/22", "status": "ACTIVE"}, {"id": "PH-1682-290", "machineNo": "PH-1682", "model": "MX-M452N", "party": "IRRIGATION WORK CIRCLE (SHARP)", "contact": "9415220677, 9455067880", "place": "RAJGHAT NIRMA", "city": "LALITPUR", "contType": "W", "amcFrom": "18/03/13", "amcTo": "17/03/14", "status": "ACTIVE"}, {"id": "PH-2059-291", "machineNo": "PH-2059", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05176-275097/ 9935119447", "place": "N/A", "city": "LALITPUR", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2199-292", "machineNo": "PH-2199", "model": "AR-6020N", "party": "D.F.O", "contact": "9598062129", "place": "N/A", "city": "LALITPUR", "contType": "W", "amcFrom": "11/04/16", "amcTo": "10/04/17", "status": "ACTIVE"}, {"id": "PH-393-293", "machineNo": "PH-393", "model": "AR-5316", "party": "NATIONAL SAMPLE SURVEY ORGANISATION (FOD)", "contact": "0510-2332477", "place": "NA", "city": "JHANSI", "contType": "W", "amcFrom": "24/09/08", "amcTo": "23/09/09", "status": "ACTIVE"}, {"id": "PH-893-294", "machineNo": "PH-893", "model": "AR-5320E", "party": "DSM, FOREST CORPORATION", "contact": "0510-2472463", "place": "NA", "city": "JHANSI", "contType": "SSA", "amcFrom": "01/05/10", "amcTo": "30/04/11", "status": "ACTIVE"}, {"id": "PH-1072-295", "machineNo": "PH-1072", "model": "AR-5516", "party": "DISTT. PROBATION OFFICER", "contact": "9452030950, 9415589304", "place": "ZILA PROBATION", "city": "JHANSI", "contType": "W", "amcFrom": "31/08/09", "amcTo": "30/08/10", "status": "ACTIVE"}, {"id": "PH-1073-296", "machineNo": "PH-1073", "model": "AR-5516", "party": "DY. PROBATION OFFICER", "contact": "0510-2445221", "place": "NA", "city": "JHANSI", "contType": "W", "amcFrom": "31/08/09", "amcTo": "30/08/10", "status": "ACTIVE"}, {"id": "PH-1581-297", "machineNo": "PH-1581", "model": "AR-5618N", "party": "KOSHAGAR EVAM PENSION", "contact": "9140786694", "place": "UPPER NIDESHA", "city": "JHANSI", "contType": "W", "amcFrom": "14/09/12", "amcTo": "13/09/13", "status": "ACTIVE"}, {"id": "PH-1602-298", "machineNo": "PH-1602", "model": "AR-5620", "party": "U.P. RAJYA BHANDARAN", "contact": "9415311428, 8381875238", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "08/11/12", "amcTo": "07/11/13", "status": "ACTIVE"}, {"id": "PH-1603-299", "machineNo": "PH-1603", "model": "AR-5620N", "party": "IRRIGATION WORKSHOP", "contact": "9450074979, 9936930276", "place": "", "city": "JHANSI", "contType": "SSA", "amcFrom": "01/06/20", "amcTo": "31/05/21", "status": "ACTIVE"}, {"id": "PH-2057-300", "machineNo": "PH-2057", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9935119447/ 9721599425", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-2419-301", "machineNo": "PH-2419", "model": "AR-6020N", "party": "CCF ( U.P. FOREST)", "contact": "8840120420/ 9506386550", "place": "N/A", "city": "JHANSI", "contType": "W", "amcFrom": "25/11/17", "amcTo": "24/11/18", "status": "ACTIVE"}, {"id": "PH-2990-302", "machineNo": "PH-2990", "model": "AR-6020V", "party": "FOREST DEPARTMENT - DLM", "contact": "9919353436", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "14/01/21", "amcTo": "13/01/24", "status": "ACTIVE"}, {"id": "PH-3191-303", "machineNo": "PH-3191", "model": "AR-6020NV", "party": "IRRIGATION & FLOOD CONTROL DEPARTMENT", "contact": "9899963573", "place": "WORKSHOP DIVI", "city": "JHANSI", "contType": "W", "amcFrom": "11/02/22", "amcTo": "10/02/23", "status": "ACTIVE"}, {"id": "PH-1575-304", "machineNo": "PH-1575", "model": "AR-5618N", "party": "KOSHAGAR EVAM PENSION", "contact": "9452222525, 7398238421", "place": "UPPER NIDESHA", "city": "BANDA", "contType": "W", "amcFrom": "12/09/12", "amcTo": "11/09/13", "status": "ACTIVE"}, {"id": "PH-171-305", "machineNo": "PH-171", "model": "AR-M205", "party": "DISTRICT SOCIAL WELFARE", "contact": "9450169787", "place": "NA", "city": "BANDA", "contType": "SSA", "amcFrom": "01/01/11", "amcTo": "01/12/11", "status": "ACTIVE"}, {"id": "PH-172-306", "machineNo": "PH-172", "model": "AR-5320E", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9451261104", "place": "", "city": "BANDA", "contType": "SSA", "amcFrom": "01/01/14", "amcTo": "31/12/15", "status": "ACTIVE"}, {"id": "PH-1800-307", "machineNo": "PH-1800", "model": "AR-5620N", "party": "LAGHU DAL NAHAR KHAND", "contact": "05192-220958/9 454414340", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "28/03/14", "amcTo": "27/03/15", "status": "ACTIVE"}, {"id": "PH-1905-308", "machineNo": "PH-1905", "model": "AR-5620N", "party": "NALKOOP MANDAL", "contact": "8445046952", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "10/02/15", "amcTo": "09/02/16", "status": "ACTIVE"}, {"id": "PH-1906-309", "machineNo": "PH-1906", "model": "AR-5620N", "party": "NALKOOP KHAND", "contact": "n/a", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "10/02/15", "amcTo": "09/02/16", "status": "ACTIVE"}, {"id": "PH-2058-310", "machineNo": "PH-2058", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05192-285393", "place": "N/A", "city": "BANDA", "contType": "W", "amcFrom": "25/07/15", "amcTo": "24/07/16", "status": "ACTIVE"}, {"id": "PH-2254-311", "machineNo": "PH-2254", "model": "AR-6020", "party": "RURAL ENGEERING SERVICES", "contact": "0", "place": "", "city": "BANDA", "contType": "W", "amcFrom": "22/10/16", "amcTo": "21/10/17", "status": "ACTIVE"}, {"id": "PH-2860-312", "machineNo": "PH-2860", "model": "AR-6020NV", "party": "MANDI PARISHAD", "contact": "9936223953, 9956808728", "place": "NIDESHAK - NIRM", "city": "BANDA", "contType": "W", "amcFrom": "25/02/20", "amcTo": "24/02/21", "status": "ACTIVE"}, {"id": "PH-3582-313", "machineNo": "PH-3582", "model": "BP-20C20Z", "party": "ADEN NCR", "contact": "7518402574, 9794825722", "place": "SSE/WORKS/ NCR", "city": "BANDA", "contType": "W", "amcFrom": "28/10/24", "amcTo": "27/10/25", "status": "ACTIVE"}, {"id": "PH-3532-314", "machineNo": "PH-3532", "model": "BP-20C20", "party": "ADEN. NCR", "contact": "7388483585", "place": "ADEN, NCR", "city": "BANDA", "contType": "W", "amcFrom": "10/07/24", "amcTo": "09/07/25", "status": "ACTIVE"}, {"id": "PH-199-315", "machineNo": "PH-199", "model": "AR-5320E", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05198-236047, 9453477805", "place": "NA", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "21/05/08", "amcTo": "20/05/09", "status": "ACTIVE"}, {"id": "PH-2013-316", "machineNo": "PH-2013", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "05298-236047", "place": "N/A", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "24/07/15", "amcTo": "23/07/16", "status": "ACTIVE"}, {"id": "PH-2255-317", "machineNo": "PH-2255", "model": "AR-6020", "party": "RURAL ENGEERING SERVICES", "contact": "9452598747", "place": "", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "22/10/16", "amcTo": "21/10/17", "status": "ACTIVE"}, {"id": "PH-3029-318", "machineNo": "PH-3029", "model": "AR-6020V", "party": "FOREST DEPARTMENT - DLM", "contact": "9695178562", "place": "", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "17/03/21", "amcTo": "16/03/24", "status": "ACTIVE"}, {"id": "PH-3102-319", "machineNo": "PH-3102", "model": "AR-6020NV", "party": "ZILA KARAGAR, CHITRAKOOT", "contact": "8433417992", "place": "DISTT. JAIL", "city": "CHITRAKOO T", "contType": "W", "amcFrom": "15/09/21", "amcTo": "13/09/23", "status": "ACTIVE"}, {"id": "PH-2382-320", "machineNo": "PH-2382", "model": "AR-6020N", "party": "D.F.O", "contact": "9559075786", "place": "N/A", "city": "CHITRAKOOT", "contType": "SSA", "amcFrom": "01/12/21", "amcTo": "30/11/22", "status": "ACTIVE"}, {"id": "PH-3113-321", "machineNo": "PH-3113", "model": "AR-6020NV", "party": "U P Treasury Collectrate", "contact": "9956384445", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "11/10/21", "amcTo": "10/10/22", "status": "ACTIVE"}, {"id": "PH-3531-322", "machineNo": "PH-3531", "model": "BP-20C20", "party": "SENIOR SECTION ENGG. NCR", "contact": "9794848049", "place": "SSE/PW/CNTD, NCR", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "10/07/24", "amcTo": "09/07/25", "status": "ACTIVE"}, {"id": "PH-3420-323", "machineNo": "PH-3420", "model": "MX-M464N", "party": "JAWAHAR NAVODAYA VIDYALAYA", "contact": "05194-222388", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "24/09/22", "amcTo": "23/09/23", "status": "ACTIVE"}, {"id": "PH-1737-324", "machineNo": "PH-1737", "model": "AR-5620V", "party": "MUKHYA PASHU CHIKITSHA ADHIKARI", "contact": "9452574037", "place": "N/A", "city": "ORAI", "contType": "W", "amcFrom": "20/12/13", "amcTo": "19/12/14", "status": "ACTIVE"}, {"id": "PH-2011-325", "machineNo": "PH-2011", "model": "AR-6031N", "party": "PANCHASTHANI CHUNAVALAYA", "contact": "9621947729", "place": "N/A", "city": "ORAI", "contType": "W", "amcFrom": "22/07/15", "amcTo": "21/07/16", "status": "ACTIVE"}, {"id": "PH-3072-326", "machineNo": "PH-3072", "model": "AR-6026NV", "party": "GOVT ITI, ORAI", "contact": "7905883428", "place": "GOVT ITI", "city": "ORAI", "contType": "W", "amcFrom": "23/08/21", "amcTo": "22/08/22", "status": "ACTIVE"}, {"id": "PH-3464-327", "machineNo": "PH-3464", "model": "BP-20M22T", "party": "GOVT. ITI", "contact": "8299804020, 7417103881", "place": "", "city": "ORAI", "contType": "W", "amcFrom": "20/03/24", "amcTo": "19/03/25", "status": "ACTIVE"}, {"id": "PH-3425-328", "machineNo": "PH-3425", "model": "BP-20M22T", "party": "NALKOOP KHAND", "contact": "8090393907", "place": "", "city": "FAIZABAD", "contType": "W", "amcFrom": "04/12/23", "amcTo": "03/12/24", "status": "ACTIVE"}, {"id": "PH-3756-329", "machineNo": "PH-3756", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3757-330", "machineNo": "PH-3757", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3758-331", "machineNo": "PH-3758", "model": "BP-22C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "9794838260", "place": "", "city": "LALITPUR", "contType": "W", "amcFrom": "29/01/26", "amcTo": "28/01/27", "status": "ACTIVE"}, {"id": "PH-3705-332", "machineNo": "PH-3705", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984165", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "04/11/25", "amcTo": "03/11/26", "status": "ACTIVE"}, {"id": "PH-3709-333", "machineNo": "PH-3709", "model": "BP-20M22T", "party": "MAHAMAYA RAJKIYA ALLOPATHIC MEDICAL COLLEGE", "contact": "9719430490", "place": "", "city": "AMBEDKAR NAGAR", "contType": "W", "amcFrom": "12/11/25", "amcTo": "11/11/26", "status": "ACTIVE"}, {"id": "PH-3720-334", "machineNo": "PH-3720", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "6306598451", "place": "", "city": "BANDA", "contType": "W", "amcFrom": "16/12/25", "amcTo": "15/12/26", "status": "ACTIVE"}, {"id": "PH-3706-335", "machineNo": "PH-3706", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "9305985018", "place": "", "city": "CHITRAKOOT", "contType": "W", "amcFrom": "07/11/25", "amcTo": "06/11/26", "status": "ACTIVE"}, {"id": "PH-3719-336", "machineNo": "PH-3719", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984143, 8318705698", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "15/12/25", "amcTo": "14/12/26", "status": "ACTIVE"}, {"id": "PH-3732-337", "machineNo": "PH-3732", "model": "BP-20C20Z", "party": "NCR (RAILTECH CONSTRUCTION)", "contact": "7905615665", "place": "", "city": "JHANSI", "contType": "W", "amcFrom": "27/12/25", "amcTo": "26/12/26", "status": "ACTIVE"}, {"id": "PH-3725-338", "machineNo": "PH-3725", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "8765984141", "place": "", "city": "ORAI", "contType": "W", "amcFrom": "26/12/25", "amcTo": "25/12/26", "status": "ACTIVE"}, {"id": "PH-3740-339", "machineNo": "PH-3740", "model": "BP-20M22T", "party": "STATE ELECTION COMMISSION", "contact": "7897064988, 8765984144", "place": "", "city": "MAHOBA", "contType": "W", "amcFrom": "03/01/26", "amcTo": "03/01/27", "status": "ACTIVE"}, {"id": "PH-3768-340", "machineNo": "PH-3768", "model": "BP-20M22T", "party": "RML", "contact": "9453982146", "place": "RADIODIAGNOSIS HOSPITAL BLOCK", "city": "LUCKNOW", "contType": "W", "amcFrom": "05/03/26", "amcTo": "04/03/27", "status": "ACTIVE"}, {"id": "PH-3775-341", "machineNo": "PH-3775", "model": "BP-20M22T", "party": "BRAINY & BRIGHT ACADEMY", "contact": "9161399292", "place": "SITAPUR ROAD, LUCKNOW", "city": "LUCKNOW", "contType": "W", "amcFrom": "20/04/26", "amcTo": "19/04/27", "status": "ACTIVE"}, {"id": "PH-3776-342", "machineNo": "PH-3776", "model": "BP-20M31T", "party": "UP FOREST CORPORATION", "contact": "9997675286", "place": "NARAHI, LUCKNOW", "city": "LUCKNOW", "contType": "W", "amcFrom": "21/04/26", "amcTo": "20/04/27", "status": "ACTIVE"}, {"id": "PH-3789-343", "machineNo": "PH-3789", "model": "BP-20M22T", "party": "MR. RAJESH KUMAR TIWARI (ADVOCATE)", "contact": "9839837040", "place": "SURAJDEEP COMPLEX, LKO", "city": "LUCKNOW", "contType": "W", "amcFrom": "03/06/26", "amcTo": "02/06/27", "status": "ACTIVE"}, {"id": "PH-3796-344", "machineNo": "PH-3796", "model": "BP-50C26", "party": "TAJ MAHAL HOTEL", "contact": "7087107929", "place": "NEAR AMBEDKAR PARK, LUCKNOW", "city": "LUCKNOW", "contType": "W", "amcFrom": "17/07/26", "amcTo": "16/07/27", "status": "ACTIVE"}, {"id": "PH-3799-345", "machineNo": "PH-3799", "model": "APEOS-4620SX", "party": "APCO INFRATECH PVT. LTD.", "contact": "7318379111", "place": "GOMTI NAGAR, LUCKNOW", "city": "LUCKNOW", "contType": "W", "amcFrom": "30/07/26", "amcTo": "29/07/27", "status": "ACTIVE"}];
+
+function parseDate(d) {
+  if (!d) return null;
+  const parts = d.split('/');
+  if (parts.length !== 3) return null;
+  let [dd, mm, yy] = parts;
+  yy = yy.length === 2 ? (parseInt(yy) < 50 ? '20' + yy : '19' + yy) : yy;
+  const dt = new Date(parseInt(yy), parseInt(mm) - 1, parseInt(dd));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function daysUntil(dateStr) {
+  const dt = parseDate(dateStr);
+  if (!dt) return null;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  dt.setHours(0,0,0,0);
+  return Math.round((dt - today) / 86400000);
+}
+
+function amcBadge(days, contType) {
+  if (days === null) return { label: 'No Date', color: 'bg-slate-100 text-slate-500' };
+  if (days < 0) return { label: 'Expired', color: 'bg-red-50 text-red-700 border border-red-200' };
+  const isWarranty = (contType || '').toUpperCase() === 'W';
+  return { label: isWarranty ? 'In Warranty' : 'AMC', color: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+}
+
+const STATUS_OPTIONS = ['ACTIVE', 'INACTIVE', 'BUYBACK', 'CLOSED'];
+const STATUS_LABELS = { ACTIVE: 'Active', INACTIVE: 'Inactive', BUYBACK: 'Buyback', CLOSED: 'Closed' };
+const STATUS_COLORS = {
+  ACTIVE: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  INACTIVE: 'bg-slate-100 text-slate-500 border border-slate-200',
+  BUYBACK: 'bg-purple-50 text-purple-700 border border-purple-200',
+  CLOSED: 'bg-red-50 text-red-700 border border-red-200',
+};
+function normStatus(s) {
+  const up = (s || 'ACTIVE').toUpperCase();
+  return STATUS_OPTIONS.includes(up) ? up : 'ACTIVE';
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') { reject(new Error('no document')); return; }
+    if (document.querySelector(`script[data-lib="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.setAttribute('data-lib', src);
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Library load nahi hui: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function buildQuotationPdf(quote, signatureImg) {
+  await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+  await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  const canvas = await captureQuotationCanvas(quote, signatureImg);
+  const imgData = canvas.toDataURL('image/png');
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  let renderWidth = pageWidth;
+  let renderHeight = (canvas.height * renderWidth) / canvas.width;
+  // Agar content ek page se lamba hai to poore page mein fit kar dein (chhota dikhega par ek hi page rahega)
+  if (renderHeight > pageHeight) {
+    renderHeight = pageHeight;
+    renderWidth = (canvas.width * renderHeight) / canvas.height;
+  }
+  const xOffset = (pageWidth - renderWidth) / 2;
+  const yOffset = (pageHeight - renderHeight) / 2;
+  pdf.addImage(imgData, 'PNG', xOffset, Math.max(0, yOffset), renderWidth, renderHeight);
+  return pdf;
+}
+
+async function downloadQuotationPDF(quote, signatureImg) {
+  const pdf = await buildQuotationPdf(quote, signatureImg);
+  pdf.save(`Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`);
+}
+
+function parseUploadedFile(file) {
+  return new Promise((resolve, reject) => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.csv')) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => resolve(res.data),
+        error: reject,
+      });
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          resolve(rows);
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+function getField(row, ...keys) {
+  const rowKeys = Object.keys(row);
+  for (const k of keys) {
+    const found = rowKeys.find(rk => rk.trim().toLowerCase().replace(/[.\s]/g, '') === k.toLowerCase().replace(/[.\s]/g, ''));
+    if (found && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+  }
+  return '';
+}
+
+const COMPANY = {
+  name: 'ARGUS BUSINESS MACHINES (P) LTD.',
+  address: '3rd Floor, B-Block, Suraj Deep Complex, 1 Jopling Road, Lucknow-226001',
+  phone: '0522-2209608 / 3528993, 9839467547',
+  email: 'argus.lko1@gmail.com',
+  gstin: '09AACCA0105F1ZE',
+  pan: 'AACCA0105F',
+  contactName: 'Shivdutt Pandey',
+  contactPhone: '9839467547',
+  footer1: 'DIGITAL PHOTOCOPIERS  |  DIGITAL MULTIFUNCTION DEVICES  |  DISPLAY PANELS',
+  footer2: 'AIR PURIFIERS  |  TOTAL RANGE OF OFFICE & HOSPITAL FURNITURE',
+};
+
+const DEFAULT_SIGNATURE = 'data:image/png;base64,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';
+const SHARP_STAMP = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANwAAAC1CAYAAAA0oZETAAEAAElEQVR42ux9Z3Qc5dn2NX2272pXvUuWZMtyl3sVYNwrtuidQEggpJBeaIGQhCRAIODQQjE4cu8duVe5SJZk9S6ttvc29fshQwiBQBLeJN/7cp/jc+xjaZ6ZeeZ67n7dBL6Uvysnzp0b5nT4V/k9Uls0JoyiSGpePJYYF42KPYSKMElCNJmML6dm8xeWLZhdSxCE8vFrHDiwNdUbYn/S2hi46fzp7qSBPh94nofJaEIgGARJqhAkCaqqQlUU0DQNmqYgSxJIkgbPc0jEIjDoTdBoeGTmmKWisuQf3HvvvGcJgpC/3KX/f4RYs2YNYymwaCvnVga+fB1Dsr9mvyniJDL9nth3O1pdy/xe1aIqJEiSRTgYQywmQBAEkASJcDgCg5FHaoYxlpGlO5ddYH3lptXXbCQIIgIABAH86c3tb9edd9xSf6EPkYgAiiTAa7TQ6XUwmXWQiZgoqTFGb9APEKoaMOj1iMcVXSIm5YhxwGF3IhwKg6YpMAwDnU6PzNwkJStPc3r46OxvEJynd9k1yxyf9jyq2q9t6PDZ+tskqr2ru9znjqiiQlAWs3aEXms8YMvQ+lYuntIgy+qXm/8/DbiqrVX5HMMZli1cVvefvpl1m9ctkWWZvem6mzYRBPEf2f131m/5uqtf/UrQLw73usJcR/sAhDjAMDTicQGRSAQkSUKWJWg0GkQiYQhCAnq9ESmpVuTkpYDjqTazVbMlOVl3jiaJisv1jnvqzveQiXgcsqyCZXlQFAmOZzF6/HAlNVs7SHPIUGT5mFanbU9E43C5gumKTF/rd8XR2tyJUDAIhqKh0WiQSCTA8Sw4nkd+iSU8fkryhXnXjVhqIfL9fwGZSrx//Gxxe6NvxqX69m/F42KekiDJaETWSKICFSpIUoUKGUaLJpGRk3QwryD9zyYzeWbV0oqmL6HxPwQ4qCAeefQR4rHHHlP+0zfzzvp3VqqKeltWStaqiooK6d+5dl3dUUtzR+K7TY2u77XW+6lQIAyfzw9VlUEQFAACgAKoBFSQkEQJgpAAyzKIx+MgSRIMw4BhOOi0OlisJuj1HEKhCJwOL2RRhpCIg6JoEAQJmibBsjyCoRA4DQuSJsHQNCwWC8LhCLxeH0RBhCAkwDA0SJICx3LQaTRgGBYgZITDYWj1BmTmmJFk1Rw3WyxrGY5wpKQk21ubO34w0O+d53L4ObczAklSQNEkCJWEJAsgSYAkCUiyBJKioDfoodGyMFnYUGFJ6trR49OeXb7g6uYvIfJFA+6/TFRVJT/JD/ofWosAQGzZvfu7Lod0m8ehlDbV2zE44ARUFSBlmI06JCWZ4lq9noIKxqA1wekMoKmpDbFYFCpUqBjyuziWhyBI4DgePM+DIACn0wmGoWHQ6ZCIJyAICvQ6AyRZAMexkOUhF4y48vGzLAeapBCJhQCQiMbiEKU4CJDQ6XSgCBIgAVmRAWXICDAazWA5HgShQhRjMBh08PkjCPgDV0xRGizLgON5aPUakKQKAgRCwRBCoTBolgRN00jERTAcD17LoGREivuqq8beuGrVzANfwuR/MeD+nVJdXU17guGvdDSHnm25HGLt/T5QBA2tlkXBsHTZYmMPpqRYjkiCPDEaS5S7HcHMgV4/3O4gfH4/YvEYFFWFTqeFIApIMlsQjcagqiricQFJSRYoqgxREGA2G0ESCkxmLTiehd8fCvEaxqDRaKEoCoxGveDz+2MJQQJFkojFYmQwEDEoMgchkYBGy0MQYhBFGQaDCaFgCIm4AEWRodVqoQ4dIJBFCSAARVUAVYUiK1CgQqsxwGQ2YMrM4b9UEHYHAjFzIh6+pr/fPjEcVshEVIXfH0KSJRmJRBwgFOQVJsXKJw/74TceWPmc+qV79yXg/lU5fOZMdu2ZgdqT73db+nvcYHgSPK9FcUk+SkqzvaFwsK2ttTPd0e/JDvqjoGgGsiSBomhIsgJZEsBzuqEoohgHSVOwWCxQFBmKIiMtwwSWl0IcQzXqjLTXYNTuTc0wNYcjPlnDGJsEQcglWYIGKJYh5AGTKd0DAO6oC8k6Ld3W5p/qHPTdEgzEDUaTHoIYTQ0FI2nRiGTkOB0VDsShSDQi4RhERQYBCpFQEKFQAGazBRqNBuFQGARJgiBIcByL4tLs42lZ2t78gsx3r79+6on3j13IqrvQOaWnc+Duvp7gRAo6hEJheLxuCIKIwmGZ6pSZRY9/9+HKR5UvgypfAu6fle17Do653OB5o6MpNM7ZG0IiEYPBYIACgKAISGIC4XAEgiAgFovBbDRCo9UgEo6CpigYzDro9QQMRt5BUKrC8pyPYiTFYDCGSNB2klZdqamGPSYT6pcundf+RQSBWgbOJ4fsqtbuDthC3ojB7U5wFMFc63J7SkMBIScSVlMjQcHqdQcRDIbBsiwA8sMgTyIugKJpGEw6GAw8bDZtm9mmPWlLN5xddv30DScP1pY0NtjvbW9x3djZ3gdZUUBRBHLy0jBlZvEb3/zGivsIghC/hM2XgPu7UnWiSoM+yJWVlcLu6s15Ulz7s+bGwNK6c3ZrT5cbRp0eFEmDJElEYlEoqgJJFod8HYKELIpIshhhtOiRmmYExUrH09Ns72r08sXsbH1zwYQCqcBSEAegNrmPcyOSZ4T+A74vd6bhjKXxrHt6d/fgjf09jplijE5haBMScQkDA3ZIkgpBEKDR8KAoGqoqgmE5UIyKnDxbXeGw3JdmX1W27fTpxhW1NR0/rr3Ymi5KCWi1eqSmW1E2NuWtR3525z1fgu5LwH0oOw5uyNVrjdrZU+a27Xt/31SCom2SQniMLNsXiCmUzx38cShA3lZ/wYnOdjuERAI0SUJRVMiyDEVWQVKAJMdgTbYgJc0Ek4mTjEb+jD6Jfd9q0e+5+eaFZz7to6uqqqIqKysVAP8x+4sggNbWtpSWFm9mb+dgclwSFzoG/fmJuDLS4/LlxcIEFQ1LCIdCUKEgFouCZTTQm3ikphsaSkrz93Z1Dlx37kxTLggCFEmAYVnkFeSgfHLut7/5zeW/+xI6/4cBd7DmWOFga/DaaBQlBCFdL8uqNRJS6qPR2LBYTDKQBC2oCuEXhLghFoXG744jHo3D6/VBo+WgyARi0RhYjoHeoEVKuhZ6E9lmTdY0GwyavXl51gbejParp1/d/f/ze1JVVbNx59aJgUE8fOm8Y4rTHksetDshydIVoKoQRAEsz0EQ4lBUFSAAhmLB8zyCwQimzBg28NDjN5UWJiV9WSjxTwj9/+1JQQDb9++p8DqFb5890Dvb5ZAMQb+AcDCMhCBCVTBOUVXE43EQIFmKpFJohgFJEuAYBqIgguNYxCJRpGdkImN0Nkg2HkhKNjSkZOq3Lb5pykuRnstUbu5MHwA88sgj5P/3pytBxAAcAXCkuvpUVl1d733NDcSD4YBq8nmCiMXjUKAiFg9DhQKAhKoSUAkBidBQaiIUFDIObqpeDGDtl/D5P6LhDp85nD3YI363p9t9Q0uDK9nrEqAqBOLxBARBQDQagSgKIAgSGo0GWq0OiipDEIf8F45lodPowLAkWE5Bdq6pp2RkxrNJOfS+uVNnNShX8ltVVVUaAEJlZeX/2nrFvXsP5w8MhOc1NvTebu8NTvG4wxh0DkIFAYamr0Q4CZAgIEsKRpYVYc7corm3377gy/zc/3YNp6ogNu3e/nrDBfdVl865cjzOGBJxCYFAGIoigqJJGPRG0DQFURQQDofBsBQMRg3C4SggKVAUCQzHIjOPl5LT9CczM22/GTmSOTJ69JAm+6hUVlbGthzbYgAQ+vc8n0ocOnSISitL08gxmSnLKfP+T685b97sTgAvq6r6xttv753Q0+Ve1NWtX+0cDBZ5PFFIkgRZVkCQJKCqiIbjiEbJUQSBAx/k5lRV5QBIBEHIBDFUM/A/LWu3rbWpcfxOlqTnbr/p9povNdwXKLt2VSUDiUQCqRO7O4K7ak+72I7WHjA0A1kZKk1KTU1FVlYGvN4AIuEo3B4X/H4vjEYjNBoNZEVERnYyTGYmlGRjjpaUpj+5avm8U59U1bJr167kcDjsrayslD8AQVdXF33nnXfGP+0ea2pqmPLy8n8perdp56ZiKMxz9bUuDc0QBTm5lttvuWF59X/A1zM+98JbN7W1um5PRJhJwYBExsMSQoEA4okIiocXSsXFBbuNNu4PHMcktba2/jgWleI6jTEoIwG9mXNl56X9aczwjIuSFExMnjzZ80XfY9XmqrGCJFfRJLHyhutuqP8ScF+QbKvZphUd8g8ZUtfd0xl5/nKtT9PX7YHf7wNJ0jBbjBg+ojCRlZXFJhJx4sL5OgQDUXh9HtA0CZNZh4LCLJitpCc5Tfun/OL0lxdcNa3to6fwli1bDDRN04sXL/YBQHV1NV9RUREHgO17t9+QlJr0/vSx052fuvk7Nk8gZKls9bLVb/4rz3rq4qn8M0cHLlXvadWRtIqr5xf++Wv3r77hPxhkIbfvOTK24aJ9oaM/+E2vM2Ht77eDZzUwmcyQSVFNTkkhWls6wHM8RFFENB6BSqnIL8yESc8HDQY+ZLFpnvjOt65b80V/u7t27WIXLlyY+NKH+wJl//5N1h6HUGfvj6U01frocECGmJDAUDRohoHJbEBWdkbM7XbxkWiUcLu8iEWjAGQUlmQgvzC5LjXN+G5paVLVlClTOj80SXbssLBK4kmoyouqUe1OxBJkliYrWlFRIamqSgJgtu2pnu9xeZ+SZcR1Rv7HN123eM8nAq6qSk+ZKO11865zfuyDpQmC+LAIu6a93dRxsfcqp9ubpsiqxWJO7iTVRNfNN889efRoneXkqfrN504MznbaA9DoOcxdNKo3J1//PWi873/82v9u2bBhz/DOjsiv+7oCiwf7/EjERcRFEZIsIh6PgSQJJIQEZMiQFRksM1QTyvEcklOMGD+h5KWyUenPLlo0ueXLoMl/sVy0X9Sd2NVav3f7pTyvIw6W0YBneaSnpyMUCsHn90ASZQiChMLCPIQjIahKFMWlyWLZuILvF401vzW59G9NmqoTVRrFrYwIINB039L7ogCw9/jxlL4Oz08dfeE50XCcjYTF3L5eL8draEycmnv4wa+vvuajAPo0eXvdromdrZ4fhyORIoOJ68jOTfpBqsXsvVBnP9h+2T0i6I+B1TBQFAVp6Vp57LiCReG4e/qhvV0/7e8Ow2IyIiEkwGtYjBqfitIx1jtuvWnZmwBwur4+reWSZ7TH5R1rNFF9d962ZP2/KxGtqir5znsHFrTWDzzX1uQvDEcSkOQEotEIQuGhyCbNsEiIcVAkCZZhwfNayFIcFrMVObnWYHFp+qsPPlj4Q6BMJAj8n6sV+68Pmhg4iRYiKmfU2RBmnUhEEyBUAqFQCKFQCFAJkCQFnicQS0SQlmFAcWl2d0qG/oEbV8/b8WnXrZxWGQNw/i+adL+1rXFw28UzA5O7O5xgaC1CwQAkWQYIBalphlmbtu5eDmDDFbOTDsbkUq9bGkUSiolmKJCcsuuG5fO7f/nrP/32/Bn7DLfbi5Q0falOSziifqX/1KGWEUKcQunIgn4JYW9ba+8oEgoVLooX6i2mbTab7jsBj6QVZQmRaASchoAoJcKCLEWqqo6UXm7q+/abLx5aah8IJkfCceRkpcHj2HxHXV3d9aNHj/b9j5/OQ/7uzmPHjl3gNJ1/aG0KLAv6aUSjEYAY6laHKkHLaQAMtf8QpAqa5hGNxNDU2Gf0+eLfDgbiGUuuP/VdYErf/znA7dmzJ2n+/Pne/9YbPLqn/2sep5jGUhpwrBZSIgpgqO0lHo+DZmiYTEbk5qUgNZOPJaeyG0ZOKvzOrPHjXZ93jWPHjhmaWjzrak/bJ7c125GcakBmtuUyz6XEnC7f6N6uAB2PghAElHzwO31e7+jLtYPn+jpFSJKClBQDikYYNjQ0NNxsMpnsHOeCLCmwWW3IK8i6dLmu7wcBbwwmsxnJ6Un9d339hpufeuSFPT53vJAkSe72mxbVvPjipp/7vcpTHmccSbYkTJmZXT1l9rCvaik6sfbd6toLZwdMNMVj/PjRfXb7oLWrzaVRRGquCmHD/pr9K6+ZcE3wD2vWVYZD4mIhrhi0Wrpn0szcZ3OLLf4c8xcX8ZwxY8aAqqorn3tu3YOdHd6HiG5jvqwqEIQ4CACyLAEgMHN2ucNs4/c3N3bc2N8dpISEiN7uAagKcQNDMTnb9528Y8m1U1v/TwEuGAwK/603V7Vhx609vdI3PC6JGBx0IRQMQpFVcDwNmuEgSjGYrRrkFZiQm6/fVDzSdNKik16bOX78P3Ta+yKRed2dnmtaWwaQmZWMaTOLdt13/6IbSJIIvVt1aOb5mpZ3CCg5oWgg5YPf0XCchwI94HP6M8L+OPyOIDKyS/M9YU8mCDVEqEB6Siqyc6zHzcncsWgswasqEAoEcPJo7SSny/HK6LHDG3t7+hiSkS5WVVVRsmw6TNFQYrEoaUuzIj3T+s7cWZNb/vjq1u+7BhOmRFwArWORnGLtkmSRcA16Mvt6neD1uCo921iOCTjS0mj/dcslfzZJsiAgo68rulRnpDp+/tTbHcXDsv9cWmo7XFZWJnxB2u656tPVf2447V92/nzHo71d/jSP1wNZFgFQaLrcZrj62vLDS1dOWX/+TOfvG+v6c6LhBAbtgwiFwtNCocC66pqaeRXl5e7/K4AjKysrw/+tNxeOYkV/dzitp8uOUCgIgiAgyQlEIjGIYgLFwzMxc05B7exriuZ+59sp18e54MszZizy/6PrxKKw+v0JxKJx2FKSkJln2ciwdGjH4SPTbWaxcdXtY8bnFevXcBxOXGlaxarFi7tHjy9ZXDo606nRMYiEZfS0e0pYzqiSqqaVpngYjDxSUnUbr5oy85w1yXTWbNFAURQ47QM4dfTCnHOn2pcYDabm0kkFF5OTkzUJKT6HIilSVWSIQgKSrLgAoKPNfn1/jw8UaMQiURzYc3hGfe3lTEkQEItG0dvths8TXUUQhGjQ2S6zjB5QAUkicOFMd+77ey9XHN7fdPeeXZf27d3b/Fh9T08SRX8xhTMVkysGH/jGijWz5oxcNmpsZn1mVjIMBgM4jkHAL2hPHru8pqvdm7qwsnji2AkZr6VmGqCoMrxuPy7U9Iw/ta/19/X19eyXPtx/WHbt2zel9rz7moE+J4Ih31BrCUmB4zTQajkMH5mJgiLzrlGTsu+rmPKhL/BPHR7RsGKPRyXQNIOe7j6cPUk8+fDDLz9Qf8ZempJs3McHg2ez0gve02hkZmDgnAZAFABWL59z4fU/bf2ts9/7dFNDPzpa7foDWzvWRcOJJEVSkZNrDublmbYAQFlZ0R0uh7CvucExMhQIIxQO4uypVvR0e+cGg9HXH3nk5pV/WLPVrigAAQI0xUCWEiOOHDnS/Od3zxVJCQVarR45BbZ+rY72CAkxV4grJlUhkWTTg+XYQwAgSzIkSUY0GoNGwyEtw5TwBXys1xsgAoEonA7XDy7Xd9/20Nf/0KPTcW69ibswenT+6wsWTO36V/brjjvmn7nQeWHm8Z3tD7U0O37ceMnOUDSFgQEvWXuuZw1P6/Ie//nd9/z+95vdFMl+v721H16vH/W1gzfoDew5AM98Cbh/o+zdu1d34sSJ2GOPPabs37/J6vRIj3tcgiEcjIEkhqocFEWEyWTC2PIcDCtO/kXJ1KSnpxRPCf7Lap4U0oxGHhotC4fdg74eTxrHc2mAApNZv8RgMC7RaGhwGjJ4Nlt7vL7nxC2N5xw5vmxnQ6mU+pJrwH91PErM9XpCOH2sbTIJFfF4AiVlSQMjRuQPAoDDM1BsMPPWeUsmvNtyuaOktcUxQRYVhIMxdLQ6l6/bUH0VVCk/kUhAkiSYLbyakWWpT05OtksCEaJpRm9JMqN88vC13/jGvB8fO9eQ0VDTlkcQbD7P067bbpu7t2jEpcJ1rxyY6vP5kJSUhNFjs7dNmTrq+2fPX/jx2dMdt/gDfnicYTjtwQxFlTIMOiOsyebF4XBkkaqqkz9PBPbvybj8cX4Aj7333t6TVpvhzbrz/WnRSAx9vS6C5zU/+sUvtlL337/kp/H4RgDEw91dDso+4EZHu+YHp0/XvzN5ctng/3qT8t/ul1VV/ZX5ULW7qmRb9TZbgkyUjp48rnLL7h3bvEHNW13tkbndHU7E4iHQDAGjSYPCYTkoHZ3WXzzceuvtty/80RcBNgBIsSZvyMnXH7HZDFAUEgSpgqIpqAqBgDeO3i4XGuq6UXeux9jeHFpQvbXvFZZhZlk6LMqUKVOCBcOtrxSVpUJv0iESCiMWTwAkoBKKKzs7O0EQQHer+44ThxvSOto6h917//JlY8cXHuY1PMREDEFfBB5HIFuSVEWURHA8C1WmYkKI0rd1uScokHUgSHg8Hvg8wdE0TUozy8t6Zs0qbxDlOBWMOM0EQchNl9rv93piBoIgQbNAWoZu45LrRjWzHGFOxAXIogKKBopKUmPjy4vcHEuhs70P3W2ekkOHTqd9UXt8443z9k2cmDljwuScrVnZSYAKdLQO4OTRhu//8Ptv7vvWt657Kj3bsB6kioSQgMsZs54503rLB+b6lxruC5Tk5GRy045NI2oX1TY/RjymMAyTIiWIB2MRdZzHKRZIgpjmGYygs92DUDgEEAoEUca4CSXIL0zaMrI0+aG5c2f2fAHApygNVSbH5K7586d5t23bdl8snvEzmldvtPdH4HH7QZMUtBo9SJKCLAsQJRG9XT7o9PxKvYlu6mpvUAHAbOD25RbqXg0GbPd4vUGAJGGxGqDTa88SBKFQNAlJVkY7HS7YbMZJRw7V3ZBXkN7iGAjP9jh8SE/Xi2az9qIn4BtNkCpkWUJbS7eWYhJ/njAl+z1VQYxhaKMoCGis653/7Yfe3GtJMgWf/92W2dGIkFxUatxPUni3v9szJRySYTSYYEvV+sfMLt7PMJT63e+8OkIQBNA0j/Hji7rnLhy7mGSokXu31K0L1VwGSdK82x0aBuALC9MvXHh1+/Hje+81W2m19qxzeX1tF+KOGCRRmfPdb7/2/oiRI/e1NLrUvl47MdDrQUeK7ns9PT2vAfD9nwZc1baqHEaOBFesuNP/Ba0pUSTmTD44+Vubdxw47eoJ/8E5GGH7uvzweSKQZYClKQRDAQQCfuj1OgwvzURBsXn9N76+4jaCIOL/6g1s3r05b8WCFV2btm1KZQxMYMuWLYqqqtT3vzv9rtf+dGHzYH/8ht5uz8KuzkGeY0hYLEkQYiY4HD7EYxF0d3iQlqm58447lv/6scce88+dOzewp3rPb/r7iKtoRimQEjEwjAEaDTMIAKqiwmzRREuKCjHQ7cEuz/FnAAIJUUbJyGwUlyb/+pZb5l18r2pbSXIKA49dhMWSAr2B9aSk2H5SMjL+bZ9b+XrYn4B7MICAN34tiB7EY3GMGJ2DrMzc52RJ5b963/PDBEGE2aRBVo71/KwJIxzvbjhRuv29ozYpIcKUZEZqhn7nkiWT6p/61brbPJ4gtFotSIqSVVX5cH+rT59OGxwIF+SkWNumTx/7T1e4TJ8+z6mq6so16paHCAK/6Wh1kuFQGI2X5Al9PYHxPm+AkGQZoiSiq8OdvHnz6RsB/OH/NOBkWVYh6r4w03POnGRy3frQ4v5ez0KPQ/iKx5OAYzCAUCgKQRDAsjT0eh4UzSIjPR1lY3KRW2BYVzHbcOc/C7YDB7amJuVkK/okIXH5vOsXFKmcBNClcurF2hO1bgAYOXJkE0HkywDWkyTWb95xcnR3R/d1six286x5UIgJN3a2GSubG/vYUCAKtzOc1NjqHwagBgA42LuGjbB1drdaC9ouD4JmZDA8WwsAiqLCZKH3jZ6QVjzYz+tcTr9WEMVQUYEtPKI0+0d33LHo7W99ByhanbGpt8v5eEqK7oYka5I/JZ3funjxzI5Tp079KORP5LReDixxO/wQ4jFQFIWCQptQNta6Y+LV6Sd//vM//aa7w5EqiDL0Rg62dN0OgiCUx59483m3M2ZiGR5ZWSmB1HT9prrubsvvHqu61+NJgOVYMCwVHDYsvx8AfvnMuns2vX3hMa8nlCEKcd+Pf/inEwUl1j/dfceSDf9k+kAF8Owbb2zuMiVpXz5/qj01HAkhGAgTBAlQFAVBSCAcikEFWfF/HnA3rrix94tYaNv+qhyW0ZW88lrH0sZL9oVtzQ7EowLiQhx6vR4MQ4EkWcTjMXh9YWg1OkyYNCwxfGTyT26onPvbf5ar8uCxg4W93fFZFxpbfyiJhFtFYpjBTFkP1+w+6O8X+LJJ43KMtObyvHnzIps2bbKqlFrU3x/9pb1vYNctX5/4WytZGLhS6LzrqSeqhne0seXhSAihYIIL+GNTPwCcy6Uj9Ema55JT9bM8DiOTlmHtTEsjyaqqKn1lZWV41MiCX2iv1r7Y3uhMUiUyQybk7sJMOjB69EzfnXcO3Ws5US4CeERV+38JZMTOnTtHA8CUKVOCDtVx0ytP7vxD46XQclVWDUaTzjeyLOfrDzyw8r116dvGOwcDX4OsgapGAVJBWnJyZ01jY/rrzx8cHYvEkZqejJLhmZvuuWfpwapN+2cEvFF9OBxBUpIVGh2zb/z4YtcLL6y/8dSxzjX93QHSYNSJZotObW8ZXOTzBea+8MLG4pwc5o9Lly79p3Jmd965Ysv6LXszCZV64fjhy9DqWBAEDSJOIB6LQRIlBAPhNFVVqf/N8xL+LT7cpk2brIkE+a5rUB5x/FhL0kBvCPFoHLFYFBRFIhgMQ6cb4mdkWQaqCowcnYfcAsNrN15/7TM3Xv8ZKYRdu7gFCxYIH2XGqqqu0ks+7pe1tZ7b68736nzeOBiOLXJ43EjNNF3PcyyRksRsJ0XZMW/RvAgAsAbWlIgpzzQ3OKdHw8osmuFzq881/G72uNKOnfvOjz2072J6OBYEqwEsVkbUaMlzQ47+IWrP4dBYntL5KIqRU1LNTHaOdbtRZz/kiupEALjSuuO58qf172uFzOiVv35YI5lKpIYB3LZ37+F8mSBTNQw9WFExFMq/fuWSOsfAey/QDLvU7+MzRTFCNTQ2v3LimGgf6A4nUzQNXkPHRpUOexIAWpv7V0RCAgUooBkZWbkpDQDg94VuCHkTpCLJyMpMdn//B7fMfP6lt6vaGvvHGwzsk6mZWScAHPpnv4OY4FDyS7j94VDupKaGflM46oeYEEHRBIS4CK8rOvrYsXOZAHq+BNw/KdXV1XwokZjZ1R6cXn/ejf6eAIKBMFRFGWLKIkhEoxEIQgJarQZ6gxbDSrJRPMK6t3x87nc/zxrhcPhvTd6AcVlzo/1rZ062wWS0gSAAltXAaDCjvXkQzZnmq9Jm52ihSC9+mI9Lj/Zpeg3baJqd3tHah0Dg/P3ZF/pu3rPuQpd9cLCko62PYxgS4yYWhEaMSf/hisXzT1RXV+u7+70/i0SF2+PhuLu328llpqerSan8iYqKv/TPqapKfJwqr7q6mg4EAprly5d/7gbXKw2jnR8z2yQAD6qq44dr158d5nX5J4gCZjY3Dt4uJETwWgYul5u7WH/xBgBPyiIxkyJZ8DyB3HzLyTmzxr4IAByrOcFyzFJZVRFLJNLP1tWX5BRYz0XD8fEcT+/Lzx5/5l/5Ftob2tc88fPHX3r++XXbnQ7/4ni/CJVVwLIsZEmFPxQ2+KMh45dRyn9B/PHgt51O6aenjnRg0B6CKonQ8BwIAhBFESzDgSIBQRRBkgQKhiXJ5ZOzzuoMckd5eXn086xRWVkZ++i/VVWlfvPse3c31tqRm5MpTp4y9sed3f3XN17umxAK+pCIRdHQ0G8bWZZeYDYyt2/durXNaDR2HVp/SJo2Z9o+rU79Cc8zBke/D/Yer1FvMI6maCA3Lx3ZuebW8hnDvqrVCh0A4AvFxjbW2r/b2uiF2WJOISka+iTl0g2rr9lyI4D12zZfrcrwHzp0qBbAX+W5WlpaCG229gsLhRNDWvAigIskSbz29K/ebgz5Etd53dEi+6DdEhMDc155bZP3xJG20ZFQFGlpKUhLy/h9eXlh4HfPv3O9Xq+3puVYBIcrwPb1uXBw35k3y6fm+oePNe7NzM2+r7w8M/qv3N8H8ytySlPunBxP/PLieequ7k7XlY5yQFUouH3SGAD1XwLun5BdB3cV9vXFvnruZB/vdoYQDvpA0yw4hgXDMDAatQgHQ+B5FunpaSgdlS7nFen/aE6W/hwPSzKG2ofUT9GctCAI3Lx58yJV+6tMnMIlLZu3rBMAurq6DG6nr9g+4IAt2QpJUMKkylxKxGITRFGCJKkY6PfDMRgvNZkNLeDkv3wQj+Himlc3bg36iFscg35YkgzQ6TlYbYYmg5ndXjYi+zfXXDPVsaZmDQMABKmEY7GYTFEExbAECktSY6WlmfcQBJGoqqpiCajjVUJBRUXFuY8/w3333Sd+1Gz8IkVRVHzv4Vt+RdPUr9Zt2Vrg6DePyMjNqWu8ePkFjZbjkqxmyLICGWLBU0+9840Th9ufy81NOVIwLP1Pne2D9/q9EbQ1O20WK+/41TP3zpfEL86tWlpR4VZV9b7f/vbdFpqmf9jX6zepMjDYHybOHmn/3atvbBXuuXPZ+i8B9w9KMIgnmuo92f09fgAqCJIAz3OgSRqCMMQ5wtIUeN6IouFpKB2T8VDhKuMfrwQP/q50dXXRliILuWnXpkKO4tJUlczYe3xvZN70eU4+jxeTkvWKJAmou9jMOAeDfwhHw/D6AmB5FnqdHizL4eLFPqRkFfXetXp5W1VVFVV14oSmYe/eRFIy3T5+Slo1QaSO0uh0LyuicGbO9ZMOZsAnEUSZUF1dTVeUV4gAsHzRotqB3tCL6VmxB8wWQ7vBwDy8ZMnsMxt2bMglGCJ23byVv/5PbrAkyVi1eHEHgI4h7V993Suvh5enpXvuCfojxUlW+v7q/a2ZfV1hZGZkJb75zWXfudzQe7XX7SsURRoeTyDn4PGT2bMnTfpcwTOapuBySeZgsIeoqW0ZRtGMtGJRxQX1Y0QnV8zgX760ZkNcOao+O9gXAUWRqK3pSBYTibdefXt39J5bF+z8EnCfQ6qqqijOpPmpo1+4sa/bD1UFVKhgGA7xeBwptmRwHIdoNAqaBHILrEjLZDanlBOvfRLYampqGKfTSX60nf4Kv0h8485d32tuiNzW1zWYaTTqB159Y9N30on09X96e+vLI0bmP9l0eQCXm5phs9mg02ghKvKVMU0iAiEJ/T3+1UePHn0kGo0KYb/f8thjj/Vt3L1xzV235T954kS3xRkQyldct2IXbhjyw6qqqqhQKMR+YB5e8cse2rx371t6K9k2t3zuB3yNFBklP7Mq/99FuvOX9SokDPX0bbjsumw4tqnhW5Gg8BhBKGA5kgMQlUQlMDR0UgKB5EBeaurfrVFVVZXdsOH98q4u3+zBQd9VP/rB78uCgSAFVUo2mHg8+/wbO6dPLav8JBfh6ntHv+zzxBbEo4PznIN+GHQ6tDe7eYri3ly//tj81atn1HwJuL8jb7zxBq/RkNmxqPKVxkv96OsegCTJUBUVGq0WoWgM4VAYvEYDs8mIvPw0FJRoOyZPTv3a5PyKT8yzOZ1OTYyI6QDYPwpqMIabGmt9t10615sz2O8Bp6GzJ83If2n9ll1tq5cvfOqNtXu609Otz9bXddoMeoskKyQ96PZCIYFIOApBlCGIlBhSVXrhvHk+AEPRSonVb98+IC5dep1z27Zthz7mL8q4Urz8VyacHHZE+ihl167nOIFOtmYleXo7+5NXAKgiSaDX32/LMGT4d+w+uJxidS3jJpcN/ukPG+/0+SLzzRZjF6dR29NSkk9RNA+SFObFospJEKKzbPyYDptWi5wcm+8Kr+QXJiOSR4Teeuutd0tGpt10/qy9pPVy38TvPrj2lMPuG8NxPGiahDlJ5y8sLPB9elCsxvaD77+8rqfLe5XbFSYkEeA4ElabPmIyG+wEFYuqijwwYcKET9zbYqI4cbr+9B2yrGw5Xh2aDBCgaRqdLS7rAfXS9qd/9d4L02aPWF8xbVzL/4YJrV947VpNTQ3T57bf0d8Ve/7owU7e5fSDpllotUPz0cQrPBgEQSA52YyJ03P6iwqTVi1bdu2pf2SdHbt3r66vd1adONyNFFsKEkIIffY+lI3JU6bMKL7u5lWLtgDAjr3VY+294eNCgjsnyZzvzPn6JU6Xnxh0OEFzDKZNzxWWLi2bPG9GxUUA2LRj640UCUpRlPoVi1dc/IjPqPdH/YtWLFrx50+6n417No6ZMa+k/eyBrtsAGKUEdUmU1TtDPvWcvScwNRQOTXY5Anaf3zNGUYioVquL2Ps9ycGACEuSBSoEcDwFmmYAAEJChEbLwKDXBDmeBcvRA2kZlsbS0sIXs4tTWieWDev7oqbE7j90aNyuLXVHL51z6qAOzRtnWQYZORp5+uySb3713tUvfNwkVFWVeP31rdedOdH9vfZWx8RwKApFlVAwLA0lI7LenjKt9Mn58yfaAYgEQcQ27t6YzjIsueSaJf2fAtzhO7afru5oDqUJCRGiqEJWFGh1FLJyLLHcPNt7EyYOe2zu3PKeLwH3MdmwecetNaecb54/2034/T4YjSbwnBY8z0NRlCGzMjUJI8qSLhSWJa1atXhuxz+6xroNO79z+GD7Mw0XuzB3weTQpJml9/b3dz1GqFSWcyD4HsORQnKqocqWokm5WNO77tD7l4m8gmFeu9NnCccEIhz2Q1JljBmXo15zVcFzzLLow+J20cKT2m00xRhEOf51JaqcBYaGgLxR/QZvCVgYhVayCBDcisUrLu44utZCCObliShDhwOMvq21ay5FEiPEBGyd7XYmEo1zNMkg6EsgGo5DhYpYLA5ZlkAxFAiFhKoCDEtDUmQkhARIggRFESBIEhRJAVAARYVCqNAbeBiMLAxGPpSUrGlMTrZeTrKZ/BlpKRuuuW50o5kw/9N1iFVV22Z393rvcA6EddF4YrTJZGwdMSrrN7feuOAT827P/PZPv6o50fNd92AckiRDb9AhPZdvnDFz1Ldvv33B3r86hPtrtLveqDkiJoisqVNHr1q4cOqxTzxE974/+fC+9i0XTvemMQwNlSAgyxLC4TDMZhMyco2uiVNyn3rga6uelST5S8ABwJadW8pDQeqFIwd6Jg/0eSFJQ3kWhmaRSAggCIAgSIydmIkxE9Jnr1p+9ZF/3A8BXnlj/bb9Oy8v6Wp3YfS4Irl4eF6D1+NNG+j3pgz2+wHIyC9MU3MKzLAlJ0U3bzqp6+vzQ2fSw5aWCp/PB6/fh8KiDCxaMOxIXq7+hnhImCdDYSkVLZRKnbHb7eK9994rfaBJNmzfXkRCfZDn6K2KqhNjEVJn73Ov6mzz3TXY70VPzwC0vA4cxyEcisLv94PneWg0HGRZBsPQMJn1YFhAJRAXhAQvChJohgbH8xBFAaoK8DwNkiIFvy/KRsMCoJCQpKHhi/6gHzyvBU1TAKEgKcmKtHSzaknm+zMyLDuLijKfX7ZsZtO/MkVWVVWWJAnh03zLN9/efvvu7Rdea210UmaTAbyGQ+mYjEvLbpo5f8aEEQMf/3mX6jL88ttbai/XufJHTUh3jyrPWnpz5dyTn3jtN3cuPnG0c2tnq4skiKH0KkECfp8fvFaD/GFpyCtI2lVYaHnqllsWHf8/78NpaI3HI8YzoFJQ5CFwxCJRyKwCVZWh1+thMLJITefPmnRKwz8SiKmsrJSPHTtmmDFjRsiWkvqD9EznLIc9Yqo930Y1XeoazdA8RFmCJIoIhSMQEiC6Oly4esHI8IzZw/svXhgojgmAokrQG/XwhwNwe9yIhDMzh+fYfLW1iY0kTWxRKeXeeDieuO++++SBgQHyStJa4bXU4liIurvuvOda9+BAkcPuJ32eKJyDPoAQIYoyVGloMAjP88jIsiInzxo1mLigIEv9JovOk2KznDKY+doJY4efuFjfUhz2R028TkdwPEXHojFZFhRFb9b6GRrF3R3uiMsVGhWLSAU0hXK305MWi+g1Ab9CJeIyZFmBzxuG3xchBEHIMhj5+6zWprsOvV9/9pXXNm+6567lLxMEEfnHDzRC+Dtg1D788O8f6m73UnqjFpIsoqQsyzNpSt5dnwQ2iiLx3rNHf9bb4cmPhCKoP99j02qoX+44enTZ4pl/y3Z9xx2Ldvz6N2tf8Huj3+jtcoCgAFlWwbAsVEVEX7cbHldsYV+vr+LpZ9b98kffu+kxRVH+/9Zwn1QV8bn9gSP7i+svui+cPWrXOh1e0AyN1JQ09PT0gud55OZmIrtA0zBufMqyhQuvbv881zxw4EBqHMJXoTDTPK7g1qQk66X0Yn338d1dj5892Xa7YyCEREwARdKwWM0wGFh4PAE4HW5otTpUzBvlqLi28Nq6i47iQEReXFvXc5vLGyKcbheMRhbXr558ojhTv1ySJDWhqhmrly2r+0CjrVqypHX7vt0/cg9KI/q6faUtjc7R9p4wDZWALIuIxeMQBQEmixbmJFZlWCqi0WmI3NycAyYb4ywoTtp39YIRR/VIDZxtqh/vHBDovvbeUeFwjPb6fKpBz2rS0jM7GIaSaQ4UVCk5Eoq7M7Oyu0ZNyujINGa6r+wJORAaSDq4/nxma5trSSicuCkYEPJcTr9GloBIJAZVUkCAAAgCmdkpSE5nzxUW26rGTBn53uxJo76Qmtjf/u7tZw7tb/2O2xUCRdIYNtyqLFoy5ZpVq+ZUfyxPqq+rH/x6LMBce+Fsx1XdXXaYTAaQBIWMbCtGT0z69UMP3fS9T1rDbrfrXnh+97EzJzrGejwu8DwPUZJBkzQomgZFkxAlCdn56Zhekb+2fGHGV6blTIv9f6nhqqur6fXr1/P4BLoCVVWJRx99lPigYuCTJDsl23sq4Ax6PX5tMBgEQEBICFdyNCpyC7WhcdOGrZo3Z3vn50qeH6lKdjoC3+xoCd3R0eZMk2Xl2tzcGAz1XEvRyIwbFEVp8LojX3U5PZkMzbdmZWcctljM2xVJHn308LlftLcNUKoqUZkpTPes+5fXnTp/pFGSg6s2bW7XqaoCvz8Avy+YrxluKfEHEsqVd8CHhfCwrDyr77312584c2Tg/qZ6j9U56EM4GAEBChRJgOZoGE066Ax6lI7KHigbP+zbBbk5h+NxF3P1NVN6t+46fJPfm3j4hacPTwyGIvMG7e70cEhIiQQFREIRxONRgFBhMjZDJRWAkEFRFKCSMJkvw/ye3v79775xiaRk9Ve/freZZdjDU6+acubu+/N/TpLEz+tq2zMPHqyZFg6GJ7pd0WkuR2Bq0CeToUACjgEPenqkCe2tngnnarq/8/On3t0+oizvD9ctnXb+XzA1qW889Nz8wUEvDHozsnPSlVFjzD+97rrZR/9qz3Y9xwVjYllzg+PpjqYAopEwSIKEVqfFsOLUOo0RbkarfiohbHp6eqRq8947o7HE9gtnhKx4PAFFFkDQNAiSgCQNmeetzV3QGqibs/Iyngdw5v9bDfepH/+uXclhOcxWLqns/7Sf+fPmza9fOBW4veZkGznkj/CIRiPQaof62opHWp64797lP/uYucg2NDRIHwdyVVUVRWj0v7hwqu+79RediATiCEfC4Hkt8vJTMXlmxrGv3b96Zr/arz2/p22m0+VaRFGamjRrRu/AoGfFkeoLD8ZiIUybVbxxwbWTbm5qaqIMBoPS64p8f8u2s4+2dfihEhImjk/z33nLnBmDg15KpYipOh0jB3zCvV1NIW9/d2jemRPNINShVhJJUkFRBFLTk5CWnYTMbNOf8wssWwvL0noi/jgT8MezSYpxNDf03tbV4b454JHhcXsQDgURjyUAEOA4FrIkgmZoiIIIkqSgkMqVfBwJVVFAEEN/ZzkOUBWQJKDRMUiyGiNmi64zyWLbyWkQnDJt9MZFi8Y0y7Lf8tKr2y4lIuSmvq7QhObGvmkuVxQMw0BWROgNOiSnGuOjxmW/eXVF2ZOT/gmN98ZbO+Zv2XhmR3+fn0pLtWLq9OLNP/rRDTds2blzlBiNXqqsrBQA4NDJfUXnToSeqN5bv9rvDZGyLCIjIwNjynN2/vTRG1Z/3vTGn97eUXnqaPufa893IhYNg+V4XDv/ql77wAB/+XJHMsfxYDUMxpZnHV55y/TrJpeWev6/03B/TxYuXPiZXI8EoWmPCy6S5VgosgqzxYxIPAKdgUdqusYxae6Y3/6N32ekRsyZM6fh44BLLmIMXY3y7V1tfkRD0aHhiSoPSRQhSiJUqMrG7XvLTu1u8XM00TPQ5/96f3cfSVM9CAaCSE7Ve0eMKvqG2aoGz9XXvcYy3NMVFRX1u468f6hoRGa4rdOrVxUCg46ouaPb+xWNlppFkeRon0OlTh7uQ0v9IKCSYBka0ehQ71hugQ1Fpel1ucPSf2FLNhYH/Ql9IBieU727YWl/n18d7PenS4KEWESGGJeHxhhHwognoiBJgKIYCKIIlqFhMVvgcjmh1WlAUgyisQgUhYBKyAABqDIgCwIURYKiqIhHBQQ8MR1FkWUsO1DGMCSaL/U+ct9XXqp/4eVjm8aMGXH9rGkTjxME8Ps/bLy5/kLXj5yDoaKAL8YE/UF43T7e7fTf19NtX/z8Sxufmjg2Y+PUqVMdnzfds2lr3d3hkEjJkgitgUX+sOR9BEEIVVVVlwDIAFDvqNdvXHPusZoTPdd73EGQFAW9yYDhY1I6rl1Q+tV/JJd4+y15W/y+yFaXI7RscICECgUOh5MYP2n8yzTDLers6Bmvyio6m32zzx1p+CmAb/6fCZrU1NQwEyZMkDZu22/VaXRIslgRiURBEgp0Og3yh9lgS9H8fFx+vv+v8le7N6aDZKOHDh36GzNVcjNJ8ahAxqMJlBQNw/DSYhw4cBgsT6J4RLLLYtWK7S39J6IRmSgtzb4vPT3tm35v1/N9PW7k5iWJpWWZ37rjtuVr126qmkHIxM7rVi6pB4DwoPtYarLtrdQ069c8nhB6e/wY6I8+lJ9vQ0NtHxovODDQ6wFFUNBotUhJS0Jqht5lSzWeGlaUnqEzansdA6G8g2cv3NLb6S2iSBaDg3Yk4kPaiqEZKCqgqiJsNhv0Rh0CAQ9EKYrcvCxoNCwUCAmj0dA3DCaPyWJpi8ei+b6AnyRJOk1VaU1ClJ2ELFIszVLBUGKYyxEgxYSERFwEVBViIgEoDHq6PGxvr2+8a9A//szRlq4HH3i5MS8/+ciUiSNf++aDq9e+886+8efONf/MORhf1tPpQtAfxamjLZntzc4X68/bfvbe+v333Lh67o6/G7A6UaXpGBhcKwjqUoPJCJJm4A8G4Q36pwJ4+QPNduDkydR9ay+/2XDRMc/lCIJhGOiNDMZOyN89YVr+d6ZMGfMPUTgQRJmgquoN0eC7b545iUqn04+amktZdofja2PGjumqrasDFAKiKOBSLXnHzv1H/rBo7qyW/xOA83r7kuvqGNJpj9zksPsRDofgdrvh8wP5xRnILdTtuvPOpS/dddfHXqqgTJAU6dgn+YW0XqeEAz4+6A8hEe5CLBaB3sChbHzWjkkzix64evqE7l/88p2TzfVdUzQ8/5NrV5dNI6kYV1qWXphks729YvHsEwBw88rKv8r7UAYqJZmkJhi0NNxOBQylwbnTA2it96KzbQCqqIKADGMSh+GlmZ70TMtvpl+dt1VW2LS9Wy+uabvsmBAMJJZHwwnIkjSUVwMHVRbAcBTS0qwgmBhsafoei9FUnZJhkmKxJIiy0pKfm+nSm3X9Gh265191VQ+AOEEQKs1QEAWJ6Oq6aGofjOdoTVp66oiCPkDve2/9+zM7O1zl8XC82O3wZiYSiZlBn6CLhmX4vCFIggCfK4aBHm+eoop5LfX9Czva7Le89daRO2+4YUYNgOVvrd1/3bmTbT9sbbZPcDpFeJxBuJ2+VDEuvf3aa7u/dvfdC977tL2tnFYZf27Nm2xTUwel4ZOQ8AcQ9PrR1ekyqqrKXtFu2scfe+utuguD1/q9UaiqhLSMJLV8aoGcnqVZz6hScO/ew/l6Pa1Mnz69+/ODjohfuNDzbY87tsTjCWiSbRbYB5xWt/OQVRSlIdJZQkZHK22qv9j7DQAP/K8F3Aeh+q2H9+a7HMp9p041XtfcMJjq80SgQgLH0UhJN6NohLWreFTmvR/t5K1Zs4bpsFiUlctW79i2bY32k64/Z0qm/cLpwUGSoob5/UGwPItJM4pO/+D7ldcRBCGcO1c/bOfO82Z7jwc2q2lEW41z0l23rf5MfsOEQCs8T/VMnFQ4KRRQiHAwjoa6Vmh4FlBUpFiTMG5aUU9Ovu3FOYtHv9PT3r3qwrm+tQM9oTHH3m8gVIEGiKEEPkUz0Oo42GxGSAqF1IykjsLizNrUTM1rM64dfTLHnPO5KMYlUQZBEGrVnhO2o9Xn3u4fHCwtG5mz57Hv3rvypsqr3wfw/lCYncCBYyfyWhrtIzz9ketamuy39Pf6uEgkMpQkVxUEvAE0XIiXDfZ5Tv7w4df2FRZlPnP7rXM3KrK69Wc/eX1NcxN7V3fnAChocOlipzkQjvzxd8+tnzysJO2NJfNn1n5SvMScZHid5ePzRDlGcxoOCY+CaExe8MzzVRc7WgYTikBJHa195V5PGCzLY0RZZrx8yvDbNcZYZjDk+3l6durx6p1ndwWDiuX5Z7f/5sGHFj/z99IPH5XWsacGC09a13W0Gu90OL3QchpIsnjFpxYQi8VB0UEk4tKUnp4eTU5OTux/JeCSS5M1e/eeKulqc71p70uMbLw4iEAgCFGIg2VZUDSF7DwbMjOs37xm2rT+DyKdm7dvntVFKAOrF1/XDgBLr0yv+bisP3mRtFj1g6lptmGt3m6EQ2HEYrH0XXtrZm/eejRn//66X1w635NMEhR8niAisfC1APZ91n3ftGyZY1919W81rDgbMpHC0Sy0Oi0SQgLZmTaMH5d39Kr5Ix6UJIk4uP3cD3yu2IMXznVhoNcDWVJA0RRYlgGno5CRbRSKSlIH0zOS3rKl8fuuWT78kuDsklJTK8IfOZhMlZWVQeCzp8W0NDc/FhX50T39Akjas/jPW/bPBbDrg/+XZRUVU6d2AegiCOzes+f4s7W1XSvsfZ6l3R3eco8jhmgsilg0gd6uBO20hxdequ1c8K1v/LFm/fpD3/75L+6++8WXNp5srtd+d6ArVNxvV9B8uUfvcgYeSs8w3//iy1U//PpXK//Gz75t1Yr9x4+ed7c2BdIYVg+QgM8f48aYTZmhUL+xtaELsiiBolWMnVAQmTgl9+677lpUVVOzhmntTLrQdKHnnpYGX6HLGUFfl/9Jt2uwRFXVuz8PF2YlUSnv31/zaFuRY4E/EEojCRqiJCAWS4BhaAAqIuEomi73jDl1visfQOP/OsBt2717asfZwG9aGjsmhfwEFQ6JCAYikCQBsiohGhORk5uOtAzd6ZHD0w5VVVWxlZWVAkEQ6nO7njuVHk5nPqsaonJaZWzHvkP3Fo2w7fe4/ZmRUBSnjzbnOO3hfQRI9HY5kBAEUCQDq80KhsWcNWvWMFf6zD5Vdh/bPbOjNbj1xPutlrAvBBUkOJaHJcmEWRXj+ypmFt3eO+CqaGm0P3vpfJ+hq70XBEgosgxewyAlNQl5w2xIydDuGT465S2OFYn5Vy9691Ofo7Iy8Plj7xQtCAJohkVvnw89A94Fqqru/qS8qKoC8+ZNrwdQr6rqk6+8smXupYvtPw744qWRqGz1OEOIhQVEgiRx5ljLxO4Ox96f/uS1nRXzS795/70r33zmV29//9xZ8onLTVGEAjGEAnGW5zVPvfHW+/SShaNfttlsH+X9DNusyW12vTeNZg1QoMIXCEJn1D4walzmQq/bf0PQF0VOXhomTR/xkztvr/gzAJSX3ye+/d4B+fzZ89/o7XFDo2FhH3DCYGRv27Xt5B8BfK5qkblzy3tefXXL005H6NmudgcS8QQIKFDVofK4obkNCTroi474VwBXXV3NHzp0SPh7qa9/C+CGeENOiwTxmKKqKvXHV7d8tbMlOnWgR4DP50U4EoYKQFFkyIqI1BQLho9M78vLsd45YcKEYEdHx4c0CA8tfCgBIPERDaChteQDBMmrbodoioRFK6/h/UYLf2rxtXO2bdpx8Bs6ne65owfrs+wDHtSdb4MoxsCyHDieh8WqR2om268zsY9npBarf+9lxmSq+PI5+6+PHGyxuF0RyJIMmqWg0WggyRICwYD5UmPfpiMHasv8boFWFRmyLIJhaGSkpyC3wIrikbY3s/N0x5YsnP8mAOntfW9rv4jN6O+v0T77yslCx2AQJEHCE4yg3xFcCODhj76vT/F1FAB7aZra29vbl7J/f93khobO1QNdwZsHe0OkIETR1jSgDfojq2mCyRg5evDh7/3wtp//7rdrQxSnPNHZ5jZAIdF0qZ/zuKp/eeli/R37D524fu6caZeuXF99+tnXugHnjGgsBpqm4fUG0djQannyx3fd7rC/knHo/QuzBCUBkhGSAWBvdXVZX3ds+LH9F59vqrdzsixBSBAgCRrtrQ7s3n3hpXUbD9xxw3XXfK7c4N13L3u5qenlu/u6XaNMRjNESYIsiVBUBUJCgJgAAt5w+r+yB65gMH3ChAkOfEJHyL8VcDEilrRp1/iyXft3+f/07rYftjYFVjRdGgDHcQgEg1ChgCTJKwluGvkFacjK1h5cufLayx9YQ592bS6JM0pR4odd7QFL7Xk7vJ4YWIZFdq5NXLNm72aeZB4bMSZ9JUmqZy6e70PIl0A4HADDcBg+MhuZuZrarELdD5YvWLKnurqa37JlS8ry5cs/LDPavHmzecKE1MTZi6EnmuqdXz20/7JucMAFlmdhTLJAZ9TB6fAgFo/h0PsRfUdW9tjuNjukRAKqApjNJuQVJqNkZPr2gmLj26tWzN/0MWapyBexGWfaeq0ajtNreR0kiYQkueDyxG37T50qAHD5c/mCkoz09HQngO0gsP3VV7ZsuFw38EJnqyebcAKJmIJD++qnN9R3HfnZT97aV1g44lvDhhXsO3r00lMNdb3LnQ4vBnpdcAz6Rqigtu/ceWjJokVzLgHAuHEjf9pY71ridMtGmmEgy0A8IU24cKHVJCqChqBUXKi9CL1Z/ebhs81bzx+99IPTx5tX9HS6r6SIjDAlcSJFkQF7f8BWc6ZllCgn9mzefXLSis8x24AgiMSGDft+4HWHt3a3BWher4HH4wFJkDCZLKApDpKUGP2v7EHlsmWd+B+Uz803ed2C6+yKooiiSK+z9yVWDPSGkRBEDAwOIBqLQFVlcCwPSRKRkZGGzByz22ajH/9ogOXEiSrNJ12bUjRJA73x6KnD3ehucyHkD8Ez6MWl8+3MqWOtlWdP9R4d6PXMyy9O+mH5tNw9o8rTa0dPzGoZPTHjUuHIpMev/9bsaSRFfRAOlgSd7q8AkFGip/Yfsb+wb3f9dw7tb9IlYgr0eh3GjB2GRUvH77p2wdg+a7IBFEkhHhfR0twJlmHAaziUjMzA9KtKj0ydlf/w9Gts36It8f3v7H5H9z+xGStmr+jlNYYDBpMRIAhoOA1kUTT6A4Gsf640BLjnnuXbVt41pnzS7IKfFBTbRINBi3g8jo6WQeZEdcuio4fr/jzoDZf+7Ombvz6rYvQbKakWKIQMgiBw/HBj7tat57a/sXbHaooiEZEkkqJIKhgMgmFohEIhiIJcsX774XdbmrsnpqUnQ6fXo76+R/vWq7t37t11bnl/jw88r0F2vkWdcdXIDatvnznx+z+5fcHwshw5FAqjt9ud3NcxsOrzPtKqVdfuKh6e8bpWy4LnOGg1WvCsBpIgged4aPX6v6mQIkkCa7fvK9qw/VARSf5n2dQ/t4arrq7m/bHgnZ3tQWtDrR2xmASKJqCqCgAFiiRDkkTo9Frk5qcgJcXw+OLFC//SdlMKytul5QH8TQRJTCg3OQdjmY7BABLxGMZNGAVFVtHa2oGO9g70dLFJw0oynhg1NndLQX72b0eUqamykAhce/WM3QRBSKk5G8eQKsFt3r1Zqaio6AIQAID1u7aMYxig8ULo1rpzjrtqz/ZCEobIiiZNK5GnzSj71rBRplMNtYEtsiSDJD/cIXA8gfGTitTx5QUPXL/6mpcIglDXbltr00Az5taltx4GQFRtr8qgCdpYe7a2+QObf8uWLQaSJLl/hr9RVVXqx794bXQ4HIMsK+AYDVSFRDyizgCw/5/d5OljpzsBPLlly/5dJ462P1pfKy/1ewJIJGJorOsd11DftuF49QX7pEnFj0yfVeo7dYL8dm+3B6RK4PiR+ty+voGqZ37zznY5HPujEE9wHMsgEotCllREo3J2JBzL9geD4DkJQiIKWaJx7PAZm5bSQsPzGD06t3XK9NKHb7316m19fX3Wt98+/JvOzgGSZmjoDRrotRr7P/I8WblJe62p/fe0NtpJmzV5qIjb54MkCEiE1XMfyw+bNuw8/euqPx+/jeMZ/P719S997fbrHv5PcV9+bsCFE+GSeJQe3dzQb/J7gvD7/WAZHkajGfF4BGJCgCAkkJFiRXIqe7qw0PzqX6nqskoBwN+EgbfuOjC6vztc6XMJSE2xITnVjAkTip6OicFwSgZ3f39PMLOroxfNjf3wumPLT2tbl1tTDMgfZmjOTDtUrUKNrIut83IqFxVj4l/5OTSjSorA76it6ciqOd4BSRg6uUtH5aplo3Of0FmVhur9LWsunu3LcNgdYFgONMNAVUmUjh8mlE/NvrNyxdx3b/ggurnkJs+hQ4eOfxjeoCiCIInwRx3sK5R3oX9mMwiCkJ96fovfZAojGhUgSxL8/gQaLw9c06l2/iKfyP8o7R4PQPhH2nCWL597oaen54Y/vbV/TVuj9yZ7v5eKxUOIxmJwOnzpBp3+4a9+a9USiiFc52uaf9re7NIyNIvezgDOn+ldYrVlJIKBKBGLJkBABUkS8HkDMBg1kCQRCcSRECRwLMByHDScBtOmjz57zaKRD8y/ZtqZqqoDK371q82/vVjTnhePqjAYtMgrsJ6dODFna1VVlebj7GufJjffMH9zd5t9r6PPvyAajUBRCRgMBmg0PBRCIT7yPnHo9KWH+wfiX/F4AUmO49KlgQcOn2r8Az6DG/Q/BriNuzemQ0KKINFT2i7784QoB1lWEY+LUGSApIihl8trAFVBZo4Jqem6p6ZN++zqbVVVqT++vu7np0/0FDc39MFoMMBo0iAU9Ux56FvXVXR2dL6470DDI3oz+Y2OFgfpcnlBgEQ4FENuvp7wKTSzfdt2zY1L/5odevPmzWaJwROxELGw7kxfdl1ND6FKAMsTGDO+CKPG5j6x4Loxr+zeVnfuaHVrWl93P2iKhVajB6flEYnGMOC0MzLS87bt2jYxbrbVV06bFjt06BDnSiS0qqr6CIJQVy5Y2f9FdV0DwI6jZwrOnuqZNmgfRDQcgawo6Om1Q6eXpzadtJfiykzyX/9h7Q3ff/yFR00mTW9dXV3lPzLfOycnJ0aSxG0bNldv37Pj4pstzQMagqQQi0VRV9tevH3j4Xe+990bZr63/uC5I+9fXHf8aGMSCOByQzcslrRVkbCASDgMmmWhKkNz6FLTbUiIArQaPWiWgAoFublZyMlKx8ixefUsr+T/7nfrH9i+8ezK7i6vLp6QYLXaMGpcTsfUaUX3l5WVhd/d+m7qJ1k/n3IwqW++uWWzLdW4oKPVAaPJBJ7VQlYVSEp0EoB3AODlt96aeORw7Xc7uhIgSD0IgkRvX4Q+fvrSc9WdnSsr8vPj/27AkZ9gOtJVVVX6v/wAyVEsW+Ryxb7T0xUyB4LBoVnOBAEQKliWhaIo4HkN8nIyUVSUvueWG/W7Ps/iJ0/uNbE0O1YSVYiSgEAogIaGZrQ2O+f87nebth071Trh3nsWfWfa7JKJVy8Y/c6w4dlgNDSGl2UiMyvl8ZmjZ/ri8bgEAJt2bbp227ZtORt3b0xX9SrFMNSk/q5gwfkzXYQQkwAVKJ9YitlXlb1+3YrRL23fePHV9/deSrP3OUASNBiWgcFkAMsxoBgSvb0Bor5x8ElfVKhEX58AABUVFXEgiHVb1mV9sPFf1Eaoqko01nf9rm8gZI1EoxAkEQQBaHVaOJ0R4nJ9900AsHbTrhn2/sibJ04PlBw92nXNweO1z23fvXvmrl27uM+7lqKoWLF09D6FDvgJVoHBYoTGqMGAw43jR+snPv/i9hdvXH31kVmzRqyeMLnIzTAUBDGO48dPIeCLgaEosAwDAipcLi8IioZGqxvqFCUoCKKIgmEp3aPH5Zyoq728YtPa2p/s2nL61suXenXRcBhWmwUjRmXtnjuvfO6KFTPPDeVGb3L8I+/Lkmo6qtOTok6vh6IokGUFoiSBJMkPo4s0SZpoiuagSIjGwhDFKDyeABovdy7oq7k8/b9Cw1VUVEiqqn4YdCAFkpBp4qcDvaEix4AP0VgU4fBQFFEQhjhK9Do94rE4zBYWBgO17Qoz1F9Ju7fGVGCZEP7AdlZVlTh46iAjKXKApolsjuOgqgQEIYra863o7XEvyco1L4nH45uzclJ/arZp93j9gZt5vQ15wyzPJCfRO6/kuAQAIEDQKq2aZVr2c6p2qtuupNaedSDkjwCqCovFhIxsQyOnReK9dRf3HD96eUxTYzegyCgcVoCysZkX07JTIjUXWqe7mn0IRaI4fbYd6RkjC2+/88YP7f3K+ZVeAN4veiPWbTuwKBZjF9sdA6AYBjMmj0NtXSPU8NBc8IEB3zKCwMOhiJgXjtGsTmNEV3sPLqcP3pqRpidZ4NJnpQ4+Kj09IZLjCEWFAlFRICoqaIZBc3MPwuHo3V63e/xNN16zhNeblqoKcejShW4WJAWaoSHIIoKBMFhGg3hMgqrQSEnOQCgQAkEy4HgZyak6n8lEv9fX7fh9X3vAnIgnoEJFbmEGSkfl/ebJX9z5vY+bw1XVVXqTYFLnzZv3mVFfQyoGi0uzznrcvdMcgz6EIzGkpiVJqck56z74mTElJRcvnO8YSAiuDElSYUmyoDAvVWHoULsYj/1HxmLRa7dtGH7z0lVNAPBI9SP0yPDIVIIgPmy/YSxMOOpK5Dv6w6BIGrKswmwyQ1EUSJKEaDQKVQUsFgMMZtZVXJy6/a+d1m3a1k7lJzvebboZRLP3rfe2vnDbjcteu6IdHG+t3f6H/KKk31is2pCQUCnHoNfqHAzC7w0hHIxCkekVzfWOJUaz3pGSYiaKh6f87PYblz6xbdt2y18f23CAQYhTuOzB/ugLe7c2p3d3OMHzHIx6HabOHJkYNTb/pcZLLT87crAj2ecLguc4GIwcxk/KcC67YeqStrbmF4piyWjtHITOqEE0LiIWldM+lo80xmIxo0ajcX18nsE/XURQXT38Yq3z3Qt1TtLldqFseLp3zKjkjV2dxFficQoKgKYWR/am94+NbbrUNaG3dxCxiABOw6GpxYm8PP3gjx6+3/+PrJmXl+f7wSPP1JB0IFMQJICgwLA0CKgY6HNi767oOEGQj81fXH59+eSS34YjiR90tjmg1WpACjRCoTCyc3MRDkdQV9sEo0EHXmMAQfrBMgQsVnN6Sqq5bsTI3HqPs6lMUSQUDs/yVMyb/KPScWkXDp24VPyrJ9+dG4pHCmmaFDhOU8OEknNEjXQZwGfyUVaMq/Bv3fn+95obncfsAzJ0Oi1UhaDt/YNfW7fuyJs33jjreHl5ufvHT7zwvtHguSUQUZCWmqTOmDHiV7evqnj8i2ZA+9yAIyU1B0ATAEwTpnFhNZwK4EPAybFYqiwz0XA4YfD7PIjE4khJTUEkHAbLsqAZEgkhAa3OBmuqpm/KX+ZtAwC6BuU/9fUFV58+2gFZTuSMnzjs1/sO7Ttx7Zyh/NxtNy95afPOnccybDaXwjCGizVdv2u4aL/K7xE17W1duHShDUajkeY0VOaYicmx3IL002fOnGXKy8s/PKEeeeQRmpCIFgoUnSDJQy2N9vT+Hi8IqCCIoeGIGj0oe5/7yZrTXUbHoAsUxcBs1mPmVcP946dk3dXWenmEIslvZWcaezIzjQ929frg9QZQV98+duOenXOvm79oPwCIoqghWCIjHA5/Ib1XB+pOpp490vv7pmavwe5wIzVFj9LhaU/funzyb8+dvzR+0NE3wWAww+2Oc2ePX37AoNc1EIQCmqFAEiR83hhcnngJSRJQFPUfMWGRkmKp0Ru8y6JRCoIgIZKIgyBJkDSJUDCKPdvP5gly4sC8ZZOW8Fp6+NaNx5b7fAmQBA2NRotwOAyaZoYqjAQJsiSDIBnoDVoA5JqrZk07Puj2/9bh8L/e2+nBnHllEVOyPHP92uqfeQcSyfZ+HyuICaiECIoETh3jUTQyvW/XruMrFy6cfhYANm7fW0aCtS1fPOfYx8vARhRpL13KTWroaveMFGIiQrKCA3trvmI9p7vnJz/502/v+NbSJ7ZX7b48VBgeA0XLiaQ040v/KbABAHnjytUf1h4GAoE4KFirdlUlfwg4hbqbIqlUISGApVlQJIlgIABVVUHTNFSo0PA8cnJsMFuZLX/jL8hIDQb9EMQwErE4CBAWvzex7sU/vPfyCy+u3bd526ElReW5nZMnTx509PQMfvUrK5ZUXD16atm47H3jy0fClmxGJBpCVlYyMjJSnls6b+m+gYEBpuojOb3Ro0cnSSSZmaCUm+w98ZyGiwNDbTIMj5Gj86W5i8cmDAZjfNe2s8budgdURQKIOMZPynYOH2NbQubGDwgJuYOglHO3rlr4nexsfS1Dk+B4DRpbPZr6OvsPiKGOUCxbtsyxcsnKM5WVlbF/VbupqkqdPND++sW6wWs6u+3Q8sC0SfkHH77/ut8QBCGn2fTbdBoWqiwjHI5jcNAzN68gy63R0IloLAKKIaGoCmIxebzH02H+R9e3JVuOESQhKyoJiqZA0TQEUYCsKAAkRKMRHN7fYDh7rO3hvELbPrOVAkkQYFkWiVgcAX8AqqpAw/OIxxOgKRqSKIHjtOA5XfeeQ3uyeQ25cuqsIsc1i0sla6ohp+GC/ZbT1R2ZXa0+NhoREQ7HEE9EoRIy7HYXjr7fkHXmTMurLMdg7/snph89cPn9d157v/qnP319R1XVgdKP3n9x8ZRgcUnW1zOzrWI0Eh1KS2kM6O0KEMcPN31nzdOb3s4tyDqXk2MOJCdxSLGwfDzgSf6vycOtXr1a2bhzYwsUsI888ggJAARJ1IuSspummQWSHIGqqNDr9YhGIlAUBRzPICPDhpR0zanpU2x/Q+vNc9R9RcUZ39Tz5tVCXGLTM3XdskhQl+td93W02TFqbHyu2x1o37xj92OWNO0BgiBCAGpVVV36xp/2vioei92SSIjIzNX5s/K5VwEgbourTIBJBdAFACtXrnTv2Lsj3efDj04dboffG4ReZ0ZhSQpmXjX8eVEUKt/ffyGrt9MFmiahygSKR6SgdHTyW5VLFx575JFHyMcee+xDfpU171a929LiHBMKR6AoDE6f7Ziz5p0Nt5kZee0VIth/WfbX7Dc99tu1bzW3+BZ63GEYDSymlA/bP3Fy/o0f+Da5ubbtqTb7j2WJYGPxKPxBISsWi1UqcpxmGAYkSSAep+HyBNKPnG6e+I/m6qLB0CRJjFAJUQNBliApMjQ6HawWI5z9DjA0EAvHceTghWuzcpLHeNw+EKQOBEmC54ZSKFJCBKfTIBRPgCFpmI0mqCqJWDw6Mx5hm0AQDmMS87XUzHR0twd+f+ZoR4YsqhCVEDIyk5BbkHnZbNOcyMhJO+j3Bm85uKd24Znj7aMfvH/Ngaq3j45suNSdLAkKolFpnjWZf7m6vnphRdlfCsMnzrXU1tSwAZKmbJKkQlUJGE0meDxenDrevITRkDmLF818pLuzL1+n5U4kSLn1vwZwV07sj/cqvbbmjS0FHMcv+MAUkSUJkiRBp9OCoijoDSSSkolncz6ByCUejPclpZC/SE1KeoG3pAaUSCTU3unZEo0I8Hr8OLD3BBrrUwrzCpLfKh6RdfGdqh0vTL1mxAaCIAL7q4++abfrb7bYCDkr1/yNhVcvbAcA3yWfdN9993Wt3bHWcvPim31/PPdHyiZlPNfZ6kvt7XIjHo/ClmxB0QjbeaOJuXzkYEdWb4cHkihArzdh4pRRSvm01LVJacQLwF+munwgS2+c+WJXl+96f0gaH43E4faK5IWLHa+uWDnx7KeVWL1R/QafhzypoqLiM6vfL3ReMG+suvjnvj7hWpczBEWNYuyIzL4li0bfXv4RmgCrRslKT9Wo/oAEg16P/oEQ6XAEBoqKMg86nC3XSiIBkiQxYA8SXX3+BTv27vAunrf43Ofd/AljSl9vbLVfd/x436RYXIZKklApCtfMn4bBnl4c2n8OkiShu2OQPbL/cnY0QEJRVTg8g0jE49DwGnAcB5/bA5IiQVIU4oKIUFACSSrLVVI9KsSFX9y4cmX7xi17V7XV281BTxCqqiA1zaguWjbxuZIJ5k1zpsw4CgCvvrGbYzlmYV+3AwP9rqspmgDLMmA5BvF4GJIcztBCq8dH+HbyLeP8L/6hakdXXviOcFAEw/KQ5SiMRh3C0QAOH7g4RlWUu558/O7pBEGE8R+Wzyzt2nVgVynHqpWSIAEkAZIiICsyREmCxZwEo8kIcxITSUnXna/aWjXsb2rTKivDi69e1T1v3pL62ZMm9SYSCZLm1BGSKkBnMEGvM8DrCqPmVCc2//nU2KP7W19d94fTJ3/zm/V/aG8ZfDgr16xMnpl/0y03Ln5bVVWyurqazsvLY6uqqvS8yuc88sgjZKFYmBTyKRlN9YOUJEkwmZJQNjbXcfX8ybc1NfXccOFcKyRpCAcWqxkZObpz5RPSv5+IJqZ+0jOnE+mR/HxbVXKyHhqNDgRBoaMrwHS2++cSn1AZtLl6s9kYNU7zxXy5fz9/BKzdtnfJ2rfPH7zU4L62o8sOXqNi2pSC07MmDVtZXlr6VxUXshy+kGIzN9AMBUWVEA7H4fb6V2SmWaw6LQlJkQGo8Abi6O5zLs3NT/NXVVVpqqqqqM+z+eXl5e7MzLTjWh03FOZnaITjMTS2NGD6nNKz02aWgeM5kCSJk8cvIJ4gEY9LSCQSUBQFFEFBiAvIy85D6fARkFUFnIYHCAKxhNRbnKOvunHlyvaNu3enx4XY4kgooZVlGRSloqgkq+Hery36/gdge//I2ek1pxp/Yu/3gOWYK+OrFOj0LMrGpvVdu2Dcj0cOz546uWzy4MefI8mieTMzOwlavRayLIGmGGg1OiiSBJ/HiyPv147+wY9eOnDw2LGS/3rAkVpykCYpN8/TQ6Q3ogS/PwCCIiAICXAcCVuy8XRSNuGsXFbZ9vHfr6qqYj+aIxIEIc6z1ANFxbazZWPT+qfOGuEsG5uHzMw0KCKJ86dbcOTgpRFHDjbef+Tg5XmOQY9kselOAsChQ4fIrq4uet68eRFfQUECApyPPvqY6neKP2uq9w4b7PeBICiUjclD6eiMn1+6VP94Y13/1X5fFBRNIa8wG+Mm5R4sKLTcVFpabmdUZtunPXd2hu2tstLsXbx2iCnKaQ+gs73/503dzZkf/6BFSVTliHy49nTtp3Yyr999cOSjv3l73Y7ddVtPn+0ZHwwmkJysx9RJue0zZg2/ZenCuWc//jsLF17XR9HiUZpSYbFYoDfo0N/n0+cW5j8zalSpi+UYgABIksagPWR1u0IjSA0zq6Cg4HPXyEqybKEZFipBgKJI6A0GNLU7VZcvUjutYtyDZeMKFY2GA0mQ4HkDAAoaXotkWypkWYGiKCBBAioBWVIhSQoUBQiHI/TIkXMSAKBIwrUGnW67RssCKsBxPLJykn0EQQgnT17I+9GPXnr+xV9v39RY11eo4XnIkgyWZTCiLEe8duH4n33t66sn/PCHdz31aZw6Y8cOO2dL1lwMhf1we9wIBAPw+4eGyNA0Db83hMPvX5x8+EDdG6qqkv81JiUArN2x1qKTdJKiU1hJllQhIZAaLR1ISbPA7YxBq4tDlBLQGXRQFBXJKSZYrfpXBhpin9aDJofDf9HkS5cujQJYD2C9qtp15y77jC313RMH+wIrPI7o0u4uR1J/nwOhYBBp6YVIslguCLzg+yBHiCtTa+4bGuFr31m9r7y3IzS2o8VLaDV66FI0yMwxb05JNTbs21X3XFuTE3qtHioUpGdZhKlzhn/bm2h3feRePlEWzJ5tb2lpuaO9w94SDSfMBMnhQl2foeDI+R9NG0t9C1e6H/bu3atjaTZSUVkhf1LR7Najp8vqz3U9uG3nhdsGBoK8LFFQFBUGM6FMn5q9a/QI66+umTat7dPuY/LUUb+ub3r/bm9vTG8wGjAw4NP0dg/OlWUpTpEkEoIAlmPQ3NJrOn2h8/GZU0tWlE8o/9wz5ziOIzheA0WNQJIk2Gw2DDqdxLkLzffcelvFnFWVFYu20Oz6xkvdeoqikUjEAULFVVdNw7Gjx+FyBNDd2QNer4HFkgRJBaKxEKBCBiBXV1fzwWBwT0F+unhc2+gU5FgKLbPoandnPvfbnfe8+af3H2us7ckIeKMwGPTQarRIsppQNCJz9/gJub+49dYFR7/3PaBq27YckSRDNy9e/Df5sxEjRoT+sGbT7w1G9jW/PwSe4yHLMlhWM0QMLMcQCog4X9M+5Y+vbrwBwLv/NYDTQJMms/IYJsZcBEmVkpJwUVYoSpIEsCwLjZYFp9LQ6nRIMuqRlaNrTEohes7OW/yJZTIfDTKsrdrykNsdmUuA1JuNuiNdXfGnyktL7YdOHrp84+r573e7un90eG/jqtaW3l82N/Vo8outYkq66dvzxs6NfERjUh9cc8feHbP6OwJv1Z7vze3q6oHRYEZZYYZaOjr1ZH1d3yv1F3rIWDQKmmKRnZuGtEzdSae7fYUQTyxXVXXiZ3UbFxX1+4YXpxz1eeQlDsGPrh4Purqcq+bMnvMLAH0AEJIjt6nR4FkANVVbq/ILMvnQhAlLQq+8t3llX3/4+qp3j82PxhROlBREYgLSUpNQWpLiLx6WtOX2VUvu+awi2qljxw5sSz52uqMneHUkJCIc9GHQ6ZnOsDzNcjwoioKqKghHCOLIkdZx2akpkz7BDwcAbNixocCqs/YcOnRIGTlypLaysjIsyQjKigqKoiAIIjiWQ4otGTUXO6E3mn7y0+/f8vW9+89FjOYkvSyrkCQJVqsOxcXWDo8nq8DnjgxNsxVEKLICjU6PcCSIIcoHIBQKkbIsS2VlZd7X3lz/ks8jfq/jsltz8UJTQUtzzysutwskaOgNOqRmGIT8YWmHs/LNbQ89eON3Phq+r1y6tOdKDIH8pPpRm41xa3QUJElEOBICRVLgOBYQOIiSAJIA3I4Q4XHFFqmquu5foYL/Qk3KFYtWNK9csPLPS5cubao9a9wmkCRBswQlEyICAT8kWQZFkRATAjR6DkYzdZKzcQ2PfgZ9wP7Tp619XYFvHn+/ZdHebZdmX6jp++me/Wc37D1ycnJDnXPbY4+/fnnDW2d+T5KUdfzEgnfnXF0WSU7VPrt0wdyTe/fuTVmzZmjiKMuyWgDYsHnzQlWlfhkKyLn2Pi+EhAiLVYeM7KQ16ZnJ+wd63XmhYAQsy4HlSJSOTnNPml70I0lU55IknbP76G7LZ9fsVUilJXlP2Ky8zDA0SJpHc1vAVlPTcf1f0h6ki6EYg1216wjW8IsTlxJ77/vuC4f37Lv87vFTbcs6u92c2+0DSYgYPTIleNXsvB0Tx9nWFaaR3/48FesEQahZeZmvGY089AYdorEY7I5IVlxQTbKkQKPRIB6LQ6/To7snhNqGrsf9/jrLJ/lxJEgOAH0lSBRTVZX0eAJTNVo9bDYreA2Lvr5eSLIEnjfg/LnOa37xyw2nO7qcqXFBRCAQgCiK0Gi0kCRx/fDhuT/PyUlRSYIA1CHWZ0mWodPpocgUAYBYunRpdOXKlR4AuPv21Y9OmJK3idEoCAVDCAYC0Ov0KCpJk2dfM2rt9bfOHv3M77527Te/cdPXAMRVVWU+/H7277c+8YuXfvf0r14/89rb629RVfWvvOnMvKRarYGM0hwJklLBa1kMK84PXTvvqiajwQCCIECRFLraXZW/fvq9+/9rNNwf//hHqri4WAUgPfZYhQSgfduBPc+bLdqJKiHrJUlCLBpBcnIyLFZtlGH0v51bfs1nUghE3aHx4ZCYJyYAs0mvSJLUx1CGiaeq2/ecP9tqDvoSMFvMWdZk/XUjx6QcyCsy7iUY5tm127bZokK0PCUrpRfApQ8G0DM60hsOKVOaG+2IxxPgeAbZeVYpu9BiP3W8+TvtLU4qHk+AZUmUTxkhT5hStDwU7g+oijqdZWmPmlDTAHwmz2bBCFNr6lmu0e42jVJBoqXDTTZcdj2899Dexnlz5u1mWXqKBEZ64ZkdPx2wx2YH/RIZDscRjUZAkECyzQiziXKMGJ6xZ9z4YU/NnTy5ZceOHZaZMxd/7tKi4cPS3z97usUjiaw1KSkZjc29Oq2GQzwRG/KhyKF8HEgKp8/2DH9ve/uN999a+YePX2fl4pWXP2p52EP2FI/HW9jf54YgSLBaDcgbW4Bz5y/DaEqB3+fFrt0nzEaDHkIkAjEmgKEZ9PU5cKm+6Ru333XV/K7O/pvc7mCBIKogoUKVZUTDMTgGPfkHjx4swcfoDswW+nDpqPTFIX/cxLI8Jk8feW7M+Lxv33xzxZE1r65fdOjQSTIYVDUPfv03r1AMyVZV7f9uZeXcPa0d7q/Vn+/7Zk/PAOZcM/rlc+fOHcRH5gXOKJ/R/egTr21quTx4i98ThSTKcDidDEkpOlGUQFFDprx9wE8bzfx99fX1b5aVlYX/44D7OB9IVVUVZbURJwwG/pLFYpzqdHqh0WpBMwQIMtIzY8aUzxw1tWPHDovH7/92JBzHqNEF58aML7nbZOVzjh9u+NPhA/VmRSIgixL6e/sxaKfBa+VrMnMLLmu1gqJlZEkJ0z0rFy7+cPBH1bZtOQShya051SKdPX2Z5hgeSUkmpGYYz8qKmNTcaL+lq9MOqECSzYzCkuQ9mWPZCx2nqYkqJEUQpPOLrl106fO8oHH54/wvvb3pF+1dre8GgjK0WiNq6/rTcnLT73v+lc2jztf6xvcN+iraO93gGA4EoSIQ9CE12YBZM0qRlGR4aNy4onVjhw1zfhA8Wrx48T9Uxzdv+nTH9x59/pLD4Z+Tl5cNfzAIn9cPQh1iDhNFCYosw2jUYNDlx7799c/8qWo7c0flkuc+MfK8a5dx4cKFwc1V+68b6HdYoALBkA8pKRrMnlXaw3Gx7LpaO6HKCUCVEAqK0Gt4pKdmwt7vQCQcR2+Pn2tu9pmHj8h+1DEYerX58iALBZBFAYIQg5Dg6ViMIq/kOD803ww8u2XG1SNcGi3zRDSqGkdPSX/qhpWzj6iqavje937zbs2Jbi9DapS6C44Ckiag0+l/s+fEiTO9l3t0Wp0GZrMJFMU0TpgwwXXlWbhgInwrT7B/7rWHGxmGgKLKoEkKgWCAtw/0ZyuyCIoeCvJ193TDaCVHNbUNTgRQ/R8H3Cf5YHtO7JG0es7AsjRkWQTLakASCowm3tvV1fWZeaeRI3Wx6qNxm8FgRFpaSrfLGxh15kz9r86dak6SRQW5+blgGALBUBj2ASccA0GEfHKotMgULhtKcv5VnWCamY41tQRv6+sI0aoKCEICthQLsrKtnQO94eE9HR7oNDqwHIPC4mQxKVn3aHlmeWz7gQNtrs5ukaEpS7VSTVcQn50zA4Cv3rJifXPri/c53eHZJEGjt8+LP288u4xj+WX+QASCKIHnGeh4Efl5NhgNqXuLCpNrDTpVNrGJDWOHDXMCwOnTp8V/ZpNkRUF6lvnlpjb/HJvNikg4hKDfA4vFApKQwXMkRCGCqCIjMyMDPf0hzamzbQ8H1eBaI2H8oBGW2LVrl2HhwoXBGBHT1bTXm995ddOP+/sdMJpzwLIseI5VjHrqB1fNGVmUlqK/qbG+d1g8LlGpaRaMHTsc3kERW6vc4DkO9gEP6fE5Xxs+KvXHre3OQ91d3muj0QgMSRawLAO/P864faGS8pnlvs27tg1fsXDpwaHI60IXgC17Dh52aniOnzVt8rngq5tvfeyRt1a1Xg5yAz2BPK1GC0VWIAgyWpsGS7NyzHenl6Q+PdyXMBcUpWYVFGU+/VH/W1WJfpPZpEZF+v0kKy/5PDFarzeApjlEIxEQJA1RjEElEpBVBTqdJmJLTe/7rzApP3HDI7JNUWRJlofyPixHI8ligMWk7f97v1dVVcXq9Xo+P78i+Mc31rU4nK7yuou9KzmOWWnvc0BRgJFlhSgembYxLVMXhMLeuW3jCfT32NHaYpykN2cvAfA3BKX6tGHo3nN4asgXg8lgAgggpyApyvI01VDbOW/Q7gJFsLAmm1BYnPbOzZWLagDA7fXOlwCWoegdnxdsqqoSx5uaUkaMGLmhsycxY6DXRYWjUUR6EtDqtNBoWORnmzF8uE3IzTIPWpP0VSvmz3/k5Mn16rRpf91Q+XmYoLZs2WJwOBzxj1saxYXZJ44fbw8FwmEDeSVQIknCUE9aJAKaJaHTaRAKDvF3nr/YmfWrp97+c4+/fnWOucwLQF2wYEHoSmQyp/7c5d+fO9+cSZEcJFEERQFWi9GuYcVIIiYdWnrNqJdmTxuT6fZ6p+iNugFVTXhZkrpxWEnm11qbehENRxALyLZoWBhTMCz10uW63mud7hBkSQTPcIjHRGKgN6imZiQJQkx2vLX3Ld1t826LfPBOf/3bN77feNEx97WXTvoiwWhG0BtBwO8DSdOIxiLgeBZaDQeThRpkOPLEiooKP4Cv/m3qZGECwG4AqGms6TEf1AY0moRVVRSEQ37QNA1JEiGrIiQlAhUy2jpbNU2Xm/783vpNj924euXW/yrAPfLII6Qg4Dt+X2SsIEhgWQ6AitRMI6zpSb+vqJjzqR8uwzDaOOLWRx55JJySrH81O9e6xGXvNwR8URhNZowclYP84uQX771nwTc37zz0dFerF/G4AGuKBTRDtpMy9Tfz42pq1jC1x5vu72r1W3weH1ieQe6wdBQVp2/v7fGWdLU7QYAGSQIpaZroiNHZT6nqEEVEY1f3N2VFIcxWy6bPATTzq+u3L/zxU6/d3GsPzuwf9OslkSBi8SgIDOWeZCGBuYvGY2SxFbxG7VFUcd3K+Qt++q9siMzKpuLiYhHAXwFuQcWc3u899uKRhubAIoaloSgyEvE4SJIEz3MAYpg9eyzqG7rR1+8GRdHYvb/+KgVYe6n70gPtF9qdV8rmsPiqxacf//XvPbEYwLB6yIoMAiTSU00d869K2k0Q14pDrsBaafXSmy9+cBCkpFKLxozPcHa296WIooLD79eA4cfdYjRqIyazFm53EJFQECpJQlYEgFCLF85auOmKr0z8JV1Cqo8+9nKipcmhiUYFjckwNI5algGTVQejiQdBwllSmlYzddrIBxcvnvm5JuTSbEI2WwyqqnoQCocBgrjS1RKHpMYhyglQNBAOh0lJJMdRFJ3xX6fhxk2evDIUJO6tr+1DwB9EPBaHyayD3sgEOI30dyvmV6xY4X+j+o148cSJJtBSfmFJ0u8JULe6nIEsvV7rzMm3vMfrBd/Tv3rjbFe7a8TlhgFkZ2Zi/MT8LWNmZH31mk8YNBGSslP9ft89Pk8EFEVCo+VQWJziMSVxqtstlLC0FooSgCXFgpIR6afnzZnajitFlzzHQWswIBaLjcVQ/9hfyZGLp4vbWtzj2judi+/51vMzg2ExNxgSEA1LCEejEIQ4SJKCRqeHAhUEFPA8pVKEvF0V1CdVgnL/qxty3cLrPtHUURUVwwpSLzRcHlzUNxDAUC3lUJA5nogjO8uEMWU5b/M8WeFyOLOMSUZ4PEGcONU935Z88WLZiNS5AE595IItGo1+fkJiIYkSMtJssNkMJwhiKIenqipx6NChDzW0z2QSed/gGwXDkj2Z2ZZfd7YNorO9H5fOJxkr5o0Pmyw8BDEBo14LhuUgKRRIgr1aVdVfXQnBqx/tVLAkaY6Yk9jVAX8IIPRITjXAZOHsw8vyTo4eXfBMTk5a+/jxRc5/pANiTOE018GUllM6PbM4HqdA0gSEuAiKASRpiLxSlCVEolF0dfcg2VaQ+tE0038ccBcvXtSdr+25u7nRh5Af0Gh4BENhyJIEkqLPnz56tOlTzcktVSU0Sa7QxHVvLli8wL511/qaG1aufv3o0aPPxCSikDdpu2eNH+96/e2qNYMD3lFdrU7KYjSjaEQShhUb1lzzKVNdAl7MDnikzFAoCBAUcvIykTcsbUskJszpbO/XuJwu6LQGlIwoVDMzrS98UNGvk1ycTyGJWDAGk57NuRJW5o/U1qY1Xeq8etAZmLXuvTPlDnd0hN8vIhKJA1DBsAQIUsK40dkYXpIlRuOitGd3jYakOUTjcfT2DsZnTcr/4awpUxo37tqYtWPHjtzFixd3/09sls3CnrRZeHR1uUASJFiWhSAIIEgS2VnpsJqZd3KytO5rrhn/rTM1HTAbDaAYFnv3NegSCXG2qqo1H/g+vM4gp6ZlY2AwiEAojKlFRa7p00tf/lhd7Ye51TvmzEmsb1jfZfLx1Ro9ERekBE8zDDra7Bg/KfZOUUk219Ha/1AwEh2aU04zSCTkEgBD6veKvLrlVYORNJalW9K39XT6fyWLjKa0LOty+eQRD9900+yjACIf5MhUVdUAgyRBpH8uGkKCINRt23Y93lYYmKOqbn04GkYsJkKSEpBVGQRJQBEImM1mpKRaISvi8JDPR+LvUDj+WwBXVVXFGo1GfUv7wLPNjZ75bU0uEIqMUDgClqGh0WggCuLf9UkIEGYCxF0SKe2o2rJldiJO2h0Oh76/v5+eOX58zQc/d9etlfdt3LJ3f35+1i+9Lr8vNYOv43OJo5923bBPnuywR0hVVQECYHkKRoPufGND51UXzjZBkYGkJDMyskynV6266sPSrQJLgXigtZ6IxWWkpmQLz7+6fXGf3f2NgQH3lFBI0kejIkLRCBSZhIZnUZhngi1F49VruQsmE7cvL8cqQ5VL4iKTmpdjmX+52cmCpNDQaNecyGm9C8DDsiSTEi3p/qc2y5ykr8vLS6tpavOWSyIHnmMhyyGwLAtbsuFYUjZ3yhFkWsaMTJFj0eCKQ0dbC5OT0+H0RImz57qffm/7Tt2OgxteW3z1qu5IVCXDMRmRaBwpKTaUFOW8PHXcuK5PYq7euGtj1sadGwsQxSlTMeUtKEpLXL7Uz8sigVhMxMCAs/zJJ+6+vrG+7fq62p40miLAsCz8vrhl0869s7fs21K3/NohnlBKpSiCJJSZM2f2/O65175jthTNmjVr4rODHq/07voDt065ZsJaAIFnnnvz2z/96R+/JomK8MZbu391x63z3/o8yeolSxZcOHaioysaj5bF41FIigSVUIfm7SkEaJpBaloKSJIQGYb85aexdFdt357Jq6rv71Uj/VOAq6qqohgdU0rJlD1ui0coN39DQoh/JRiPWV0OorirzQOvxwtBFKAoCmiaAcdxYDn270Z5CJpwkSTxZMAX2dDa4ikJeKGeP2PvT89MUl97c9tWo9GykaIkKRSMl9XXDXyFYxl+0ozRP1i8YNqBT7tmTU2N9kxN17yOjh5EI1EYjQYYzbyb4ZnQoD2SF4/LMBgNyMxNgdFCn/jgNFfVfu2Gfa2z7U4hZ6AvhPa22qdjCYF0OP0QRAWKIICEiMwsKwoK0oIUKe8eNy4rZNBS3kVXLfjxoTM7bR6PeN+qRcvvff/o3gnTpxeV2F2RkmhMQTAYg2PQd6Oqqo8SBNHzSHU1/ff84ZEjR9If0EL8o1IxpaLv+TfeeTnFZng1HJGhyAoUWYXRaEBGVkb77rW7w48+ivDOYxOfmjm9cIChuEdqLg6YKJpFw2U7Ci7aH5w5vcB65tKlp3fvb5zHMBooqoy8rCR7xfwJvwOAvLw89uP+I6ESY0mQ9lWVqwRVfaS77vyoN7NzMr7R1+WBLAFuR2ASADUtzXawu91zM1QVOr0BzZft+txCfsOwIsPXALwFAHeuuNMP4DQAfOuhu19a88r66Ntv7nzN6fKMBGicPtZy7+bNx79Td6lx9ZkTbYXRsASPK/y6GI8UAPjZ59By0s8e/WOLkIiVKYoMmiKgqBQUaYgSXVEkCAkJBr3+zfoL52s/7TpCIvG1BKF0qqr62hfJXUMDoBSC1KmkWkG4uJiiKhc5Xnsp4FHvbWtyg6bZD51PWZZhMBhAkCq0PP93mYBXLV7VsWP3jvKAP1xy7mQXwkEQspzIMlssMJmNDxgMmgcoioSiqBjo94BlGDAM81RLS8vR4uJiAZ9QuUIQcXMwIDKhcBwcr0FaZgrSM80tXm8gNxwUCZbRIBEXoNFSwoRxRa+oqsq+ufHg9O8+tuPbLnfs6vYelyYaFWAyGEmSJCAkEuC1FAqGWeN52dYjmRnW9UUlaeeunjrzwunTZ5geR0/+pt2b0hSCNqmKugMAPN5gPMWm3Zps5b7r9qgERSho63SlvfzW+tue2/Xcazl+v+bjaYwPZPXq1XRzc7MZgPOf3bAZY0q3nT/X3+cPBLNYmoEsK1AVEhqGLJl+9WTr+vVhr8nECDyvVs2aVuDyegMvXrjkN1IUierDDebeHscdGRlpC3r7QvnxuILcrHRMm1K6fnRurg8APolPZOWilTv/sgePKTv379+fV2B9oLvNScqKAL8nqt2x42Rhis2wT6Ohbg4EEiAJAom4DPtg/P9R991hVlXn+u/a/fRzpvfOUIZeRBAVLAiIFJGJJZqYRE1MT+418ZobIN0UE1NMsGGJbehtaMKA0hk6M8AwvZ+ZOb3svtfvjwGDCGpyc3Pz+57H53GYOfvsvdf61vrW+73f+4llFentV0N/d+zYM2zb1lO/PXOy3ReJhKGoMpqbOsbEYtG3r7tu7FulZdGMWExPOX+ux8tw+NqePbV/vvnmiZ+oYZni88BhlyAHZJCL519KAWoS2O1uOB0OxdT0d64VoREC9A/EbuB45otHu7vfxD9R9vzSantw5fr1SUKwQ5CYL0VCbOjMyR50dcUwMNCHaDQMyWYHYVgwDAOvzwa7i7lW4phQSkEIoazA1pkGMTlOZEXJhNvtBcAhFlHR35uAkkyCFyVQaJCTCgp7nKMbOponrF27tvvEiRPtV76Q+oa+//D3hoo9Xi80zYDTa6O+FM/r4XDs7mAwBs1Q4fI6QHk++erK93/+h1e2lYVjckV/MEksgyIeS4LjDKR6U5Gf60ZuTjFSM9y1XpcQkjjrFUZidk6/7oY+AJg4SI6+pOb8wW4uErEls6Tot8PKeu5/z9+Wp6kGWloTTEtL38NPP/SN5wkh4Wu97JEjR2p/r7NdTBzTSwvQ+PHj+//7Vy9ubmzpfywaTQ72BAegqka7mWKTK2+aY2JQej0B4K/rqnfUEebo5vPNoWyWt+HchQF7S0u0mJc4wASm3DIcuTmschFFpJe+c+ykseMAYOHchUevXPw4IVk3dFh294nDnXnJRAIAw4RCsjO/ML3V7XUgGI6AWgZ0PYm+7hijxVnHpWYul66xdOlSUj589HfbWrt8sVgETqcT+fnZNJFI4tjhC2kOm+O2r37js3cIgkh/9YtXjoVDCV9DY/e9AH77Se9MEPnm1BQvgoEoKAVEToAFHRQGMjNyMH78yNOPf/meq0ZSB06dyty3t+7XLe19N2Wl28+nato/lXPJXDyz2RjGsHTN7A0HjLfPnen/ektTAJquQdVkMAwL3dDh9njAcSx8PiGem+Vqv9oFt23bZt+wbUMpAEiZ+W0Mh4Nlw7zq1Gnlb10/bch/X39T8aqJU4pXjZmQt2HCDUX97hQWiURikHpDKQOTZvX19XVdbfWJhK301tYQIvE4BJuIguLMugfum76ivz/ORaIyOJFHUlFwsPaMt6ktsiAcpyN7+6NElRXYBBMlRR7MuWMKZt86BZPHj0BuVoYqUi4GHW/OuiVWhTgSNZeFhFVVVcK6detyLk3CNZvWDFcUhZk8cmRvUUnK674UDoZhwm53YiCojlm/ZcuCf/a5bfyN49Nramo+JIE3cVzRc0UF7lg0GgXLchB4G5Kyyt4yasZHqEpOIdk9ffrQr1eUpwy4HSw4QqBoKhKxBHKy3MjPdb8g8PoLlP7Np0ZOHjnGsIwHTZgDALB169aUy7mLguXu8HjEV3LyfKAWQU9vPzq6/E9Ounl0Y0qa6xy1DIQCA+BZHrGQzAQCsbv5dN5+eWpg2bJlFsczzZIkgoBBfn4eHnrowddGVAzvM00T5+rahq98a/czb765eWk4lLSzhAWh5FMtVgxjtIsiD0mwI9WXAUlwQWCdIBDh9bqRkel77WrM3+dXrr2xesuxrReaw59lBYmkZaT/vPifrF3JXUyEuk2CsSxLYpE4sbc3h5CIJaGqCZi6AbfbBVlJIpmII8XnBsPSfimXuWrTg4shSSMAzBg5Mk7pmVv2HB0YOn3i9I/siLUnT45av+rY7v6eWEphUSaKinL+c+7M2VfNkfn9Z7JWrmt0qiZgMQw0U0NC1r2Pf+f5He0t/VMYjocvJR2UAYKxANraWsCLQElxNh09qkAZVppls0yKg/vasenwPjAgYBhG5DhmxtDhKWNVNcVeVpj6wsSJE43LWDYapbTn0gSpqalpmTF3hgIAt947/kdn67tuDAaVaXZnCk6dbucL8u0LAaz6Zw7Q/Nvm+z/6b7ed+tGvX3w1GNS/FgzEUFqcirRUqZ1eZRIFg2roocrK1TU1+0+ea2ta2dntHt3RHQh73V5alJf56y/dP+/XV1ZNnDl05uSyZcu+VVVVxVZVV6UnteTQlStXHriE5s2YMcM4d67r2cP7W79yrt5MjUcTOH287bZ3tx56OD0zrQ5oHJaIR5GZnYdAIIqOjp7p1916vb5u3TrnJS4sAKRluNdnZvm+Jkhd2b29fhw4cGRW/dlzaZSaCA6Ese+943fxAoN4NIGS8iywotX0ad5ZeranxptiU1JSUiWWYWEaAFE4pPqyUT6sZN3n7r/jz59/4DKAZNue4vozLd+vPdL1uUQCoshbyMvJenn80LxV/+wFlAMGhXFWbVgbZzlhmKZpSCaSCIX9MA0KhmUQT8TBsgSUmnA67ABI97Th0z5Rznt1dfWkv7xY/7lERL/uN795Z8DlEo5509PWigzVPekcnTB6dOvh/V2HU9N7ZjlcAlwu24fOD8eP13gPnO6t7O8zbvjLy6fKTp9qn9ra1g3JLkGNJ1Dzfn0ex3N5lmGBoQSKIsOwDBBOxqSJBRgzuhD5eamEsbRmQrVDSU2bKYnEEQ3KvnhMAcMANskBt5v4ioe45kqS9OLVoOaqqip28eLFFiHkg9WumBQrb67f9FxHd2xaa3sQJlg0tcTveemd9Vu++Jn5f/2fDMq6detcsMO1YOaCbkops3LlSntlZeWHdq8pYwp/QGHKHMcWFOSnXnC6sLeqpsZZOePDu9ylMG769G3N/lVDNmePzpfuuHnU1xyS1DZhwtTG7zz+t5l3CaGcPHkyTynVVr670qlYSlKKS4evzFUNG5Y7sHTpCzsFG1uZiCXR1d4DJVG2lOMN6LoMwnAIBPpAeA5traGsULeZvWDBgg/V/d164611f3l+zeuN5/uf6Gj1Y/eu3ZkmHaxGodREMhGBAx5kZmUgvzBj/7hRhZ+K/1qYnRrlRUaJxWISy7KDgJ8J5GRnoHxowcpLVRq1tbWe/ae67z2wr/FHHd3RDIZhkZnuRFY6/8Z3Hln8pX8mWPKRtIAcie9yeFPXJhPqF3leIpkZWegfGEAyGRvUbLdYMMSCZemw2T+dNoSWVJ9pbw5OO36oFSzDIy0tZbbT2/9fTrdE44kQ1r5zpkdXkJKMJxGNWtD0xN0AXgSA2qZaz7bNp6pPnglP6elOIjgQhmnqYHgWgypTHES7DaZJQVgdSlIFsQwMrcjFjTPKIYlaUhDIeZjqCUU1NnKmtsGdYSsZOy7/v9svhB6MhhPgeQ5FpT46YVLhLwpyPL9sbGwUAWg7duzwhEIh+YMzRx6E559/3rgSvSsuzz3g89UHGy6oKU6XEx2dMaGvN/zQ9l3VHTNvmbPnHxwTYgqmh+jEfpnDf0Qr5vbbb48AeKKpaYfnbLtqu3P6nf6VK1cyV4T3DkEQ1BkzZhiELLMA/OCdNW9Jfn9/6uK7P7PzShBj9abVRTU1NS1hJZz9yiuv9DocDvmhxQ/pIH8LwFZtXDWEsEReNGdRp+SgmtMlQU4koetJmAY5QSyaC9BsQ9cgiBYIBXq6E/bzdV1P1NTUPH6l5ovHx5hpaV7098TBcxwSchw20Q5JsiE904fi0uzWnFzPG0OHZ/5x7NixnyofN2HChP5Nm0/LHq/XG0/EoBs6MjIzkF+QXj9r3tQdqzbtK2zp8E9+bW3t0lBIHy4rBAzLwu1EMj9XeurJr332d09968H/vTzc8uXL+QcffDC6YfO7mxmG+4KsyMSiFkSRg6IQaLoKgRdBOAEOlwRfinvLJ124pqaG6/KHg5pmwe6wwzSBeEJHKBQg0WiUhENRuN3OXJZjIIgcUtOdlGXIC1VVVQIAQQkrjkBQGTEwoCIpJwBigWU56JoGamjQDRO8IMDj8SIUCEBTFbhdEsaMKepNSWHWWzqeYQ296Z67F5oA8Ob69Zndzu5WsSPnKKA/SAhFTnYmSoekND7yyIhlhJR/oFqcTCYlxaMYuNh8pHLqR5tMVFVVsf6ONq2sOOd8W4c+RTeAgYEATte13za0NLUNwHtXQ1oppeS559fN7/fHxhFq6LkFrgNfenjxhya/aTPDlTMqLwE19NLuQillNm7cmHJ5Z57S0tsjuNgt6MoE7v79++WLgMvfvJkhp0DJ6Nra2rUXgaHLE92XFK1ar3hWZ11dXXLZsmUWAbETKhEAyM3LOu5L6fxsb3c/WM4BU6WtspyEYWrZlsnAJgrg7A5oho7+vtDoxx686yPzRHK5Njk8wpMOpxMEDhSUZipZOb53fW5PvTdN6hx53dDVM6dN6P60E3r9u+szN2yrXsbxyIrFo7BMArfbgwkTRmwbdV3p27/68VsvBIPJ6TpYT0I1wAoMbCKP3BzvgbIS37JHH7hr2/9q4vutVVUrOYEPvrNuTW0skfh1b88AQwgQjUYRjYYH5wwdpOOAUHD8YOuyT7pwf38/Jax4PCNHmufx5TekeFOOxWLKlI62UGFnuwFe5EBhweNxoGJMnlw+LOVpbz52q0m1XJXV4LQJ07p/86e3v+1xhV7q700Qy2BgmoMtsSTRBlGyQVFUqEov5HgSLICCvHxkpWWu+MxdN/zX5eHZ8ePHE/fPn+9fUVMjqXrIbuomGEIh2RkUFmU/fbmzXQqxLwdO4IOt8vYPtw1evHixtXLbBntxUdpv3Mc6qs43BhjCsGhqi5ILrZGUaznby6+v+frB988929uZhCQxoGbeaUrpxMsazNO63XVXhaF3797NWJYlfNrBvRrwxLGcm1hob25uti7tglemAi6V7wDAhg0b7KZpXipahUjEdo2qWWs2rRluE5x1DKtTy7JINBLD8eN106fdNPaM3S4hFlERCoXhYljIpoFgMO4FIOCiRMYHyfyhJcdKGnp+xDLcYyLP9026ceQXKxfeeMQ0Px4cJAzBqk2br0/KctuDixZ9kCpQqarYIa5LxOW7NE3PUVQVKSmpCEWThetW7f5jLKY5RNEOk8ShUxNgKfKGpJs3Tir81l2zbj78v840oZQSYmIXYcl/gOXd4VAM8XgCDDNIHZLlOFjCXfyZBycwMHXrE1vEVlZWmhs2bPhlSVnqKd7DtyyYPud4bW2t5+jp3nk5hfbbQegkSoV3nA4mWDIkbee8WbecXblyJVdZWXnmA4b8UMf21NSKvpby0swjh1vQ3t4FQljwHIcUnw++lBSEg0H0qt1gGAbBaALbd9V+87s/eP7WsqGZdT6feNzmFo4tXbr00LJly6wv3DJDefb3VfmJhALDMKBrMgwj/rFFqEPGDEk3dZOllMqbdmwqvGvmXRfWbl2bTwjpOHOmqn3kyPmNS3/1xvoev7wwHk8iFtHQ1NJ326m2UyWjC0c3fzShqg8PDchIxBUoMkUsIvNAx4eqs5cuXUqXLl1K1q1bl5fkk/EH5j5wuaZL9z862CvXvjXd0K3DlXdXfjCxIpHIR5gWc+bMiW7YsMFuCmaqElX8Tqfzg53zzjvvDL++fbtm12MTHG6uo6Awt6W5wV+iKSaCgZjH7rIFMrPSaDzaSwAGHCuAZzj09QVLt+3dOwTAyZdfffUOUNf1OcV5L88oLu4AsOTUqVO/847yKgWk4FN1XXrmmb8+e2R/w1dLhmQ+AeADPdSLC+PWHy1980Wb3fFDWVUQjcVx5lTTMFbgYZoKYiQMWUlg1LhCFJfmPO12syf+Fc4GAByXm//goilTlNWb1qbDMitcbodNU3thmAYMwxzMHFAKnuchiTwyszzdw4ZlnLmysPBqllOW45k4YuIHqGNM130+N+ktLil8g1L2zMybR75IiPfyxhgfYmDIQVm220iwtMSV2dogoa+ThcUA2ekZ0KmO3p4OJGJJUEphs9uQVBU0tSftPQO2686cHbjO5eEezsqy9Z441dP8zPI3NpYU5Tc21fuHaroFSgh4gaiCIHRcY1DJS6/89Wtvrdi9TI4TbMk815Wdb+vdtH3TN3SDffyVN9acP36GDN2yZecf/RHjd3lZHQtbO0zYRTtamgfc+99vnFlzfO3biS5emjt3bu+lsG3FiupVHE8eU9QkSU/3IjUj5Ty5YpI9v/F5m0/xGfAhyod4c9XGVUOKsotaLw8B/16rqVkhBaLsZyiPH27YsMEe4SLcg3MejF6eG1u+fDn/6KOPGoQQ2pPTo/v6fErl4kp9ydIll/dcoys3rh1PLMLlpud2JZOHzKSsgGN4uNweNjMr88X8wpzxHW3RYoaw4FgWIlhYBsPFBuLu/furbAePJD9ff7L13pTTvfeu3bjnWynpaBg9evSnavU76GxvPXnqeNdXXT4+keLzbbzyb15buW3y8cNtszVDgyjZwBAOHq8T8XgUyUQYhAATrxvWOfWmEd9/+IE5b+BfaBwT8M/YvXv3dkKYFkliunNyUnKa3H22RCIJluUQi4UhiSJMaiEzIx0uJ9cVlsPjKqZUHMBVushs27Yvo7MzMtM/EK7cvb1xwl9e3rKCZfhz/f6+O9e/c/yOWEz1Ucs0OY7Q3VvPfvXZZ996adyNuX++afxNlyp43bNnz44RQmhlZWVww44NswyNPuWwcQ9Tw+AJw8DrljBh8ih09/TjbF07oqEoQACHww7V0qEoGqJRGQP9Fnq7bVkH97Vled3OqaUlcchRFX0DMUiSAMHmIIwg2a+1eHCslBYdIL66k91g+G7f6PG5Fb5Z5W+3tvSNfn9HA0RBwvCK/M9UjC2sHFLm2+Xvj90CywZ/Tw9OHG19IiNtxK2UyDqA+z/YUZLBIcmkQgRBgMfjhtfnOXlpsqenuwvuvvu+psfmPZa8fAFavXp1/FII+I/Yhg0b0npDid+xsNoq59/bv6JmhZSeSLcDiH6IHF2U5lu5cmUYgPbYxMf0tVvWOqpWVgWFcYIdlzWZZHVav3Dh3cFDJ08W6aqaDcpcpJnphBCq2u18nFoUrMCBZwXIchKBQAKhSDKN6tA8bsd5OdmBg3Wdw3p6w1tHjytcv2XL3u/NmnVDCwDS19fHZ2RkqNveO5LV7w/YkyFL6Oz1PzjQF/V+7fE/DB/oD05LS0/tHDoi8xv3zJt17qIjcm+u3Xj9ufPBr723u3FhLKwLoiSBQoWSVBCJxKGqMkzLQHpKKkqKCpr+1c42OKd4nJ4xY4bxevXr77vhe9bu4L/t9XiKVc2ArERhs9nBMASXlJ0E3nlw7u1zr9rdZOeePTftf6/5hcZzgfJwSIZpUticwlOGqcHUAUM3MdDfD11XWZbh4fF4CoaPzF9GYY0gBPdSOhjOXH7NebfPa6fU/90TR7rmu12uTE3T4fUIcLuNIwN+uSQ80J+q6yZ8vhSMHVVoZeXbtAtNnVJnVxR9fXGomgpNN8HAhubGMMLBEAjPQqcWGMFGGJ6vWPSF2+qXLl0avhwGJoTQLe/Wrhelvh8qqgpLpUgmdWIZ3LNaErOjQeWeSCgMTbbS7U7+u6PHFf2woyNxY2urwks2J/btbyjOzS4qFjj0/uzpt54vGpry0v0L7jikK3DwnAhQDZJdgGhjZQB49NFHOQADlN5LroSjF112RrmcEfJpTaXqLRzDZSxesPizADDKNcrcJ+/7iMzDojsW9S2vXc5fSg8wYByhUIh57LHHYpfvgoZg8IQQSintfcf53gChxElAYBkgMPgEx5E+EApKKXRdB8eyYAgPSnhnZeUi8+DBg8/098VHc4ywsKmhCz0dA/OPHm65Y82qI+3xaAyEYXkGvEoYZEWjcQe1QOJxlTMtCkHkUVKWkpw1Z+zcu+668WRtU5Nnz/bjD37zqRfvDwdi18syQ2BxoCagyCp0TQdDWKiKCkVNAtQAz/NIJuTrVq7bPnHxgpm1/1KHWzhrYQcAPDjnwejOvTurDTP+83g8AVEQEaMEumHAoiYEUQTHsRA5lq7dsrZowawFbZdPjHUbt8w7uLftpYPvN6eFgzFY1ASlgN5jQhAEOF0ORKMxJOJJ8DwBwwHxRBQN5zpBmPSFb1Rtm3z+zP4j06dPZ66Ejtvb/bzP66OpKVEEAgOwSRyKirxftlTji235ocfr65qgCgm4HCqTn+c6m5dfMMQwOfj74s66+i60tQYQDQ5Ajmuw2x2gJgvJ7kBrZ5B/Z+XBP42+kDv/dPH613fu2dMt68rwubfdsRwAqKZSXhQh2STEE3E4XXYjLTNtl8jYT5894V8UCbcR3bTAMAw1ZW6opbFETibhdLoQj8exZ88ZuG3uLE2RH4nH1Luqd+yed6F+INc0KOTEYH2d0y0xv3/utSXf/OZvPysnNSYvL633xefXrM4vTDsE0O5QKJGWTMrIzHdH5tx2W9+59nP2YQXZMsv6QlerFVu3bp3r8uQyALAM67GI9cgHTJWPCU0zOjJy9RxdB9A1f/b8jxQAP/bYY3pVVVX/ReaJxbFsUuA4gBIosoW2ts4JnMBYgsCDIYOV6TzPQTcUxGOxLAC4/vrro5TSe3/961e+yQnmE51tsbTzdZ0Sy7LlHM9DEiUkkzI4lodh6oO1JwxBdl4WisvTNs+cNfyHxO0K/vwP67+34vldX+zzJ4bIigVFVgHLQorPCbtDtHiOY+TExQaSAgdqCVBVDYqioqur3zZsRMY9O3bsaLn99tsD/zKHu/yHTG9mB9D/htMtPRqNqBBtNsQCSbhdDjicLpgmhaZpMVZn+y53tr1717ma261vXDgXTItF4pCVJChlYJMkMMSEaWgIBlQIooC0jBTYHTzskgMD/f3o6ekEL5hC2bCMx6+fPnZJp9wZvDLUqW/wTwChWdFYFIqmgTAEsXB0IoWe5bTbQQCkpXmQmZW+lhO5r+jJ2BSBpc9nZ/Cc250rTZ5UhK7OGOpO9KGlsQuWRQbbJqsqlADhdu26MOdUijCH5SjS0t3aT555a1phfuYrCR03RqIKLBAIkg2SJHVNv35s1/PPr70lFk8Sw6SwOWxISU09eK6+7zuN53s5VTPhcLjgcDjQ3TOAiJCAntRQWJCWlUyYi+Lx6HDTpJAkCXanzcjLy95be+jMin27z5RwjIje9lhJZIQ+taU1YNafaklquu5SVBUOt5Bc89aJYDIuMylpXvOZ3/913Te/ev+3LpWs1NTUSNOnTzc5jon1xHoy6urOV6hyImZoRsDUjTs4lvPjMr3KS4JGFyUKPjBd1zt0Vvdd2knXrVvn0jQteXniu7Ky0ly3bl1OXkmeW1E0CgpwPI9EXMNAf+RWm2jz8wKPSDQJsAwslsDp5iFIwuURhAbgV5s27as6crT+x11tkQf7euLo7wtCVRR4nC6ohg6WZ8BwLApLsy6Mm1T+msvHN27bc/a7Pd2RmfEk0ixKQShAQMHzOkqHZLaOrCio7m2NjGs61zrF1HWwBLAsFjzPQzcIYtEoouF0nDs78L3+EJtaRau+XEn+NUWoH3K4ioqVxtnG62gklIPag83gWQ42yQ6GMIPtqXgehmW6581b+CHYOixzt0TD8q39/ggUVUNWdhqKSjL9ouBob2vvmtTW0jPYyNHnwaTJQ09n57i/bxiG9/zZtpf3vX9KNAzAUKh7zi13t9Ir+ElVVVUsx/MRRdH0WCLBG4YB0zQBQiyL0mQgGARDAJskwlBVzL9tlh/AutXVq2t1yjsdNvF+Anp9ysjMQ1S1PdHV1icQYoHjGPA8C1U3YJgGmpoSECQJPT2mcOaU/7Nu94XPZqSm4fy5LsiqBlHiwYusAZwUAB6E8IPy3yIPyck7ggOJPC1pQjdUKLIKSXLAsgCbwAOGBZ434PU4DsqyPjUWi0MzdPh8nkAokBjW1REtSEv3IS8/PVQ+tKAqryBn547tB15qbgq4LvUy6OtN2i/UB+2CIIJhetHW6v26ZbzSD+DHAGAQMuTpX7345a9+9ZflP/rey8UMrIKKUcPlnHzXr0AT1VrSjF8Cg1iOoXPmzFE31G6wr6hZIT084+EP8QV5hY8CoCtqVkgLZiy4KqNI0zS/pmmpFGaOrpvgWCCZkGFa2uj0DF8tz3PgeR6GZYATRLhcNthE/iM769y5N7SxHPNQ1arN7zQ1RD7T0eHPjsVUwoIZZlhgcvLyEk6vU47L8vEz59tv7x0I/iieIEQ3DFAYcDoEZKbbMKw8Benp7mWz75zx+5K0lOB3vvuHowLPwG4XoaomnC4bDJOBLPMACAIDAXS0OZCZVzi65Gjev6wI9SO1W5ZllmbneuD1OdDWGoUkiOA4AoEToCRkMMxHy70YKsQDA31mNCqzKWkeTL15+JlpM8oeunnqpNNPP71qSzKp3tbXG0RBYYZVPiLvv232iC5JYq8vddgrvf7QYwP+GGLx5OSTrSd9ows/3CCek7hbk2oyO5FIMPrFmjzTMGGZJqsZRmYkOog68TwPTaP9l84ZRCHyA3fP61y+fPmPfT6ftWDxXLJnx4rHI6FoCs8LSE9LRVFZEU7X1yMSjYPjucGXYVFEYwpCgST83RrkuAxNViHZ7bA73Dwwhtf1ttGKbMLh8MDpcgUsE3n+7qCHGhSpHh+cXgdCkehgrlDVcd0NFRgyLGXJzFuvX/e9/3z5KYawME0T7c19aW++9u6fBEkMLKicumTc9WWbrx8zphMAfvDD5V/saA7dEQpGYZomOI5BcUkeAgMhKIqOjrYg/D3yo5TSX7+9avPsqr/uf+nYkSavLMsQOAG6puLYoS5+8rSh37l1VsVBwip//vPzb973xPef/vZ3/+M3qsvlatO6OHnU0KInOZ5VDN38YPfCoEQ516/223Gx6rumpoa7PNSvrKw0393zrs00TY9JAZ6XQBkCTTPbo7GElkwqSMTjyMhKh0EpNCNpinbh0NUmoWlYWLRg9mZc1vl0687TU+sauh9sbvPPqDvVUBFPaKOcbg8icYpkPA6PW0B+rttfUZF9vKTY1ymwVmJ0ue0XBV6vQiklP/rpik6e48YnKQHHcxgztuQQI5rMwb3HJ5n6oIL04OLOSW53H/MvDSnfXLn6D5RY9OjR4u9aZvuvBMma6kt12vv77BB4AZFIGKZugIABCMiVjBKFMwiltJ9laFaK14msLPvR6TdcdxwAXnhh63qbJNxGQJCa4okPG5J3uLE5crtuKA3ZmVl/yM3PfjgcUgVVpfH0gvSPFGYKjHDENHG3qmosAYFlDmowCg6pg+WSsezsbGhyFxRZhiarSQDIzMyUTNbMrqqqilVWVmp79551Pffi6p83N7S7BZaDwHFQkzKGlBQ0srDsJ0+fz2EZHrzAI5lIQuIEaLoK1qJw2CW4nR5Ikg37DzblffVbL51yOjx2zeRgQoPT7WJMA7omm7DbbPB6PBg/cZi6c89eAUQkBmOi09+J8VOyOnbvOzD6ndcPj0wmFPAcj7q6C2xmZjru/9zsZx55ZPryy587Nzv31bTU8B2xcBKEAEMr8uUZM6//+fHas5/b997pUlXV0dY2kL1q7e6lO7ec/urhgw0Oy6QYNqwsXlpaUHfieN3EAX+YPfR+g8/ucMy+bmoRDh86NO3I3lYXz0twOBzTEhEr2XTOxz304A8qeN52Pj3T01pWlt1s91rnABxJdeb4jtfVZUsME2rtbRWqaqoGKmf8jdMpCILidLpDNps9FYQBIQSSKPWpmp5jmfQiUcEAEXg4Hfb+abdMOfdxk7H2XFfa0SOnJnd2R2947Z1dj/kDagphOFgWEIknINk5DB/mg8+dpvq8rmfvvLnimdGjR/uvxn/92c9eb/qA/+t0wpsuHfX6uOT5Otekvt4QTMtAW1sbiof5fC7XTA5/R3/0/1F5TtXaDduDwfAjwYHw15s7O0skp62B5ayOnHw39Xo9MAwDDGEHX6ZNBMdynVcySsyEPpxlOTGeSCCRTABgJr5/+FQJpZS3LDqWUBaiKGKgL+g4V3/+jnsr73zt3kXzD9o8bgaWRVQlCZZjCNMXIFdSigyvYRDGyhUEjvI8B54TEAknEB6I/4BhMDSRSEJVB9EoC1YFACxYsCDGmmyb0+kkANDQcuYHZ471fLW7PcwxDANdNxCPJnG+7hwtKihoys3MgpqUoSaS4BkGqR4PnHYnOI4FLAICMthpNAnmbF0w/73d9amBcAwGoVDUhNfUjUpZUaBqOhKxOFJ93sNFRbkRw9QBAjQ09eBsfdcfo0lrjpJQCaXWpfQmDF3HgL/3gYMNB92XLWISw2C4YZgwKSCIIkaMzuucMNW30+kV45focJrCMI310SeOHWlymAaFy+XAjJljTi7+3Lifzll4HVxuJ5JxFbUHGmFo7OwhZYUujhNhWUAsGsOZ0212RbE+f6K2a9KR/U2f3br+2A9qDzW+bBm4NarrE3dvP/3e73656vjy5ZtOXajzz/VoHrpq06qSS806b7z+xrM2yR622x2QVRWCwMHtcjhNXR9lmSYkSQJhCJKqBo7n4aH0auwb4Q+vrFv4zf9+6a3f/Hb16Z3vN206crzzyW6/mhIKRRAOh8ByGsZWpPdPnZDxzG03Fz5456yhNz359fu+dzVnuxQ2J+V4RTwWhmEMSgASSlhK2QHTsqCqCliWBcNyiITCSlZW1r9O04QQTHe73TLLsaJlmpMXzp792rpNmx5lC7l17S2ib6AvCIDANCxomg6TIuMKRom1dvPGYpvd5nM4nAgGEti6+VjFoYPnj+/YeK6n4XxjaU/PAFiWoL09wNbWcn/8+dNv3cEwxNi+6Xh+S3M3b1kmLEqTGRkVH6k90mSNsRGe9XrdyMrKRl+vH7pugVoMq+m6PRwOI5FMIhyNIiknM3fU7vDcPvH2yCWkrqqqilUtJtuXIoaGDsv1WRoBIRw01URbY/eQjpa+IQzDglgU/q4eCKINoiSA4wTYnQ6wRIGsqFA1GSzHQxJssIkClGQCqmqiqytCi0sYi+UkKEoUmp5EW3Pb0GFlQ7iGCz0wDBOmQVBX12kfObzsVlW3dNMyRMZiYZMkEMrhwnn/6PTd9vsBfCDi0z8QnRIOJcEwBKlpXqSku6vLhmVd0FU1i5oYFBFi7eTk8fPQdROiIIEwDAxDtTEGrXW7pc12pzAvEVWh6xb8PdG6ouJ8JSv7woSONj9YjoMgCNGCgqzn0zO83+ls8zNudwpsNkfdZxaO+/X2Xe3XtbWGsmsPtJLSsoyUotLUWzMzsULuoinTp0/vXrZsmQKAicfi0C/KJ2qailgikmazOfc6Xa57WEUHywkw9TjsTnvM5/PFMJj7cL/4+7dmdnbG5jz6n89P7u0JjQiGDbg8Xvj9veAYwOd2YFhZKjLSnPtLStJPlpembp8146Z1n3JeS6Zh5CaTCfCcDaIgIBGPE5fX6wG1QBgCyWaD2+WAy+lafXkVyP9+4puws1xeZ7NhGDebmtYAAAvmzn1vzfr1Xy0tzfplR1M4LxwJgxd4xONxDAz0VFzRwJ0SC7tNw/iGzW5n/b1+xC7I4FtZ92m2xx2NRGF32KHqOhhWwPHaVod4mr0XYJCUY4jFY8hITwfLkPKtu3YNBVB3mTPHq6qqWHjICQpD7vP77aZpwWl3ASCypipuTVNBYSIRT4DjuBFMghlzkTj8wVmDUvq5zanvzhk1xkiPBGOj41E4NJ2OjoYTSCRUp6HTQsluunJzvIPM8ixP1ILVmkwqozs7zItl+iZgsQAoFFUZdEpBwEBIZTZtOeIJB2PgbCJsgoSD++oz3KkeWLoFyzAhiXb09iRw9GjHbYGQBkG0w9A1sCyQSMTRcK4Tbg/3nVWbdm65Z+6tbcOmD2M3VZ/NS8oJWNRESqoXHrd7X92xnmzDMBy6pkGSbMjKTMf5hvOD6RdDR356Duy21JcmTpzY887a7e+npXvndbcHEQiE0HihM3N6wchEflEmuroCsChFVnZm9/z5N/+15t3DX25r6XFqmgpVUX1AkdHefGLYQG8MWTmpuPWOCb++Z+HIpw+fPSf57GknQqGQB4ASRtimJFVJTiTBiQLSM1KRlZb7w2A0XsDz3D2haByMyEGSRHh92cYPn171tf9Y9ur133jsmWnxJM2Pxy0oig4LFgzNAKx+FGa7MLIiGxkZzg3ZmU59THnRt8rLyzsvL179xHILQuSnnlreKYpShSLrSCaT8Ho9rMCz6bquXUxmUnAcQXqqu/dfmodT1MS9D8yvfPRyhjillBBC3vrNb9+5z+7i8wzTAYta8Hi8cLnc2pWRgc3h6AJi1DB0EIJBvUTKDna08fmgqAo01YDMJQEKqAqFoiiw2yXYRBscog2mpnNKUku5GicTwNply1bUsix3k6YpEEQJusG8yrL8LEJQybEseF6AnFCTYNF1tZieUlp9eSqD0hZp++6z98ycPnvV7t2n0noHAhN0PXF9IBBUS0qzt86bPaxh7cbTk8+e6/v6iWPtswJ+lgiiHT6fD+FYEsmkCkoAyhDo1ILT54KSlJFQFYicgO5uP1RdRVZeDkRJgqqq2H/gNMykAZYhIAwDRZUh8AJi8RjOnfMPGTqq4GcAHmg+PjAiEIwPNUwDoARerw2CzRgZCsZae7vDkmlaoNREaoYT2fF0tLS0gGU5JOJxKIoiAIAnxbHf43XLFqiNGiZ6uvs8gsC+qBvytyxqSYQQnDl9vvQ/vvXM1qamNjvPC1A1GWeOt2b96Y+b/trW3DfJ3xMks+ZPjEy+Kf+FvLzBVsgXK+K9AAIHdx3LDUdC2bw4qHtjd4ja0Iripl01+x6RZRmWZUKWZVgCg/0HzgwXRPZZgENSVmBaAEsZsBwBAwKvw4ZbbxmO/AInbHY6wFHt5/PnzDx4eaT4aSf1gQMHMjdvPj6a50VwrAC7XYIkSI2xcCDfMAYbexiGAY5j4PQ4z/9LHY4XhN9cVs5ha2hqfv21t94JA/iS3c512R02wOIwMNCPSCwOlk1Jv/IiSVVNYxiGo9SCw+FERmYGFFlHIhGH0+kAhQG7Q0I8mQQB4LCLAKVw2G0IBsPQdR2EgcmLtqsKqW7dvfX2k4f7J9gEAaqiIRSKQpOV0R6Xoys9PRXRUBKEAppm6R7Jk7zGqkcvz0Gt2lI73Mt7N14MJzq3nXgtdMfYh9Zfno6orKzcQindumHL7snn6zru0k1jdFF+8bZANPLtcNQsCUbiscbmXlcoZACg4G08VENDQpchShyyMjKRlu5Fe0cXGIYDJwhQEsrg1CGAwEsgBBB4Dr3d/di17cRnfvKTv9JNVYfzm+p7SDwZASzA5uDh9DgS7Y3+LylJcKIogRACp0tKxGIRO8/xxLTMwfwn5Jnr92xbH+iJ5nZ1d/MEBJJNgM1u7ysoTX2Zl+jdDIdynuURiyT52iN1WZZlABdrDAPBGLP6zT2fYQhBSWm2MXpc9nO9Xb25b65fKQhENPv7+zs5icsA0ORvS0zjGS/DsBFomgFVN4S+QGKMrGCUog8SH3iBh93jgW6YiEcUgBBohoa0NCdys70tpQWF+vm6zvJ+fxDEIGBYa40osr+cd9ucQweO7h5+/fibmwkhHwE0GJZg07YdIw69//65K2l5NpuNiqIkciyPWDIKh9MOX7rD29LUVRGPx8HzNhiaAU+qhOxcW/Rf6nCxSOShV994Y2JJQcG9p0+fjtvd3qhkt31x9fr1naoqRRwOifZ0DRBVVQEQGIaZfaSx1jOxdGIEAKo2VuWyRLfxIok6nS63YTNQVJJpUGr0GrqMtEz3ecnOBiTBWSurkSmGafSn+LxNDBgQYqbKqvLEqeOtcPrE/kljhl+VSGzohp1l2HqHwzkpEkuira0DZX3ur5WV5/h1QwbLsiAsC0J4YSAWu1IX8iNUKJZlOc7gSur1+vrV1avzFs1Z1CmE8s3LhW4uJXovOupBXKZavHbb2gM5hjA9Nad05/Ej3LrGJq2wqTmAgUAcvCRClZNIyiqGDCtGWXkxuno6oBv6YOpBFABDB8eJEHke1DBBDQsMKM6caGU7WkIPGKYGUBM8YQGGRX9PBM11gRuaLgRH+3uCALHAixIsCwLHMYSCBcsSqKoORaEZXj711j2H9/2ypdHP8cIgyyI9zfdeRVnFhf9etvwoy7SW65oOnhMAMDAtZvAlUQqGIQiHw+AFFteVF++/b/Fd//XKK686pLIy656pU+Wqqio24oocB4CYrN2YSFBYlEKnFgaCMl55betfAwMhBys44HG4YVANvb090A0NqalOOnr0ELN0SGbY67EtHTcyb/uF+v57ju4N/Mzf2Y1D77EI+HO94VDom1//6nP5Wze08u9WN7c9/avXW0WeOTxh2pgjPC9YZ481j7zQ3PLInndPzB45dvTNAI5UVVWxgiDYPR6P3j0wkAbKabqu4VIw5rCLOcmkPEWWB4kcDMvA6bR1cLz+L21Zxdls9kUAlM6+vqdSc3Ofs0zzZ6ahj6AMOiXRrnM8h0g4DJ7noCgaYjElNqFE+oDdzjv5hKVbh3OyUx4dPSH8M0FEalFJyqLbpo87GA6HmREjhscoBbbtWjuBMp7aWdPnfqhF0NotG3fxUt6dNru0JzMzM34N1Elxex3pgsABlEJTNSSiiiLZxERWdhq6O0KIx2MwDMNFDT4dFzVVVm5ceyNDLPeiuYs2V1VV2RLpCfrwjIeVi/Vfq2tqariYEWMAYPf03drkLZP5T8NVXHjHwqMAjgLAhpoN3yoqEP44fGia5/19jaK/T+HtDgmGruLkqTo0tjRBEEQYpjzIvnHyoAbFTTeMa5R4tiYWDo2NhiMVoCQgqwkPqOhMJjXG0EwkEzJE0YbOzj50rOyfN9AfhCIPMnZUVcexo6f4CZNGoKGhFdQUoSoyarafGFN/uv23jec7nIQMhm/lI0pit98x8ee//DUlhD7v4nkRupq8eB5V4XA7wTEEiagCnuXAsAzyC7NQNiLnJcuieOihhxJXhPjm4EJIeP9AH0xKkJmdjbSMTISiEUdCNsEwBKpuQNYUOJwMJk+uwNixxcn0NM9TTq+jeuaUKRcA4Je/fnVKIqZC4ES0t/SguzNwi2nqYFkBLEsgSdJkSeQhSAyOHe6J8zxH+/tCrmgsgeEVObBJHucH90URf3v9qumJsLGi5UJPpqGbg6CVZVr9/Unm7Nk2g2FYgWUZpGf6kJHpffO2m2479S91OFEUPq8bxrMcy36XY40XFsxdcL6qquq29JR0pas3/rxpWkSy2UCpCV0zQC3G09ys2C4x2RfOWBjGoA7jO7VNtVtDfn9BXFfDhw4dYi7n9Klx9uy8eXM/Eu4tnH3XNgBXrbKt2rQpi9d1hRo0aLODYTgLDEMgCiLsdldAFPhfcjy33LIslmUARdYw0B/KuvR5Byse7sjosABAkiSiyipfVVVlXdrFLiZy2wFg8pbJTtmUn6iqqvrFlfohH2fzZsxb9+bKlbayQueplLTi57t6jKk7321ELErAcjzisSQSiV4IAoHAc3A5nAAxwYlR59e/O3vJieMthcQk5qSxYxvrmurckRDj6fcPZEdCSkFwIGJnGIFxOqXRgVDU2dPpumGgL5I90B8GwwCKGoE7BRun3zZy1InD7UUDfToG/FGuq8Pv5AUJhDAoGZKNYSMz9sycOfE0pZR98RXfuZRUx9xkbJDLmZWdgtnzb1zR5+8bvWPLkQkWAJalyC/2DQwbkr/nsjM9ZVmC3YeOFJw63XF7KKjOOXqyczZlRdgcHGRZQWBgAAk5CWqakGUNhqGhYkwJZt4xFi6nmnTYmfcVLd4+c8ptlyrLMdAfZxmGhSCKYAiBZJNALQuGakJW4ojICVhOL3RVQHdnh5MQCs1QwLIcVIVeGcvQs0tO7ykquu45VTGfttntsDvsCAwEmTdeW/tANBqEKEqglCI7NxWlQ3I2/8urBXRZFkwW6SB06emDpy9crGZOEELoS6+sL45GYkgkE4MNGFkC06RZ55vjJQCOX3mxiaUTI5TSM1u2bHHZPLYP0Xg+rWT0RXViUllZaQrEyON4vr/f1n/aY2asz8rzfq2ra4AoqoxIMJobCUWeCAQDrKIp4FkePd1h9PdFPwtgLQDE43Ej28gWAejz5s1LXmzDy148o9kWL16sXDrbJa3kBFAUVVZWJgBg/bb1xYZp6NdqrnG53b948VsA8Maaqv8oLXYMS1k04g+n6gKOk6e6IAoiujrbkEwEkdAiUBL9YFkGp09bGe9uL5x5/91zXr1UWT1v3rxLXMdTV9nlmSNnzuQ2nmub0t3ln2gZsLxpLvmRzxk/OXfujvxVvr0/P3OyY15/X8QuSXZk5vg6fCmOxqHlpb+aMqXo4NIlACHE7Ozs/MXemvqHu9vCqZKdxXVThr3/xHcXfePnv35pD8OwsEyK/OIcjKgo+vkNN0xoo5Ryb67bMvM3f666vq0tMO2lV/eO7uwMpaoyB8YYzCMqigpNlaFrBvIKchCOBBE1NPCigML81LjHjd8xxNwf6Qvue/DBB6OXg3Pf+tavbZRSTJpS3pGR4d6h66YhK/rEM7Ut45NyHBwnQpBYCBIHVsZgztXQYMECw8LgBfYjLcGeeeZNPSmr0HUdpmmAY/mLZ2cOLMtDECSkpDmPpPsyT/zLHe7ee+9977Vtr43KETLVey8ePgkhdGtNzbBTR/onGAYFL3AgAEzTgK5ZfKA/Vno1h7vszPMPH0SnT5/OXGTAmAvuXFALACvXrxwtSMwxb4qzRZSEklgsgu5uP8cwQ+rHTxwai4bUCR2tfoQCUbS1hMZSSkVCiFpSUsJ0xDoEXFTOvTwc4u380KNHj9YtWbLErKioEBkw6RZjtQGgVVVVgq7rFmHI33XvD9xdeWDbttdOCVm+xuudWU84Hba527cfhShIoJYdyXgchjnYsfTs2Rhz5Ejmn1Zv3lhy95y5y1Zu3JhWU1PTN2PGDOUa79UC0HHxvypCgC2HtuYTMssE0AqC+2p27Rt2/NS5kW5PevSLn7vrMIAEsJs+//yBDx4kLy8v8PNfPb9CTpr/4U2ROmfMGPUIIST+ylsbakaNLR9/rr4LGdkZsezC/JafPfv2k4//5wv3dPb0jYtFDRKPm6CwYBgmiCFDIjyoaUHiOYicB2VlZbCgoaVxAAzDobAkB0NKc39ulyIbjCQT9/l8V/YdZ9Kzbacm2u2lBcXZn138SNmJdDI8tvP9Y2P8nb3Henstpqg8Jzlx0sgfCA4SDwT6f97TFdPOnWnJVpIKWJZG8rNyPyKdZ5rWBFUzoKrKRQoXYFkWbDYHPB4PcvNT41kZaf8xbdrw2L/c4QDgUqO8yxG6gd7EY6Gg4ZJlDaIggGVZ6LoOy2TAEcF5+d+vWLFCQhFwJQn2qmFiVZWNiORWXuCVBbMXfET9NhaLCS6XS7t8FVy5bWUnw9GEZCf1oiSUiKIIy+TQ3xuik64r/153R7C63x8VNM2AmkTa5h0HSwCcvViGEr4qf88ySzVNOw+Acm5uFCwIhCXPAkBdXZ1RNrksJDIi9/e+0DsG3+X767dW9RTmcaOHlucXNDV3QNM5MJwAaigAAXRdx7Ztux25eenfPnTq1AuV8+a1/z3fQykw67pZHZeD5jNm3HAOwDkA+NLnr/3Z22eMX5KTk14j2Oj52bOnNQHAzbeM+nVvHzdBcGZPJwInvvzatlfjCc2lKIAo2pBIaFBUGYapwOdxITs1G5ZM0NfdAzmhwO210eJib2dbmz/bITk5Sk14nILpdpNjrGlrv2vhnOhVFhGTEPKtk60nl40uHB16/NGLxw85nuZ0S8S0DNglwbpj9vjdY8fmHd9Zu3fX6f2B+3s7Bn7Um9TgcjuMtBLJvJJlsmzpy25NM2BZFgACjmVAyOAcdjndGDNm2K++/OW57+H/wK5K2pw0KZ2PRfV5gb4YYtEYkrIMRVGgaRpUxYCsqlMu//vPf/7z6uenf/5jG1TU1tbyZ85UCYsX30BSUgsvBHrNm196deXSbbven8Cyf7uNu+66S54xY4Z5yfHXr1/vlDRJsQQr6Haz+Ta7CJbj4PeHEI/LU2fcOL5WELjDPM+BYTkM9MXd5061/eZypeCr7hgCaQyHw9ayZcsMmEhNILFh0R2L+gAgJyeHbbQ1JpGH+MeFvsuXL+evDPsu/f/8WZWNPGv9iuUSUFUVgsiB5wXwoghKB6OFQCCC3bsPus7U1f153bp1rr9n4FasWCFVVVU5/5FBnzhxYvJzDyysfuCeRU1vVG2bsOQ3K77xm2e2rDl4+Nx1F9pase/oMaGrO+4KBmSoahImVeByEVw3MQ8P3j8Zj3/lNkwaW4iB3l6YugYwFq6bMuLQuMmFX4snQsTQVQg8A2+K2H7f4pHvx+NxZdWmVSWrq1fnXeWd4UrCuqxER1MKIvA8GhvanX9+rmrPr36z8ndHdvXO37v76PcG+iPgBQK319b8kuelKxbUDskwtaEsy8HldoGCwsJgNx+73Yns3BRkZDj24//IrrqCnztnlQb6o5mKrMHQNGiaCkkUYZPsCAai6O9nRl0ZRr619q28i+HOVa0/EikfuOB9aN26PfM6O3vzA30JhyCKyMoOfO+JJ/5wcOTYkl2ig+wlhHyAYtbV1dFly5bFampqOJfNpSfT+o9m5TpGNjcmWI4VoGlI37bz0Pjc3PQWj9c9raerH4auwd+Tftvaje/eAGDvte5n0axFJ5csWcJUV1eLcSt+XEyIyiWnWV29enF6Iv343TPuPnv5gtEcarZfUu+qqKgg6enpLC5qVS6vXc6v3bZ2HIAPxGjuuOmGl9s6A3e3NPfMoIwDkiQiEhJBGAFyMghLV1Bf14RbZsRuzspNHVddXX3oyvq0a1lmZibVNI1cSmt82gE/09KStXtf3eSujr7P9PYly97aeHRcOCxzimIgxZsBh8uJQHgAjGEiPzcdhUVe5OZ6j2Rl2Ya6bJxECNPMsrSzu7NrWjIelziOhddrhzeV29LT2VOgqhprmAbSM7JQVJi7nJDsRFVVldMyLYZlWbO8vPyDd3YtGzFl8ouH32/7rsNpy9VMHbUHz7vqT3d8UxQEyEkNNpsdKWkSPF5x8zfJldIY+ZauWjpDGMiKDBACjmfAcQJy87IxYmTuK0OHyv93Drdq06rCe+be86EGgjFFvSUeUx0D/UGYpgmJl8CSwVxNLJYENTPTz5w54xw5cuQHO8B9C++7lhgP88KKNd/ftbXx2+GAmdbdGUA4HIKiDLIsmhq6JI4j08NBZvqQ4Z7o6g1bZvDQz82bNy85efJkHoB6qSxk//H9Pywuy1x8+ni7Kx6Loel8H+NLcTydm5/WmpWVgr7eMHTDQGd7iG9vsT3ycQ4HABMmTJBkWXamp6QPTL9zunXZWenNS7vY5UlVxVKMq8HjAPDYxMf0y50NAHJzc5P19fWLFVXbsrOmfhKlIgTRAUFwQJBciMcDUNQoGps7I+XDiobHDaP1Emp6ZXQwYcIE4/LkfTwepwCMuuN1V1XxutRTm1Iqbdi1f2prW39RMBib87s/bLqxuy+REYmqsCwGhFIoGgWlBH0DXchIk+i064vo8KFZjMcjBbw+26ulWZ5fNrb3/hyWcYaD57XAQOJLLY19M3RdBaUsissKg//1/fuf+/a3//SXYCAChhC43CJNTXfVX6LoXUrVfBobnp4e+9Of3v59wK883dsTRRhRJOIKqH2w1MaX4sCEycUto6cN+9OVn92170hRJJooo5SC5wdbMnAcD4/HjdKyrM2Pf2X+I1dKu/9LHW7RnYs+MsAMgdvp9EAQAiAMGUyIsgx0XQPLEcRiSloikXACiFdXV4uzZ8/WriULvX7r1rndHbGfnjrWjURMhmUZIMSCoVMIAoPUVB9CoQBOHLuAaDTb7XBKP8sp4L9eXV3t14iYvXrDBoeN4+rmzJmjCm4hnkyqAwBxaZqBc2db4PKKk/IKUreXDMlub27qLZCVJPr6QohHMm7e9f6uCbfceMvRa8bTDOMmdlIckkPlhJAPnHPDhg12KtAcQzekqqqqhsrKSu3iefDvVs0aMWJEYO2OtV+kMH92+GDz3N4+GRzPgzA2pKYVIRTyo7F1IC8YSpY/tGjh8qtdo9PfOaZvS9/py0tIPq7HHKXUsf7dmuk//+PK8m8vefnewEDsunBURySahGECSVm+OK4W0lNdcDoZ5OWmJUeUZ9lzsxz7bSI5JUjMLgJSm0wmhpzrjFosZZ8xQVzlk0co25a+/sWergFWlHhoqgbJhoa3V+6c29rcu9DSB7VveJE103PdDf/oxLz98fHPJhOYKEi2xcl6BZZlwe12IjMrDZnZtqN5Rc5HZowb95HzecPZjumhoCrGk0kIAgtKeYAyyMlzmSMqcn70f+lsF6sFPuwo1dXVYlw1ZicTMhgGYMggjUbXVRiGCV7kIYqSq7svOARAr2zKC9dsXhMGsPVDZ4yaFZIj4fDKsvlQPAZo6mAT+EEOoA+lw7JpXr6vzeNLeQlUn9F4fuCWc/Vt6OrwjZ92yzjt7Ome5aeONS+SZYUZNiL76wD+PLF0YuRPz6855EtzFEdCg62IohED0YileDy2Q4LAFEQiBhJMEoEBrbCnM3nLpQT11Wzu3Lm9VTuqZJ7jP3TesyyLtSyLmrLZUFdXZ1BKydota0vunnN3M/5OAR8AWHj7wtP7a/csKSvKSdlV0zjqbGOfi2UI7DY7BEFCZ1cQ58933vfeifeW3zT2po9M0kto7SV7trpazI7HjctlDxoGGtw7tp6a3dkem/mlb//huv5AvDwaNQXdYKAbGhhCYJkmDEOFw87B7eIxpDRdGT4044TXJU6Q7Gw7S9BtquZGLaY+d/xgnbFs2TKrtra2a+PGjeayZcv6AeCNt9cu6umKlnEcD0pN2Ow8MjN93XWn2h7u6QwxAAeWZ+DxuppK8709/+jELCflKqX0gb/8Zc36rFznQ9FYfLrb42jIzfOuHj40/fdTp04NXi2a+tnPXl4QGIhBEHgQBmAYilGji3uGjMj8dmXlv0Z78u86w1k2y6cnzSLLAgSBh6wooMSCQ5AAUOi6ilg0yQYDkhMA7p579zsbN278iBKzN+xN5+zcDc1t0ZuP1Z5FPC6DYQmysrMxfnLJO2Mn5f/upil553y+4vDm7QfDoYB+i5xUEQ+zUu37gc9dOD8w/sTRXh7QYbcxT9XU1qycMXHGQG6ufUtxcca9LQ094HkeSkJHLJK8OScv5a9pmZ7F/r4gdF1HU2MvfOnkM3vP7v3LxzUeuVJRGQCOHz+eyLkrp/3R2Y8alZWVFAAzdspY7R9xtkvW3dsfLi123p+eclPZ1l0nqg7XNqUkk3HoOkUioaOxtT97WszMwd960l3TvjlnjkopZbbu31924kTvPS1tA5N+8qPqsbJKSwYGVFCLQyKhwjB0MAyLZDKOrMxUZKe7UVbmoZmZjpq0VPswSSB9oNZTjMl4NE29cKL2VP24ceMclZWV2prNa8oBNFwSHKqpqeFkQx7VcLb3az29fpgWoCoaRo0pjVWMLt+/rmrP03JShSASuJwCUtLF7eXl5f8jniIhRKeUrgUGNuw93lRCdU2+afJNDR8TsVj/9f2/EMukSCQTIAyLG24YE52/cPI3eoON9UuWLOGWLVtm/Fs5XDJmCZRaLlVLIhZPgGEAWdWgGxpMywRLB1kEDMuNAbBl8+bNmYqifES9eOHChR319Yd2nK2LgGVFUCsBhpdQXJqHitH5O+bPufFgzf6jZc/9efU7m1YfurXuZBdskoQBf9K1t6Z1WX3dWaiqBptdQixCUpV+OAEMgKGZhcUZSEtPQywSRzSSQHtzcGpatqvHl2Y3Nd1gTcNAr78XhpnruWHYDX93Je+yZcssLIP1GB77288XAaHXXnvNcTnV6dPaPXPvuaTC3LZq6+57KLBu/4FzbpazweFwor6+B7t3nXjyjP9M7cjMkddER3e8d6j82OnW+7/yxB9nRGP6hGicOsIRFYYxGMqZhg5eMJFIROBz2zCkNAUpKZkYObIQbhdJCCypFnjzh7pOTFVXM+658559V2ZmAODuO+9uWF67nH9s4mP6hg0b7KFk6BaB9/hOneiZ2tcXgMvlBstxyMn1KT2dA3d2tA2wgiCB4zhUVJT2j5887Lm/5/3srd1b6vRmxZJ9itEZjUIN60VtTc1f+6+n/nJbTr7r7a9/5bNPfNI13n3/SOmGlXvHGaYJUZTAsix6e/vZtWtqfptX6PBOnj55OJah89/K4XjW9EDgeG+KE4IQgdvtQrx3sG7NbrdDVRVEwnFEI4ny6oZqEY0IVVZWWlc/v0wOPPf8ul/m5qU+bao6SSSS6O4YwPl611d+//u149a9s+/Btsaoe6A/Ass0YbPZ0dc7AN3QIUlOeDwcNE2FaRIxnJBnA/izzc28KtnwVY/HVahrBhRFwZmTTfaMHNsDQ0fktp0/21Uc6osBFhAJJQrWb901C8CGSznA9PR0/UoZvmtZTU2NdGUiWpIk/X/60u+ZNb3m2ZdX/ri/L/qrsxe6YZkWYjEFfn9oZtOpjlsBrB8MkbrsOw+edXX6zaH9vfL9LS0D3pde2zsrFFU9smLCNCyYlglV16CoChySiMx0j1VY6GWGDClDZpoTAkfDDol9XNf1XIuaG+fNXHD+suf7iNpxVXVVOhiYi+9YHN64cSMPQOc4zkz1iIcPHOj+SdN5v2CTHDBNiqHDczBuwvDfnT/Xfh8oD0JU2O0SsvM822fNmHju41JEx081fi4UtPIFzhmOxZKpVa8c+bqqQI+GZZNhBHAcm6KoJseLPJxOI/XTvNeBnoFbIhElwzAGGSYARX1d0NHbk+rwpgzbNXv67B78H9tHHE5P6PWc3f55yUbesiyd0Q0ThACKMpi1t9vtUBUTiZhSNnvIvfrSN5biaqHWmTNnhPr6ejY9N31jS1Pgp+1NLG+YBi40tqC7t2eCwIsTotEELNMCx7GQZRmapiMrOxP5xZlwuLik3SF16LqSZ3PAYRpaKgDcccMdfX99p/rZjGzHM8FgFEk5DkkSIceNwC2zRt7d3RGr2rnl8BAlqeLMsQ5BFMiKt1auXHTf4sW76xbXqUux9FOHhVEz6sFFEZ1PA1b8PfaNh+/5na6vHmVS86HuniBSUwU9Nz+7OcWX7n97w57xHT39c//rF9vubWzqyZJVyw3Y2ERCh5xUQIkJFix0TYbdziM/JwWFRT4MG5IOt5NJCjxzlGGsfovqBwzVqJ596z1XnfxXW3g4nrMIR6yLaG0SGJTS27RtV/75c12fiUTiYBkGXp8X4ydVvDlzwahXar5e+23N0EE4grQsuzm0PO8vH/fsnZ19Q9pbwy+cPxMBpQQDgQB01QAsApZlIUkSJEmAomrIzk9BRlbW9k8OP4HOjt5be7tDsNkkxOIxyEoSDGHg9thhswsdl/rC/Vs5XGVlpbnj0I6d9jaux+115kbjCRBCIIoiLMsCw3CDVboGM756e/WUZcuW7bvahUeOHKlRSsn7B3cKqRlCkBNpJnOxc2kgEILIS3A4nRAEAb4UB3Qzhty89GRRaXZHRoZnldNL5LIRJc83nWzMTmrxaYKD/aBW7YHK2X+IhdfP6ukOzYxHBWiahoH+UFpTQ//w3AJfdWq6+5vh/iR0xcCF+mBKfkF+JSFk9/gN49NXqitDuKKHwdVszaY1w+NKvPdKIMib8FZc7Hv9ibujy+UyryW6SggxKKWPZOb6ant71TmUknA8Ehvx17eOVofDCXcwqrGKqoMXJMhJGZoZAqEaBJ5DaooTGSk2FBeWIS/PA0kiqiCwIctST1NTP2EjzmV3zLwjcXm50f79+21Tp079xEYZd99+d+AqYAR58vvPPXvyWIubYQAQFhmZaSgpyl+z/LdbfnG2vjUtGknA5uAxblLByYkTCz/2/TAeo8/ltJ2zzNCw7p4+KIoCjuVgmRQsO1iUGg8kwHIcUtLEztEVBe9+0n3vP3kgc9PKY7dGwnGwLAtNVUHpYNqbYVgwjO04/g3sqolvK2wpDofYl5aRmhuPqdA0BclkEgADhmGgqCr8vVFHn9+2GMC+JTU13LKrrJYXK63PNLVseNub5vxmoD8BSbSBs9lRUJiD4iFpiZQM2zm3y37aZZdeSc91dd9+8/Wta7Zs+aah63PGDXnj5+PLl/XjCjIvIcTYvGvXj4qKM28N9EfZWDSGxvOdJK846/XSEWmHSodkRc7Lfo+ha/D3BlF/suuLf3l+48koH3pLVEVUV1eLfr+fPPzw1aloa7esLRKp2Lxw9kLtAfytQ+jD0x9Wl+xecvLTvNj+/n599+7dVxPNcf7x5bXT/X2xjP/80Yrp3b2h28IRNY3lJD4cil0cEgaxRAwsx8JIRCHwQHlJmjq8PFN12jl3RkYKeI4CVNMtU61nKPN9WOTCPXPubqraVJXlh/8ju/GncbZr2aZNu0ZfaOiaICcV2Gx2GIaBtEzHgNsHW3NTd2U0rMJht6OoJBtlQzLeP3LkiAvANb9v3ox5A1VVWxZYBvd8fZ10U1NTJ0zDQPmwfLOkLOM4y/CH2tu7HlNVnUvLkN6ZPHnEJyojE0p4y+BEQhiosgJCAJYwsNns0DQTSlLL+rd1OEEQTKfHfN/llscxPAeXywvDsAbJy7oBKxFHV0cABUW+O87QM0L/7n5hGRAHQKqrq10apzm1sOavrKw0CSHW2q07qyZNKXiEmMTe1uJHSWmeNeXGEa+XDPM+M/vW689sf2974R03z2wBgP3t+22dbYG7qYUh67fcOAxA/VUXBVPlS8rT4x0dIY+iJEEtHufq2liXh+kfOaroQNCvzmpu6gTDENSdahI8KcKTd06eVHXj6NHaJdWpq63ka99dm2KqJp0zd476xoY30tasWUPvvvviqk9Al2GZcaVG41XRz4uQfX1nfeqp4z15vb2RUT3+6MzPffXZaYGAUiyrBhSFQtN1UBBwvAFVUWGTKEA15OW6aE62J5STKWnZ6Q5feoZDZGBGQMkF09R4k9BzhBrPZLjSjl5+L3VH6vqWLl1KH8JDf9dEWLJkCTN03NCs+xfc/6FE+sDAgPuXv3rzhZYmv8QyDFRVQWFJFqbePObJurrGm5obe0WXywWP24PC4sye4VMLfvBxoM/f3s/s8w0DDXfRlw6/EIuHK1ua+pGekYrRE4r23rPgpm+/uXLzK/FY7K68rKLffKrzW4eeGQkrosftRp+/F6ZlgWUZ2GwOWCaDRCxxM6WU/b8OK7lrxPbKxi1b1qZnCo9ZJ1UxGovCME1YBgUhJnRdQzicRHdbrPzYm03ffuiB+U9fmrNz5syJVlVVJS7PEenRwKERFamPeF2+n+3b3ViYlZ1ipvr4DlMeCFw8K7RcnPD8m6t3/KqxPjYlFIjDMvjfn6Fn5owkIz8SAt51++zdL722+pDDzc+0STYk4gk0no0hO8sz/7ppQ9fkFfvaOzv9BYZmQtM1BAZChX0X2icD2HqJPXKxFEisrBzscEpAUK1X67PvnN1+kTRtceA+sgv2o18CcK1iWfv2905mHjx+anGfPz71xz/dPEFW9Nxw2CCqCpgGAWEAVZZhGBYIY0CSOHg9dhSNzENZaQpSvFzI5ZYsm8Q0gFrQdHMjpSZrwlhDTTZGLCZeOW/esWshrMuWLRsEQDZXjWIpOwM83r7EE72W5eTksAIvTFldvfrQojmLOimlZP3WjY9t2bn3yyePtYyhFsAwBJLdhorR+Qeun1q6+6c/3PtMwB+B0+VGTp6XVozM//ElZ6OUknXr1nkWLlwYvmauLa08evz48cdYhhLCMIt37z7IDgR6Hn7mdyuteEQ/9uiX7l3yaSfy+Yau+/v8MSEcDYHhWHAmBcty4HgeqiwjmVRSMcgd/vdzOABwStLerByrrnxYzvhYXAHHsUgmkqAWhU2UYFkWAgMxRklqX9lUs+nVuTPm9l65ul8qe1+wYEGstnb5yq7O1AUgRuHxo+f5eKzvB2OvyyuqpbVf6Hs/PDzah9TfP7f2S/7uxP1njreBsBSl4cxbmzZ3zwWw5mr36E1zrpg0tXRmf08U0Wg3GPA4X9+NvMKM1IqK/JWdrcHvNjd2QdcMxKIWkgpzW09Pz/vv1x6oEEzmrMfjkfvlficAeUVNjdS6dLcxZ9lgM0JFUVTBLoxUOO7sJfDgg+e7TAyVUiq8unL7qF5/JCWWiN/xzaf+sqBnIJnWF4x7LIuHLGuwTAsMYaHpSQgMC2royMqyoajYh/xcN1x2qcuX6nrD6WCH2Xj+qGEm3tVk7SZd5URK+OcXzZ77D6Frgi60Gqxxnqjk3iVLlvzx4/r5PfbYY3pVTdU2RRus6iSE0M3bt+ce3Ht0THNTB7zuVJimifHXDe28bfaUR6rXH/pmZ0vEZZdscNhFlJZnbv/CF+b++dL1Vq5cybM2dkbV/qqtV2vZfMnGjRsXppR+9oUVW9oPvnfuu53tIc/RA53fyc234423N4YeuPeu6k96zlOnTvlWVtVWxuNJWJYBikEgjmEHFzeLUlCLWv+2IeUlBGvdlg212bn2Enu9zUsNAoedQNNUsCwPVdGhyhaCA/qFR750T/+1wqolS5Yk/hZns2IkEkMoEEF/nx2mZs9sXBef1dedfPTCue65Xa0hBIMRhKMh2Gw82lt6kJMvzL+Ww4FYe9Kz+SdLylO+7+/2e0xDRziSQG93YsLkGzJ2jBqX33/hQlu6aVG0tHRg22brG6FwZH7xEPcfZT5RfzEU6wcAraHBBGBVVVWxiqKolZWV5urq6mbE45EP72Bd9nePdGXVnegYc6G5d+Ij33luVjgkj/UPhBhOEGGTHOgPhJGamoJEIg4lEQPLWvClOFCQm5XIyrDbc3J9JD3VBlFiVGpo2zwu7oe3TCs+S8hIbdXGVUNAMOOeuff84uMGrqp63QibyUbuuuuurmv9zcWK+22U0u2L5i36RHT20kJSVVUl5A5LL9m18fzo2v1NcDk9sNlsSEnzYNzE4U/F5bDr2JELj4cHEpAkESVl+YlJ1434xmA5zIfQ3LXAYNXGtm3bMs7V9T8UjETHU4rY0KHFKx98cPa7lvVBY4//eOml6rOHD154trMt4MgrdIYzUr3nPs0kPn685SZ/dyRPUWTIahKaNqgf47A5AMqA53jYbDb239rhAIBJx7ezZXt4/MS8J2oPtCGZNGBoSUgSB4ddQDyuIBiK3bhr374yAOevmUQG0N6bNUcQrQxRZJGS6kUoGEftweZbeYG7rbcnQkIDMYCwYFkRmRlZ4FiA5VgwDL1mjd2i2bN7APzi5dc2LPR3xq+7cK4ViXgSDXUdztxc92dGji36SWuL/9lTx9ohywnUnerkNd0sIxgy9Btf+7CMwmOPPTbI+l++nC8vL6cAsGjOnM6Lu5i4fnvN2HMNvVOe+sXOW3t6Izf19Ebdmk5AKQtF1RAOy7DbKeJxHbqahKbwcNh1jBtThrwcD7IynbLTRgxJFImmJP9gUb3KUmnMlM0zt85Z+EGYk+pMbQkrYf1yhPGqu5eGDsrQTxUeXU7fW758Oe8r8dmvxrC5RI86N7BP3LWm42u1h9rmqbIBXuQRjydROjQnnl/g9u/cfvRXZ091MCzHgpcEZOY4z95225ima8EZlFLy85+/+OyRfS33hoMaeIFFS0Pw0f964qX1FWPynnvggVnbLYvii1+c89Kzz76Vm55hX+b1OXfefvuNzZ/0bLW1tfzevQ0LenoHEAwHB9tbERMAC44dlH7ISPXA5bV3A7D+rR1u3sR5ydVbV785cmzGA9GwkXuurgO6KkGVVYiiAIsHdJWIHe09k67lcJdCSwv6iayc1K+MHld84PD+NikWSaLpQh/DMBSqasLjcaCoJAu+NMe51AzpgmUZca9XutnlEeSrJaD/NkFAVm+U/lg2NOcPXR0DnmRSRl9fCGfr/BUpmc7Zo8cXtXW2Bwu7OhWApaiva0Veofcr6zZtDaiJl5ZWVq40r3Q8SqlYW1+ffvx0661NTZ0LH/3u74dHospQVWWZQCABRdXBcgwSCRkcx8A0FXg9PNJSJGRmuZGdUYbMTDd8KSJsIgNVkU2BR6Nh6OuShpl08bY/XNnI/pLJsmxfOGdh6ycN3IIFC2IXa+j+rgaN2dnZHkM2KgDsufJ3q7etzgDQf2hr6La9u85/obmhB+xggw6MGFmM6TMmfunsuaZ5x480TgPlYXPYMGRYtl5ekfn0x4ERK9esn1N3pm1xe9vA4CKqsIjFFHR3Jea3tvXeuWTZy2uyslKPe7yOJl2P1WdkSA9lZXnXfprn6Q0GF3Z0BB/s6emBKAgwFRW8wIFlOYiiDU7Jh/SMFHi9rrf+bfJw1dXVbpvNlrwa8rZo1qKT6zZv+OvU6Xn/ybGEuXDWj6QShyobg+KjMRXJOP08pfTaDySiwDSsvxpa7CcuH9/JCUyZpg/SkVJ8HpQMcWmFxZmrM3Ic66dNGVI9fPjw2Op1O+edqG2dYxrM19MybCNqamrunzFjxsBVEp4UmPn6K3/d9EhPZ9GNTY1diMfjOHm8kUlJE2+//sbyh4dXBH4aCsfzI9E4dEPB+bMDKB9SNm1oxTdHhelv2gPNOv/+0fqpgVB0TDSmjf3Sd34/vG8g4YvLanoiZsAmORGJhsCwLKhlwdQNCJRFXq4TOVkuFOT6kJXlgs3Gwum0A5QinojC1EzIFnuSwPqhaPGHFQj2e+bO/dhV+8oOsFcsXJ7Kyr/tTFc2Xvw0Nm/evIGrORullNm7d7O+et2OmQf21r/VcK5LdDicME0LJUNy1Om3j/1OTqGnvWbF4fsiIR1urxtOp4ihI/L+8uD9c1Z9LIIYjN1jmgzLSSJUWYHb7YBhmIjFYoidjXGd7bFKp0usJMRAVp6PTpky/BszZsz4VEJO3e1hvrmxi9V1EwLLglIC0wBskgSb6IDd7oDTKSSzs337/i1CyrVr1+bLVH7MiBk/A3BVqNvk9GcYitLxk7PnEkL5pgssq6lB6IaCjnYV6dnSTRu27hqGy2TKL7c6d13HpMSkRbKu2DOy+MSkqQU4c0xEMq5h9Lhc/5iJxZUL5t7wQcn7tm0HJ5w62fNy49mYp6urF2PGF9zuTRG+AeCHV167urpaTOiJMruDPFMxNp2Gw9GbEvEEDN3EqRPdrMPl/MJNt45+hDJ4beeOwxkgIkLBOI4d7Zxe34DqqlWnLwRCwWHhaDIjltSgGwSmyYBisCyJsIBhRqHrBlJdAjLTXUhPdaK0JBM52V5YlgJrkI0jE8YS1WTsfUqIrulKHsdwL0o53HOVUyvl1ZvX306pmUkpbblWKdMnQ+lXDwP/HrtWSmP37leESDL7rs0bDv/o5LFWkVACywQKirMx5eZRv87KdXWtequm+sLZAS8oga5rGDV26Nm7757ww+9+9+O/s7gk5xctxQM3tncESotyclBcXLgzEgmN9HdHM+OxJBiGQSQkI5GMQVYpKR+amA3gj5/0LJRSsnTZ8q9EYwoYhoFFAUGwg2N4pHkzQU0CRVEg2piB9HSb/9/C4RYsWNC1bdu2Z2bdOeuaqlqL7ljU9+bKlUttTiY56YbcW3mBS60/ZUjRaAKKoqCrI853tIa+RumSrxLyUSRs2YxlBoBeAFizeU3l8DHeoakp0rOxiJaTliH914K5N7x39OjRnNOn/fM7OyPTt2w+NdvfqbiCwTjkpAw5aUGWratKEGiaJhiUS9x5253r3t2zvz2RNLcHArFUywB6egbQ0uKbnlecvuqm6WOftizxNwf2n4aiWThSewaE47LBIFvVdbACD0HgoRs6TKoAjAFBZOB1O5GXk4qsTBcK8z3w+WywDArTUsAySg3LWoJs6K+6He4dpqnfaCWVtZWVlfGWlhapuLj4gzB40Z3z38U/UG2wbvu6HCITc/78+f+UCdPf3y9RShOXO33VmSohhx+TuvmFnU8dq20uNA0THMvDl+rAhMlDX77ptpHr1761Z1/d8V5eVwd7ZRcPSdMrxuX+R3Fxcfja56su+/v7a75Ud7Inb/Sooc8QVijJykrp/d53Hvz1wYMNhdXV+3/S3hq8r7MlwBJqIbO0FNFYBF0d4VvfemvXrffdd8vOj3uW1dXbp/r7wpNkWYFFKTiGA8fxYMHBMlkQWGBZFjbRVnvTTeP7/x0c7u+SpVq9cfVIVmBTYiGy+uTBYNrpky1IKnG43C5MvqFQuWXGyIobb7yu+dNca2vN+jJT57x3zZpb+/Irmx5qONf3o97ORGFfTwyKMogViOKgJn9RWSZKyzO6U9KNbz32pcUrP+66b69+95eHDvT8Z+3+80jKMgSJQ1l5FlweZ39PTyy9u2cAHMNDU2QY1IJwkbKmaipMGJBsInLz3Bg5Ogc5WR7YJB4cBxi6BkFgINkkqHJSZ3nm6XPzTi1ZRpb9rx7EV21cNYS38dH5t83/X1uhN+3Ycefhfe3f2Lnl2MxkUhucpHYbJk8dsetXv/rS/D/+Zd36zWuO3hIJyqDUQl5ROm66tXT31x+vuINcJUd6afd5+jcv//z4oc7vDfRFMGpsUWTRPdNuvvHG8R9i6qzbsOerB/Y0/6H24AXCSfxgZxuJ4PobCwdumzdy+MRhEweudf1nnn1t/cZ1++8K9idgszvBczZQi0AQJFDTgs0mIDs3i1aMyfnWd7+74Pf/9ijlR3a6uxadWUKXMOM2T3khPdv1pNjAQ9E5BIMBhIJZUkdP7xcBPEUpJa+//rr948pY0ly5babdDK14deP3z9YN/OzsqX7S39sH0wQEUYAkibDZJMhyEi0XutHXE84ZMyn15R073j96OXq1Y8eOgtmzZ7W3BzvSTx5rLovGVSYtywOHzwmTUGiahjNnuiDYbOnAYE4mqSRhqCZEkYehaFAUGR6vC+6UNAwpL0D5UC/sDh0MQ8GxlmLB6uQ44rIss9eyjHUMxxy5b/6if4aIKKmqquIvoZFLlixhsBRYRpZZr217zTEidYQ2ceLEC/8bA79hwwa76TIFL/Kz1qx+75kjB5vKdVUHx/KwOe2YeuPobU/+7MEHfvKz135w7HDbLf29EbidbvjS3Jg0peTNlAwrtmbN+QzgmuUunK5qt/h7A4iGk/D3hj0tbd23APiQw6UWxd5MbxAezMhJmSzaiVVSnPO8ZoZHCKJ1IVVMvXaZ0p6Dw/p647cFB2IgDAtDN2EZOgRBBMdyICyF3e5A2fCs7vu/M/+lTwp7/y0dDhicDGu2rK9NybCpvCSIRnDwONDa1IP8QvdnKaU/IYTItbW12sedIxo7On5/5njPfcdruz3BfnlQxgEMJEmCbprQdQs93b1QNAVOhxOmqSMeEZznL/Q9BuB7F1c5x/Nvrrzz60/+tPLJ7/+5IhbV08NRBYF+GZZuB8+xYHkORKcApRBEHvG4AkNTYHcIUOQEGMoCpgmqG6AqRV+HHwV5nCKJbIDlcZDjhE0eUVxjy85mEA4rM2bMUNbs2JFaVVXlrKysjFNKyZYtW4TLxX+WLFnCLF26lH7SWa2qqooRU0QfMEh+LJ9U7hE3i24AbU7dWdDc3NyKf0DW4VOCJ8ltNftKtmw5sv7wgQsliiyD5wUQhmLMhNKGh7888/EVz677Vu2Btu+1NffAbndAtEkYPS5v9xP/cc8XrtZg44pUhP7aG9XPjBlvvhEYCDFDR2Rt9uY6Xr/y724cPTf00utVX5gwLf1Jl92297FHKpdfUnr+zjevff3Gcx1PDPhVm8edDkVRwPMSQBnYHQ5IgghNVZFXmIm0LP7X2YQkgP9PHQ4AeJ7pJIylOp1OkRdC4CyCYCiCro5k3hvvVD8O4DfXYskDQDAeHybyXNKX5k1KUtDD8xoYwiErMx2FhdmR5pYOT2tLNxRFA8MSaLoCnndDUU1YEN0nemIZuzdt+cLnvrrs4aaW3vKenhAoeBBwIISFIPDgGCAaD4NaFmyCA5pCILMMnE4XykeWY9jwbJw6eRYnjjaAJTwS0Rh0RYHHWYD01PTaIUNd3+jp6wveM3duW1VVlW3OuHEfsCWIqubzbj5wid4V98Y/xM2sqKgQt2zZYuET2theZOR8ECo+MPeBEIAQKIhRZzRVjvznlAJdzV54af1nV72x98cnjjYXqYoCluVhWRSjxxXXz5k77r9efXHjqycOdkwLDMRhs9kgigJGT8htun5G8SOf5GyX7MH7Z1cZ1pomhuSkfe6BhTuupSfyxQcr6wE8eLW84bUsFtGy5TiFJNhBTe5icw4nABamZSEnNws5+a6qRz4/99lHHwb+bR1uzaY1w08eOXnhWqXoy5cv503N1DWVOcQL/O2GaUBTkmBZBvVnmhiPj/nvU6dOvTx69Ie1Bt9cvz7TSUhs3rx5yajT2ZijBZ8uL0/r1pLsst07zjoAYPjoonfnLbpu6ekTzTv27j5lO3m8GS7XYKrJ4XZAsttxrsH/4O7vPnt3fyCU0R+Mw7IoXM5scDwLTVOg6zo0TUdCjUGycbBLEhiDgGo8HE4Jum4g0D8A56RCDBuRo/f3B/iu9gAEloWuq2hr7cDOrXRqvz/vl0NHZ6xet2Vdt8Zpe1ZtXJV3uvZ0y7Jlyww9mTwtSZJYVVUlXGRJyFc4kvw/Hpl6/K8wIwgBlr+48aE9u068Wn+6E4RaABiYpomxE4cYn39s3n373z/22MnDXdP6/HGIIgOGYzFmYn7w5pnDFs6aMbXx038XsQAcAYDPf/afeObcdmDy9o3Hp0YicSRl9WL+UgHH8+A5Hk67B7mF7lPjxxc++o8iwv8yh6M8DXxcRv7RRx81NuzcUhFLBqaGIxFwPAdCRZimCUXR0dEWcB88XP8tAB8int5/Gcrm6O+3dLtd93mTzzsczDyGpTdFwjH09fUVrnrrvZ+GQn6pqDQHBcXpZr8/wgoSh9S0bPPYsXNsW0eXgxUlh6wS8JwNhqFB1zUk4iosasHhtMHnc2PEiBLk5mXA45LQ39WHw++3Ih5TIMtJBBmgo7UfE64r3J+bl8ZUr9934/HD5+FwOiHLMk6fbGS6uwZuk+WKsWMmZrxfUJi1u7W+s/Cuu+5qraioYDmb8DmVtY7X1dWd/F8ZFQJaiX+C034UaJB+/8dVS3Zuqf1+w7kuGIYJhgDeFDfGTRh6bPS4vFdbGrsmHnyv4bFwMAlR4CFKLCrGZjVcf9OQ++68ferpf/Y9VVVVsRf1Rz8V+PTWytX/vWvrsf9svRB0EUrAczw4XgTPawBhkZ6ZhawcR7JoSPp/3n77xAj+zYy5Wgrg4x6eEEItwxghiYKdY1lIggBZHtTLBwV6u6JkoE/5/obqnTOv9vnq6mqRZdnUuXPnhsI650jLsq2rGJMDQeBx5ODZITu3H7r56OEW4u/tx7ARGWtvmFF246w7x9ypG7FAIBCA15sKu80BjuFhmRYM3UAyHgWoBp4DPG4nysqK4HRK8Pd2QpEHMGFiHu5cMBZerwMcw0BOaKg9fB7Hj7RM4Fl477hzIspH5IJhWJimBdOkGBgIYc/O+rT33+2dfGRH77c+M3/RnokTJ+pww0NBn2Es+rlPO0n+z6FoAry9esekH/73K+t3bjn9/brTbaCWBUKA9Cwvbr5tzOu/e/Yrs6Nx5caqt3a91NHWzzocThQU5eCmW4ednrWg4iv3Lrrt2P/Kiu/jvKVTp9o+5YIhNJ4L3nvuZLcrHkuCYTmwrIBkUoYoSnC7nMjKcfcMq8h44Eufv2P7v+NYcP/IimQY1hie5WJuh8MdC0XBCyIUOQHDNGDoBKF+KsSi2j0Atl/iBNbU1HANDQ3kIrjQAwBzZ8ztJYT8dvmLq25zu1xzTh5vBc/zcLlsSMvgNKePPmkA8eO1bb9oaw5kKEkd4b4OcIIwGGbanRB4DpFwAtTUoOpxdHVEkOLlkJWRB9mIweXwnSJUI0OHulbEoyXL9u2hrmAgjlAoine3H3V2deWOmn77mM7598yoP3emc+yF820ZHe39YFkRmmrhwL4zOa2tacvC0cRdG3bUfDs1XWvo6Ug8TQmz4/9y4KqqqljBLkxcMHfBoav9fuPOjWMKi9J6jx7onT3QF/vs2qr3b2xrDAumbkDgRXh8bhSXphsjRhZ9Z+rU0i1PPvXCG8cON9/W3TEAj9uHlBQ3Ro7J2XzT7OLH/b3nuU/hDMzbq9bdwFKuubLy2oTqK+1qFebXPHeuWP1EW3N0qGky4HgOgiCA5TiwLAu3243hI7NPjh2Xfd/dd08/+++6+P3dDldZWWmu2baxyiZxo0zLcDM8B0ooVEMHI8sAKLq7A8ju8s3esqc2W490RwBowWh0YlpOxu0AfnzFQCElkz6elZt5S2Gx6wZZUXm3V8ix2bh3YwPK+MYLkT+eOtaT3t3VC57hUJCbD8pQ+Pv7kIwnwLAWWIaFLMdAiIEbb5yEG6aOPJ2V4+wU+PKbLF2r0XQzXF6sP6dZGQ5BYH/87pazCAWjAGVxvr4LHCvk3HBT6Zb7H7rppyePtf6ieuOhKc1NPYjFo2B5Di0tnejrH5jY1tqxeeJ1pSsqRma9cOPkG+v+Lweurq6OVlRU1F7td5u3bb4h0Ke8eOrI2cTePScnhAMmVFWHZVrgWRFFpVkYP2nYf42bVHBo+JCMpt/8Zu2OY4c7hmiqBp7jUFiSjbETcjbf9fD0+4anp38ifWz/mf0pP/rRK78K9Ee+MHRk5nIAX75sYRAEQRD/ERralRaPWqWhgMayPA+W5RCLJeH1uuDNz0VekS0+6YaCz951xw3/ts72DzkcpZRZW70+VbRx+YahQFU1mKYFwEJcjkIzFASDDjQ1uPIo4s9997ufXQgAjGX1mixar3bNe+be01Zbu/yvd93x6Kut2C3U7QpkanHxxvrT/heOHulw+3v7wbECPCk2pKU4EZdluF1OxBMJqJoOp8MDAkBR47jQ0ISSUo/zhmm3fLXpQttXCCERTjRfq+sybIxJdgwb4b5b4EeM27XtPCLhJAzdwIljFxhBYB8hjJBdPCTjLzNnTx6zfcsRe0ebH6oqAwTQQir2vTfgDvTHvtnfXXb9itfXtJYPzfyJqUT8/pA+dfH8+ev/lQM3ffp0YcaMGcqKmhXSpa5FGzfuHNPRHR29f2/bkyeONQwL9KtQkgZ4XoBhmHDY7Sgrzw5dP234n7/+1QU//9Nf1txXvaH2T0cPtw+BxSEtLROZ2R6MGZ+7ecxU3xc/jbMdOHAgc+eG82sOvd801dIZ5ObmfEhhKxQKUZ/P9z8GLla8vuXOk0fa5lsWA8sy4XGngvVRZObY1aKStHdTM6Wld91xw5l/+/D+H3A4snLT+rtgME8eOxS8/szpLsTiEQQCfpiWDo5lkeL1weNKRUl5mjVuQt4XPvfg/FcxWKdBLiJXVz3bZWRkWBMnTtQ3bN/ypbqjgWff39Vsj0Wj4DgOZUPykV/k3VxcOvSHqh5dfO6s/2t79x1zKpoKwrIQJB6KlkQiGUZZaToWLZr+XloK++LC2XNfX7JkCVMxedywyjkL6tdtWTeUZW1f7WpNPLrvvTaxuz2MWDwIwzRQWJSF/IIUc9zEoRrD4GDTha7omTPt88+cacLgbVNwLIFddKGwOBvDR+SdKyp1/zU739sGLbhtzpzKq9GHyJIlS8inPe/V1tbysViMfpKEw9ota4tYQh4wTZpbUFT+9IZV733lzMmOb/b7E1IslkAsHoXACxAEGwxDR3ZOBiZNHlZ1yy3jvnPrrWMHfvf7VT89sLf+u51tUbAMDxCKsiFZyvU3DPvZ7NkVv37ppZfUT7pnSim7bMmKdbWH2+fGQgnAIsjITVUmTS5cOen6zO/MmDFj4FJO7X8I9th+8IMXz50+1lugawYMw0JxSYE1YkzOCzmFwp/uXTTztGVR/P9g3Mclp2dcQxiopqamuj8SfsLtESDLcSiKDFGQoOoUhmkgEouC5yUE+txMn19+ZvXGjSdMp9y0evP68QCu2pcr7o0zcSlOAUCJqzdFI6adZTmYFkVpcS5GjivY+Y1vzF24an3N+L6m8L0NZxudalIBy7PgeAGaZsACA050oLtXxb79F26aOXOke922TT4tkvxL5ZwF9eu2r8vxt/ibfSW+/87Ot/XMvLP8/u3V50fUnRpgDJ2itbkPrc29bDio2G6+ZWzbzbeMXpuZ70spGZJd2nShJ6e5sQ3UAmRZxoXzrehs6x6Wnu7+yYjRuUrp8PRTW3fsecab4d03efRoPyFEB4AzZ87wzc3NHK6oGr90Dru8Oh55EJqbm8309HT68ROwlj9Qp3GBznBKoD8xcc3bbx85V9+VHo0kwfMSWJaHJNpBCANCWBQVp2s33zp+6Q+euv/nJUPW3fuFL255sq05MDoZB1iGQ1Z2OopL0k4MHZHxn1/84ux3P6UTcL///ao/HT/WPDcRo/B4UqAkk0jEVOnIofYHwxElf+X6Lb9buW6dG8Dr/5NJ+upfN9/VcK4tNxAMgeds8LjT4PbZ4jfdNO6/x4/P6cf/R8Zdaxdbu3ntEErpuautTi6Xi/jDwfbUNNdEn8cnapoOU9MhiTYk5TgM00QkFoVNcqK5kU+xu5gnvvblygdefrnmmtrul5fh6wa0ZFIZlCZgGDAcgcfnOhKNwt3eHH7m4N7Gos72HjicdqSmp8LltVs2p41pam1DIGwOtvntDuPEifax5WXepx12ZjiAr1Dek0zLoT8wdf2PpqWvGz7O94JsFB4QRFp2od4PXdOhmwrqT7ciFIx/fviovM9NuK5s63X3VjxwvrFrdO2hM080nO3O7e8Nw9RN6AbQ0x1Db89Z6fzZ/uu8vo63OZ4Nve3c6//xT1/bn1fge/3MmY7obZ+Z2siyzMXQezAsJ4RYPh+cACKUUmbduldcTMxVMb/ynn3XikWoRW1bd+0reP7l81/taA3d0NjQVzbgT7j9vQODOv+SHRQsTFNFSqoPWdkpbTm56QcnXDd8vccpdXzrG89uWb9y76zenggsSmCXHEhJc2LYyLTtixdPe2j06NJPzdf83bNv/+7wgZZHVYVi9ISSfWkpXn9zY/fdff4Qurv8SMSV6YapTJs2vWze/2SCnjhxIuOV1959pr29h7UsFoQICEdDSCZTnA3NF4bjYsX+/y9G/tEPrtm0ZnEkKP75/Z2tqb3+AOREHJFYGIqWhCRJoBTweVLgS3Vj7LhSdcSorOmL5s84+GmuvWXnzqF1x3pr9+5udvb4A3C77Rg7fqhqGEqo6UJPVk9nAKIoYPx1w1BUmv5mdr57D8uyT/n7EgXRhA5KGeiaCpZLhMrKUkMMZy4/O3fer+86epRt6+mcS1jhlGyFgg1HGiJjJo19kUIoqT/pL+5ojRY0nvcjmZBBLROEJcjJTTOLStOT5cMKXhw+unBTS2vvAy0NPTPqTzcXd7UHICdVUAoAJkzLHNxhGBa8SOD12WCziXp2VlqPN1U650v1rXfYRZaXaJbb692bnubsjAVUqppKiihxCsswjGFobrvg6Gzt7Msb6OsfAQjQVStDVbSxXd09w/y9ocxETLNHwwo0zQLLMCAshaqpYBkGNpsN4ycObS8bnv/b//zO4he27Dg+8eDekz87c+rC1OZGPyyTgcfjg93JoaAoIzB6XNErd3xmxI/K0z5dHwBKKfenP6968v1dZ5d1d4bJ1BsruhY/fOukyaOKe/7wh1Xfqz3U8sPO9og9EVPgdNtx3Q3FHZOmFC1SvH1nPk7b5Fr23PNv/WzT+kNPdnWEYZNEuF1pIGAxZnw5Jt6Q+bnKBbe/9v/9DvepPJUhii+VDxWWuH2xqMyIvADTMkEJhaapoNRCOBoGwzE4eaJJZFnjR9U7dnxvzu23f6Igp55IdJQO9T7GC2Oe2f9+Q2Z3Vy/eqzkm6oaeZegqUnwpGFKejxGjs5YXD/e+EB2wxMbzveFwyCwIhsLgeQEOmx25hannRcH2FEOSUsW777om3n57BMDaSzJ5OTk5rAH9T5VzFx49enZvTvO52O/sDmHxgffOgloEFBba2/rZjvYBV2tz37dbmjtnDhmRs3HazUOfHDmqzH/i+NnP9XYOzPf7wz5/bxREM0AtwKQW1LiFZNIEgwTf3hIpEAWhICXVO5MQCyzPgHAmnHZbQFWSLsOwBIYh0HQdHMNQQhgtqaiinNSgayYIYaGrxkWAyoQgCOB4CbqugOcFuDwOONwEhUWZtKgo+9jXvnb/3WebGhw//tGKZ48cPv9AT1dIUlUDHC9C5Dl4Uxy45faxz02dWvrjyZNH9uKrfw94sWHG8SNNP+rtiKB8WAFGjMx+euKIoh4AePzxRU+//fbO0+/vqX+rob7Prak6Du1rzOc4YeWUm4tnA/i7EMRtu96f8M47NY93dfeBEg4mpVA1BZJgh2nqsCy9DP+f2d/lcFU1Vc7F0xcnCCF04ZyFG9dt3ejLLnD89kIDk2JEGRBCwHI8LMsAy/IghA5WEoSDSEv13J5f4OsHBpVVP64pxrx585LrNlZbuXlen9vlQIdlQdVkCKIIny8Dk6eWyRWjco5kDOG+F/fLX62v9397X01DWjSogGEoLIuC53hk5bivHx0sfnXEWNd5EckUAH8F/qazgkFGzVEAmDB8Wve6Lev+OmFy4WlB4L546nhbYb8/CIsaMEwLzU1xdHb2VtTXdVaUD80xRlTk/uYLn7tjidvtfWrzlr2fabzQM6HPH5wTCcu+RFyFplIoqoF4LA6WFcByAgL9ISSTMixYMKkJUDOVIYDISzBNCoZhQUAIz3NiPBkHyw7u1Ha7DaqmQdMMiKKItPQ0CBIDlrOMkpIcLjcv4+2CYs9Y07AKurv6PL/5zYo3mxp7J56v7xCj4SR4UQTHC3A5HRg6vMgqG+rdff/9pd/L/BT6kVeaKifGKUkLdrsN2Zkp9blDvB8SeLr33lurX3plzb0pKd63zpzs9EQicZw61lEYjSZ2vPH2rm8+cN8tqz9NVSCllH9q6W+XHz1c56EWB0oNGIYJwzSgahpAadLpcr3y/6XDVf2/9t47TqvyTB+/Ti9vn3d6ZWaAYWgy0qSLigqCtIDGksQY103iL9Fkk81uCpJsshoTN5ts1ugaex1k6EM1A6IgMLSBAYZhKtPbW897+nl+fwz4RaWMBlvk+nzmj3nLc857znOd577v576vu7TUHQqF9LNCOhf8sMUKDz/8cAJnCilN2z4WTJf+Z9jo9J/trqin/f4AqBiDkKFD03T09+6m4fF40NOjoKkhNuv5l9+4KTOVrqwPdJ/XhFm79uVkOSWNqT8Su6u1Oca3tXUhFotAkiRkZKSgeER6YvTVOUtkn9U9a9ysyF9fWDOl9lhHcndHGACBx+tGVnYyJIlFW0s33nnraLZDFWcPLvJv3bxjTX4kqhtL5y390MbssmXLaDhcW/GQtI1D8rNeys7z/erkic7Fp052i20t7bAtGiZlo7Mtgp72OFtX0/GvRw61fCczO6k8vzD9+Ucfufe/QkYkY+ebVRm1NR3Dw73q3I62vvmRiCYyNANNt6AmNHARFtF4HBzDwjT6JfQIaHAcDZqhwXMCCBzwDgeOpRFIcsHjlcEJTIjn6ZjXJ0dSU1M2FI/MPZWcntRqqPEZhqHvjEX0q3ZuPyTv2VU9WJY8g1XVBAUOHk8QhHKQmuZxho/K3TiqZMjv77yteB9FpQ2YbMebjmeaEdMePXp0Z1pO2spgaufPe7tjboZ1jtwwefKHruW931i0ceXabdc50P9QW0OmtZzuQlxRs6LhxGvLfvHcZrebYYNB8YlvfnPJmgtlxjzy+7/+dueOo2MTCR1utwDiUP1qyiwDt+wBy7KqV3DFvmiE+9g+XHl5uXfOnDnRlRtWLY8r1AN7d7YltTUqUNQY4okoYrEINC0BlmWRlJSKYFIQqanJKB7lbRk3NWvCjHEzzqu1uHL9+vujPdTXd79dP6n2RBs0QwXHcsjMSsHYCbn1Q4cHv+/QmmmqRHG5Re3IwZ6yNzcezwmHopAkAaPHDiZXTyr43aC81NcP7j3x+oY1ewspisM1U0Z2jRzjLRP81B8X3Tj3Q6ZN6frSdIZIaYvmzq06Gyja/NZbUw7vb3niyMG2UR2tfUgoOkzDAHEITMOCKIuQXTwKBqdg8NCsty1b63G73W9OmzKqbNKkUW1VVafz6+vbpXhcY3rDXaNpSnK3tnbe2Ha6e3wsFs+JxaJIT0uvBwXbtm2kpAaJpmqUpqtmZk7aSbdbMBhgU1Kam8y8ccLmvJSUUENDa97uA7U5Ncfr742F42NVxfA3N7YG4xGDdkwWmmaAoilQNAvJJcLrc6F4RE58+JisH193i/f1mlMt9qxxA5NqKC0tT6lvaFve2NB1B8MIZlFxziPfe2Dp7594qmx+dVXj6mCyt+7hZfcOvdBWDyFEfuSx5188uLdjUVdnCI4NeNwu5BX4cdXY1Pvuv+/2p8/3vUf+8MK927fu+7+62jbK5wtA1w1YpgWfLwCXy4skXxKGDU/Z/stfff26z1ty8oBWuDMKxPKZXswDwhmFZZ52sCuQxB28amzKf3OckNvc4ICXOMguNzo72+E4DkzThqIY6O4OQ6zlshmq8yeEkAfPd7F6u5Ubqw/GJtUcb4OSiEOSBGTlpGHEiLTTJRMHzbt+2jXHV65dcx/NcS26YT0QiyVylLgCx7HhcrmRlZEUzsqk11w3bfT+0pWbyoaPGPSjQwfqUFPdmupyU/88aLAcAfCTD0VJ5y7tqKioiK9bt64IwAlCQL2xoSd/yDD5cH7B2H/v7o5863RdtLipsXdoNBRHb28fCCFQ4hoOVjairSU+VdUSEEV+wYF9df/57Qd+17B+U8WhYIqn3OcXD/g54R2Pm6aLhxedmjb57t2rNmyfz1BM7NY507afefBRAET0d+vhTzY2phzcV3uNqXOxltNt8lN/XPnzeFTPbm7smJFIGN5YTEc4FAUIBZZhIXI8PG4JNM1BlCV4fAIKi1Lri0cW/GJQIbs/xdddn+u/ecDlPhRF4VR9y2/eerPmWx1tITAsg57O2O9+9/jL3D/fN+3Pf34ysQoOdQIXkY2gKCpBCLnjib+sW75lw+F/jUZUJKf4kZ2TuvHGGya+dL7vvPTGpplrVlb8pfZEK5WRlgWKYQGSgMADPC/CMAz4/DLS0oNPf9HI9h7hli9fTkpLSz9yBGnJkiUmRVGbAWDdtnW9sux/gBPIkqaGMMUwPAJ+C2oiAZEXQRECXVVx6sRpBAJDv/fSKxt7AfzyQwETw1EN0wIoBzQFyKKEgsIkDBsR3F13/HBtvG+1m5Ks1Ytvmt+1asPmaYRiQDE0eJ6H4xCEI3F/T68r88knn+R8AXlNcrLnftsi3ng0jnAoAcd291xofoRj4YmgkQPgxBsbVk+gKbvN1PGfYnascWQOvyc3L23h0I7MnJ7OyNeaGtozTBNcV0cECUWHrlswDCAajqK9tc/tcrlG1R4LjeJ5+m5CbJtlQAgsatiIPPLm1uNruru7ch2bFv625YhhmYZbN3RKFHnRNGxV1XRRiSs5hu4whk6gqjqITaDrJpS4BkkWYBgaOIYDLwigQINjGXgCElJSXW0ZWcHKwcPSTw8ryf2PiSNHdpxrNg90A55mKERCiSlagobH44eqJtDcGILL3fGfTzz1FvfAP9+1CAAe+M6dlyKu/uKLGzd4PPy/0hSNwiGB3bPnTLzjXL2XcyOgv/r1M79oaQyxsiiDphjohg5dN+F2u6DrOjiWh+NYoHkngi8gzgZNyLm9AD7CU/C9JwxjMHu9AfV3Y6/J3p2akvTQkUPtuVpCA8eyoCkacADbdCDJIlqboggk8ctL31jTumTxrc+cO056XuAxTXNmWlZ6ZjxiwjJNeP1crycgPh5MGkpmzpwZ27lzJ7tq7eZ5joPxaek+y+OX2VhEhWZoiMUsSk1YM+6///4Vmyp2dZq2I/iTAkhPS0ZKinuvN/2CjjYxWbMKcewhhFArVqyoXPz+a5JYvXr1q/fcvSC2o3LH/5aMyUw53dZXEA6p0+NRfbJtk1EtrVG5pysGNaFBSxhobe4Fz/OgKTAURWBZDpobjoCiqcWWZfUTheNgGjoM2wBFUZBECYQQxJU4BEE4e2qQBAE0TYMXOFA0AUVTEHgRkswjmOxDcqq3acy4gr9OmjD8mZKSotYPbrDTPP0DhxVfxBkxp/P5TS+/vv5mXdERSMkMzb/lmlO/fez5zqw8tVhTbZuhUqnunl764IFaiBL3Lxu3vr1t9qypuwcyTyxHmZCdF4Btkt0TJ41aUFLyYeEhQgj36G+ff+qdt45fa+n9vqxh6HAIIEku0DQPYpsQOAl+v0vPzc849kUkHHW5BjozSbnhw4HqevE3LY3aD3ftaALH8EjEFcTjCggIeE6E2yUjPdOP3MEcGTosberCuTfvOnesbbt3p3We7no41GMsDocjQmZOYM09dy36OkVRZMv2LcU1x0LP153sGR9MZTFkWP7BqoPdJbveOop4VEFKShBTZhQ03jJnZMme/fX/svut+p9qGovxE3N6x07OGjdz0qTGcyeiKcveO+fODZ37Gi/z0w2Hrmtn2c7vz5mjL1u2jC4pKXFdKAGXZRmUrd82rK42tFjTjKkURbniUWV4b5cS1FQCVbHQ09MLijBQ4go0XQdFATzPw7JMUDRg2RZsx4bb7YZt2QBFYJk2CBxQFAXbNiGKAvw+P2zHgMvN6YMK0qtS0/0VmdlpO0aNT9539dDzK1OVlpa6wdPfh+E8dq6ac+n60vSlc5d27KyszN2yfs+jVQdrlzoOTXs8XuTmZTUXDc/aLvDSVkKxx2N90R+/ua1qaX19M9yyjLHjhzcXDUv/1T/905xnLyWw+uqrrw4yLH5BZrr3xVmzZp23OmDVuo3Xbi6v3rTnnRqBpvu1bSmKAcOy4AUZcAg4nkNuXg6Gj0ot/dEPF331Qr7jl4Jw79urWfWs38UFV/S02Te01OtoauhCPK7CNE3ouoFgMACARkq6hOKR/i0PfGfpTecbZ/3W9bcInNA869pZRzZv3uyiBCqz9kT0pf17mic01ndgyowhkbETC2rqG/omrHx1N4jNgGUpXHPNKIybnPrDaDg278D+xmuTUnzR/CEZiz1XJd4S60X21ltvTQDAs88+K3q9Xu/ixe/vLLO6fHWJ4zialbAaz1ZvfxRzjKKAv+2uyO5uNYaqquO3TGfE6dNdJUrU8qmqWhiLaEEt4bhNC7BtGzRLwzINuNwSeJ6Dpuqw7X7ScbxDGJbu9ge8p/0+7zsen6eBZ9mqgoJAx/z5047/PX7Myg1r77E0klFZeereXW8dLejuikKUXABFQNMUSq4eoU6aOuw7/3TP/Oe2bduV9be/nfjb3t21Q1VVAwiQm5uGQYN9+wqHZdz/ra8v+NgND2tqarJeeGnLWxVbjxQoigGWYcGyIizLhCCIcLk8sK1+wo0eOygydebQcfNvHnjl+T884QBQFRUVTE88/rChcYua6sM5WhxuXQMa6lphWQSapoLnOVw1Lk8vGuH/2h1LZpdebMDKykquqrrlmX3vttxVdbAWySl+zJx11aZRV6c+WH207bU3N54Y09URBigKRcMKUDIucKBwSPCfEgnjt5LI/oqjqKqoN6qiBXZ1dbVVOLlQclm+yTQcr6mY62iZn8JxVCMIGMtwfsyw1BML5nz8SVReXi5AQsqcme/1J2BCof3uQGCss2vX/qyWttDkk7WnkxiahSAIjO3oGR45qUIQpO5YTOFE2R4iyWLEH/A2ZqWJIYgwx44Y23S5blDp6tVFO3fs/VtDXSizvS0O03BA4MC2AcdxQFE0BEHElGmjnJtmjx1/6+wZB9at25X1zjs1mw8faBrR09MNkZPg9kqYOLWgdPnD99xGPgb1K959N3vDqrfXvLPjxNWxqAoKNATBBY7rVxFwQCCJHgiCgMzsAEom5H/noQfmP4EvKNhPaNyz2e4/27q19LHc2VnBeJed1d2l3Sy47Z+cqu6jdV1DOBRBzbEOQZTY50vLNuYtWRh7nKLO70t2hbrGhPqUr7a29IAQB4GAH8nJgTXXT51a8/qqLdUlY4eO2bJxHwzDQDgUQzzmzhgxNLWusbF2PlCtdUevzlk6eWkfACwjhPZsWp1CC6gyNVsEYDOEWIYNP4kbtazEPs1DODYAE9p1ocjumULb1nP8XRvAWUf/xJm/i2HHpS7yrl27pI5wz4R4T7jyYpKE50NrS/eDVYdaMrvbVfACD47lQYFCMMNPLMeiwqE4NF3BkSO1dH5h+vcBfH3evMmtT/7fllerq5r+g6IYEACGbkNTzYnHuo57ilOKYxfbRorH4/6lS5eePhvZJIRIjzz6/HN7dzVdHQ1rECUZxKEgCBIk0QXLtsEJIhKKgtxBmSgamf7TLzLZgPNILFxuzJq1NDJt9LT62Tdcu/Mbd93808xs73GPzwWBFyBJEnTVxMH9TWLNifBvX1npm/PB75eVlxUuq6hgLVCs2yM1BIJe+P0BRKNxdHb23He0+WiS18e+KLtEhaYZMAwDmqbA8VL4ZENrEZCiqepEmWXIbWvXrk0GgOUU5SycvbBx/g3zO2mKFhiBGW8Tu5vVScOSJUuUw5WHK8+VvfsgXlnxysTXVr02bADbKJ9o2Lq9vd0Py8Ldd9+duNRnn3nmjSGPPf7s7594cuXDmysqxqgJc0Ju1nAMGjQYDM3BMm0MKx4c/+53vzHz3vtuWzJy1OCYZdro6uzB6ab2MYQQlhBCdbS3XBuP6fC4vZDdbjAsB5ZlRaVXES52/FA8cnvC0p6prKzsT7ZYv37sr//zpS0HKzuutwwOkuQFR7sgCm7wnASG5kBTLEzTQGpaGgqGBPb8+KFbf4svOC7rCvdkKnE+HQAAG41JREFU5ZPc/eMunK2ycuP6sX1ddqZNjDONzmkkFBV6VMP+vTYck/z3q29s8Hz1K7e88uTatXJA04hlcxq2b3e0SSNqUjPE6mnXDc7aVdEg9XSFse/d+qu1hLk1Izdtd2N9J20aGmS3B5k5yfAnCQcVzfHZUJkzDTLO229t0S2LTp5birRs2TJ64sSJHC4mcccwJYRQbbhEbuBHFcj5qFi8eHE7zshVXGI1Zh97/Nmn9+w6NV3gJah6/p05g9KSg8E87N11Ct3dPaBgwLJsUTNj7juWTnnjV795dnLtyZSHenq60dXVm7d3b3Wy18soBFpxdp4PLtmVsG1O7u2JgeeFxvHF43oudg4cmFckUVg5btw4s6xs69ADe5o3HdrXlhyJxOGSPWBpHprW3yNAUw0Qh4Yky/AHfRhU6D9UMDjw7QvJ7H0pCbds2TI6M5yZeq4Z9SE4Zi8rgHN5WXS0ajAMA7FEDBRNoae7B5WVer6qpb78/Etv2IVJTnmbChq6ai9fvpyUVlQYRAs9Gkjh9s6YNfzXb207hbaWdhzaf/rqI4dbr25saIUkuDBkyCAMHhpAIJn/y6I5s3cO5NzPrfs7Q46L6i7esei2vwzwsvCZmZkWPvu+ZJTtmF7iAOGwAsOyBzuwo74k+2/Zg3wzTp6UGdM20dTcxtbWNv2SELLnsd+/7qUJBZbmIPACxbIMXVxcHHvu5dJFhUOyPZmpWaeO19R9u72du4+VjI5L+W9nrIE4IUR4ePnzzxzc05qsqQY4loKqqCCgAIqCbdsghAbNMPD4XSgqTjs4anz2rYvnXNOCfwBcNsJNnDgxGJfjfRf7jBkz2wRB2J+RFZzRUhdGqLcHlm1BFmRQFIWmptNQolFwHP+cIGd87fZFC1ac9XuW9rcv2r2ifLUWSHHiRSN8P0wKeHL7eqNoaemA3+dFVk4qhg4PnkrL5B5Pdou7z+d37d+/n72YSO3lxGXRp7wcbKMo8+lnX/vN6DF5j9EcS+fkJP+FZvQ3Bue0NyQS2T/KyU39dXV1DPG4hl3vHLr6wX/pPdBQ154cUxKgKBosyzF0f6we37hz6bk1jT9Zs23bf3GGMaDfSQjhf/d46V9PHO2Z0t3VA5qm+4tlRQE+nw9xRYWiKAgkJSE1zYecfPeqUeOD3/tHIdsnGaW8IFZt2fCthpPqT48dCA1qqj+NcDyKYDAAXddhmjpsy0R2djomTRkWyc93Xbtw4U2HziXMyg0rcwF2CEWxS+J99Mye7sSQ3p4IbNvpSs/yVxeNSLpvzvXX111oFR47dqx4dlvgfIQ8M0EJ/gFxsuekl6EZqjCp8L0sjaamqsALr1RWbtlQVZBQFBDCwLIsMCxAMTQIcXDj7JLdj/zHd2YOVHH5vEGTiorsd7c3vFBT3Tuzsz0MgWchia7+Jiq2A5ZlIUoS/EkyMrP8JwYVBB+7//6bnjlbtPuPAvbTPqBJKSuS08UZviRuEN/Gg9VpdHd3AyBgWRqWbaG5uRWEOL5oJGt1eflbt86ZM73qHCI0lZeXd8yePftva99cOzI5xT3EdGQnkOyqnD4+2HluN5eyrWVBVmXVswQ7Yy5eMMCwceNGPh6P0/iAkvJA8fL6lwMuy2Wdu0G+dc/WYGtddAoj2zV3L1ha81ne7PMVmR6uPjW6aEjan9tGDfp9dVUzFEUBTVtgaAEsK6BkQi4ZXTLkP/4espWVbZ+0Y1PtU9VVHSN11QbN0LAsQNU0UBQFn9+LQLKMYLLn0KDClD9Mn5pdVlxc/JErAVauXJkqSVLkYgGvzx3hli1bRg8vGX4vYcje2+fd/rGVhSsqKlgAOHnyJHVu2c/SWUsjr29YdzItW8LJ40CSP4Dunh4QYsF2LBBiQzMMtLZ1gGWZPIqh1r2yYs28O5bMr/pAyB0Aqs78nT2mCAIKVH90kNd57pZ5t4QGes5/742STZlEY1HnXPvhaGXrC4f2t8zJzvO27aisHDdj3Lj2z9UMsNjqgkFphxoKQlM72mILbcsBx3mQkpKMwqK0FcVXJb1w51duLP+4wz/30vrpe/fUvlxztDtbU3SIkgv+JA88ft4O94UZ0SX2FRRkbMovTH517Jj0HR+HaO/9FMZaFNEjm4Dzq8N9Lgm3fPly8trK1w7xDv932c3hcNgNAMmZmXn4QIsiwcWsT04Vfu72yhwFHoZporOrHbZtguFoEEKgGwa6OntBQOcyNL/hlRVrXrpjyfx/u0TwQzv70Bg9btxwHeaU7du3//XjBi3KysqCNE0bA9VUXLhwYfjc/1ev2zxx3ZpDNxw93AE4QmZbQ8cEAGs+TxPgTAtivHv45Pf6Oo0blbDuEiUXBg/Jde68a/LDI0cO+lg5iw2kQVz3p/2/qnyn+dtNDd2uaCQBSZIhCgKGj8yuu/qa9MVtrZ2p6Tlpx+fMvDw+2m0LBhzM+sxwvn04cvvi2/ctWjRwRdwLTb6FCxeGbVX9UOicSpi228OXDS7KQCKhwHEccBwHluMAUKBpBoQQGJaN3q4wjh1pza6tjv3o6afXPvruu+96L3XsESNGUI7j0IvnLnzyYnJzq9avmryifMXoC71/+PDh0Pz58wdcskRR/TVghBAhSkjygcrWPzScDPFelw+6yqCjUw1erhu3euPqovLycuGyBb1GD2nPzAlsyc3PhmkaqD/VQq9bu/vXK1aXl5z1bQcKQgi76g+7XzpW1f0vp5tCLp6TwLI0HMcBSzOwDc2YM+uaw9/82vytl4tsV4Iml5wwG4tCffQvdlbU3t7S1ENregKhSC9YhoVlmqBpCqIog6N5CAIPWXQhvyAVg4uTj2YVivctnjPn3YEe68XyF70ew+NesGBB27mvl+4qldxht3OuKVm6qTQJUUQ+avXEq2VlQ083hB4/3dQzUuADmhLXpMaGrtzuzjAIIcjISsPMWaP+64cPLfzB5bh+Z5W/Luc9eWXFmhGNdeb2w3sakwlxIEoCiq9Kig8bkzJ84c03nx7IGOs2V4xsONX788OVbUu72qJIJOKwLBsEBB63F8nBIIYOTzrw7z+/fcKlkp7/EcF+VgdeMHt2TUVlxfdVNW2hEk9I3Z0mZLG/p4NlWgBhwDI8eEFAXFGgqhqUowpMCyMdJ6X8xdfX/PPdt80vHcixhLigsDIrf/D186pICTCqq6tJRUWF2BMLTxHA7L5QVPNc6Ioxvbqq/ZaaY11w7FZYtgmKokBTNGiaBrFpNNeHvvlv//bM0NRU9wF/UKh3ue1TSxYufOfjREU/iUz5O5bMr37htZUPhnp8L4U7CQgcaKppOoRccsP5aHNz0uZV2x9cU7b7oVgYbtgCFC0KzVBBHAoszQKwkZzmslPSff/7ZSTbZ7rCAUBpaakEF3dnV4vz08pdrYNaW3uhJGJQ4vH+5ugMC1mWYZomWIaFbVpwyR5k5WQgd5CM3ALfn5NS7T8tmL2g5qNk8w/w3NxwQ1p6fjXlD6/Y5VtL1qzYu/vE0V7BcRw4jg2W5UDTNEyzv7TGsSmwHOAPeJCUwmLkmGB8wtV5RVOn3tj2eZkQ5SfLhRMbe3c0nopP9Ps9esGw5Ie+cefNF81ffG1l+fjKvSeeq9xTPbynJwGPJwCRF6AoKhiah2nqkAQJwWAQ02eOfPehHy6Y+mUlHPtZHvzMxvDT67dulG0j9VFFSYimaUBKlkHTNBRFQSQS6W9HTPd3SeFsA21t7YjH3IjHyHfT0pjFTz75+v+OnhR8avlyfOTG8+Xl5cL7TMrSUgmAcTYzYqDjMIxjDh+VDZ4N4OTxFtiODZqmoaoqJFmCLMrvFZUmFBPBVBY0ze6iaXfo8zQh5gydo//fM6/8fMRVgW/43N4/3H77zfsuGACgabxSumXmls07/3yg8lhxIpaAIMqIxHoRIQDPSmBpAkmSwTEiAkk+SC5m45eVbJ854c5i7qzZf1yxdu38GbOGXvd2RR0oiKCofl0NEAqaroEQBzTN9ZfcGwYMvb8nXXeHK110kV+GQvqs18vWvpKVl7R26tipA14xPtguGAL9DZal3wRw8mLfW7t2rWzT9tCFcxceAoCuzvarM3O9gmXIaG+Joqe3GyD9Fdyy7IJjO3C7XEhJTXbyCj1vjLoqWCa46KOTJ09WP2+T4r5v3rEVwNZLBUZ++/sX/uv118ofqK1tgm1ZYDgGDvqFeInDgmU48IIEmukPiPkCQte0aWP+B19ifCqEW7lyZeoHizw/dCIcd29mLve7qdcNuqa1ycxqOx2FKIhgGAYByo9oLA5CCBiGRUKJQ+Q5xOJRaLoGu8NBqE+b1tqSmCa72h784/+ueGHIiNRnZ8+Ycck9rw/6cW5OfiYej1/UZ1m/fn0gAiBAs+9FYBmebUyomtrY2CHFYzGYpglZlkDRFFRVBSEEHrcb+fnJNQ//cukXslr5LHbu3Fvwm0ee//Pud47eXFfXAIsY/X4qCGzLBs+4Ibt8YCgBqcnpsEwTSUE/svKSVo4aldf3ZSbcp+LDbd682XXTTTcpALC2Ym2yYzr8ghsXtJ3HvPM6Aj0yEWdGtrfGlx8+0JieiAO22S9NILtF8CyDWCQO07LgdstQVQ3hSB8sy4LLJYNhOQRT3Bhdkn2sYGjKD25feOPmT+tiPv3i6ke3rKv+cVtTCLZDwe/zARRBIpGA49jIzc3FuGvyDvzgB/PGki9g8tjLb6wd1tuh3l9X23F39ZHWYHt7OwilwXRUABYoigLHuOB3ZyLoT4dhmBBFGbJbRPHo9GjRVYFZS+fdsPfKCvcJ4yzZAEDr1kKhUIg+Y5a8r5XRnDlzYgB2EYLdb+3ZsdUfEO7uale+19erBiNhERwjgdgEwaAXipIAwwgwOzuRHExGX28IqqaBExw0N8fRF+obHg4PXv/sqxu/ec9XZ7/4afxO27QZiur3Nd1+EXl5SbbsFruVuJHe3NSNnr4OdHRweRu2vV045/qpdZ+XSVC6fn36kltu6brQqkvTFP7nf9747ttb6/+9sy2R2RcKIxqLgePd0A0bNG3DcQBJdIOjPXDLQQi8DMtSwAssBhUGSDCV/tOXnWyfqg9XWloqIQWMW3WbsiwHAHRs3LjRA+Dc/D4CABQFAsxoAPDL8u1b18Vj8s901a7VFX6fZWojeZEv0g1nfGtzn0f2ZKVFwgpAEYRCYTi2BdM00d2ZwIF99ayuW8888dfV44ePynxsxoQJpz+p30cIoZ59ccVVXh/g8yarhUVZqzIyfX8dN33q4UO7Dt57+CD7aE31aeiG4mcs0/N5mgSCbZMVK1ZQ5zef35p47Gj7T97ZcWpBW0sIFEXBNC0QAJIowSW5kdBC0I04WMqH5EAWWIaDQ2xIkoT8whSleHj63XfffcMqXMGnty2wqmKV31Ed9+I5iy9LZsGh9s2uznp3fndr4vdVlZ03tDWH6Pb2VsQTCmxiw9R1yLKMlLRUpKQEkZIqhfILk17MG+L/3c0zZpw+zwOBYUTmqsW3Lv7YzeNL166damr2MFmWDy6ce9P+c9979oW13+vsiPxQEEnklpuvGT906NDPbYItIYTdsGHHkNra7h/VVLfc1tzcJxsagWX1B6wohoZt2mAYHrLsBiEObNuGYZjw+TxgGQbp6ZlIzxb7CooC373naze9doVqnxLhSktL3QAYWqb9HMtx82+ef+rM6z4A8Y+jh3kuGhoqxDfKulcfOdB1U0LREYr2QUnEkIhFwbAMOI4DwzDweHzIL8hBXr6rtnBw+s9ystzbJk+e3HfO2kqVbi91LZ05MPXpfj2RcOaiOXMGbBpWVlb6Ojo6/HPnzm36nBJNeP6l9fMaG7p+0N4SL+npUMRQbxyWbYFhgFgsBl4Q4MABcSi4ZC9E0QVVVWDZNlyyC7JLRHIwiCFFwbphI5K/NW/epO1XaPYpmZTl5eWCBm0yRVEnF85e2Pi+NyXJ7WYYDcB7HUA/Dvny82dqr67c0B2LpqO9JQYbNvpCPTAMAzzhAELDICZM3UQ8rCDcmz6ktSn2emZ2oO75Fzf9t9tvViyeN+8oKJClGLjU++bNm/XMzMzmj3Ku48aNi+D/CQld0gT/pApYz73WFA04NpGff2nT/J/97Jmf1NZ0jo70aXAcGpqWgNfjgaYp0A0dLCtAEARoug5RksCyHBKJBARBhF+SIbtEBNPcyMySn1u0ZPiDhYWFkSsU+xRXuNfLXr/Lcpx5dyy+/fZLpS+tXr3aM9Cs/A+irHz9XR2nnRcPH+hGW2s7ent7kIgpcIgJgMAlewBQsG0LHo8PLtkNSZKQlROEy2vHsrNTH/MG0ePxUHvn3jR3/0Umqm/p0qWfyiR6ufS174AmRZzD/ODvtQI+iK17yoKzJi7qLS9/N7umtuYvfb1WUUtTZHBDXXd/IjnNIpFIIHdQHoLBAHp6etDXF4Zl2XC5BPgDSdBUDQANlmUgySJ4njIzc7xHc/JTH/vWN69/lThXyPWpE+5MNrtwRsTnE0NFRQXbE0k8fqo2dm9zfUy2TKD19GkkEipUtb8shOM4xOMxOA5Bkj8JhBDYlgOO55CeEURahhf+JL4jmCL9X3qmZ1Ph2MwjF5N9+6RRVlYWNDiScdvcRdWXqwKdECJue3t/alNd95iuju4bOjvDX6k72Z4Ri2jQVAdulw8MQ4NjaWiajqJh+cbYCYOfaTrdeGd3d9gtiW6V47iwKLMphqkqHMvvkSW+nuf5qmDQvWP69CEN5+sZcAWfQdDk08ArKzfe2tmmrThZHeLbWzph2zY0XYOmaVATcWi6BoEX4HZ7IUkiEqoK+kyCscfthc/nQXZeEjjeAoFzSvaIu2naPJRfEDx97bTCTSkXISAhhHrqqafYS/XY+7RR1dQUOPTOiZLO9p7pkXD8zlBISe7s6PF3dfYhkdDB0BwcmwHHiRB5CQAF4jjgeRZXTyho+s0j3xhWvm1brq4imJaV2RaQqPjJlpb85KDcNm3c1DZCrpDoS0s4AHht9boX+7rYu44f6kAknEA4HEI4EkY0GgEhNkSpvysLy/EwLQMMw4BneVAUAQgFx3HAMFx/SZBLAMvZyC9MhdcnHfUHXM/n5fv2FQ8JHM7PLwkDwMmT5UJDA8PeeOONiXXr1kmapummKAbuPFPY+UE89+pzhY5NXdVUW796IMnW69evDyQSCXMgrcQIIVRNTU2wPWKxxw+dmKWpuLa5sWNWe3tPjmk40FUTSiKGjs420HS/ZgkoBhQ4iKwb6anZcBwHlmGjZPwQDB8T/PbX75r9lys0uUK4i5mX7nDCurW9VftjU10s2NsdQ7gvCtM2EYlGQQhBJBIGQMPlkaEocVCgQJ8hGyhAlmQwDAPiAKAIJFGAJAnwJ0nIyArA4+NOen3yKZ7nmhiGqsobnF1+07Xjmx2bnJ34H6pVKy0tZaYtmSb+4d9f2EdgDf7at+enj8wded40pz179gQPVtWNJ7Q9lmWdu5L87nsWz1/87vvJ1e7afzzkbahuyerui6Q4Jj2tqyt6XSScKNQ0m9ZUM0lVdDQ1NyOhKXBgnOmLbfT3DmAYEIeAEAYcJ8MtBODzpIBjWSSn+TD2mqxV/993F37li5yCdoVwnyLeWL9pZndHoqy9xfR3tcah6QYSmgFdS0DVNFimBcPUoSixfh19joNjO2AYFjwvgOc4GIYGr88Px3YQCvUBlANJdoMTWLjdEggccByFpKC7KxD01Lk9bH0wGHjL7WLbZI/3hFegNc7LOZquU9dPmhR74slVD2/ZtOchmiLOLQsm/2L+16b+KZlKjp6zQrGbt+8avOPNA386fqz5hpKSIuTmp75KU9RL4MSjRlwbqUTV62MxlQ2HozfGIlqGZdBux6GZWDyBSCQORUmAogE4BLZlgaIB3dJhOQnohgLbMcGw/fqPNEVD4P2QhAB4RkByMAVFRUPgTzZrJ00qnD5z5sSOKxS5QrgBYdmyZfT46ZOuaW+NvdxQow7q67Gh6QlQhAGxKcTiUeiGBpblwJ5RgdZ1HY7jwOVywdQN2CAQBB6GocO2LSQ0DQm1v+EEgYN4vH/F5HkONE0hIz0dGRmp4Fkauq6pskswAWI7jkUTim7p6w2PqDlRC8s2MfqqYmTnpZ5yydI2nhWaCXFyYxFlfEd7aGTdqQ4hFtPh8nDweER4vR4wNKNYluNKKAZ03YYST8DQDTAsA57jYTsOTNuApiVA0wDDsBAFASzHIqZEoBpRGIYKiiawHRMU+kue/N5seKQk0DSNzMxMjC5J25s/1H3/wrn/T57wCq4QbuDRvo1lk3SNXRMNOYiG7ZTeDhWqYsEwDBiWDoACQ3OgKBYJNQGKopCcHIBl66AYGm6Zh2kSdLVH0NTUDEIRaLoGXddhmAYcxwRAQ+Ak0KD7NfFBgWHZMxonNmzHAccziMZ7oOv9G8k8JyEYTIXPkwS/J4BoNIpQOAKa5gAApm3AsiwIvACP2wNFiUPXNYAQsCz7Xr0dALhcbiRUBTElCoqiIAg8CAEEob9baFSJwLQVMDQN9OuugGNFSLwLHOuCLLnh9XowZlzevilTRlw3c+bI+BVq/IMRbhlZRo9YMYK63HtM54kkUCs3rhsn8ayia+xYXbPGqaoddWy61jKJZEP/iqpa+ZGwYrpc4jCOF/clJbv6CDF6BZG2ZVk+pkb1EYcPtM86UtWSBhDYNkFPTw80PQHbsSFwIiRe6u9hxolgaQ62bUJVVbAcCxAbFtFhWAoYlkCJx8CLLrhEPwRWQlIgCaqqQkkkQFEMRFEAKAqWbUHgeBiGAV3X4HLL4FgeihIDKEAUJCQSKixLBwHpLwNCfx81juNgmgYoioZpqdBMBTwvgmdkgDCQJQkCL4PnRSSn+pCeJdTPmFE0+5Zbpp+8QotPDp9ZAeqIFSNYRVFonMk0+eQeKRRZDJytWj4G4H2VA28fX/2K35XBjcjJSGzZWbfAtLTaudf150Gu2rx+DG+r9QuWzomuWLVjMsU6b1YdaBV5lkcwKYBQmEA3+redDNMAz8n9NXw0A5rqz8owTQu2bfYXaNIcbNsCy8tgWREUTYFhaSQSGmiGgT/gP+NbGggE/OA4HmpCA4iD1NRsiKIE23aQlh6EpqsQeAmRSBSKooDnOOi6BSURA8VQoECBZQR43D5YlomoEoZDAI/kAy8KkGU3QBxk5XiVQYOTynIG8Y9fIds/MOHObX37WWJq8fuyW96XZGtGEjWHqqt1APjKgum7LRJZKYv8V6sPddA854ZlGtBUFZatwwIDjhGhahp4lgPPc6AoGhzXf4k5IvWbi5QDlmehaSoc24Ese8DQLLw+GS63ABAgoSoIJPnBCyzURAyyKwUer9Rr2fZpt1uMBoP+dTasPkt3CttbIw82nOqWlUQCLMdDkIR+U9cGREEGx7EgRIJDGHACB1kQQSgHLg+N7JxAzaRJw+659daJu69Q4dPB/w9Oj6AYjYWXHwAAAABJRU5ErkJggg==';
+
+
+function todayISO() { return new Date().toISOString().slice(0,10); }
+
+function formatDateDMY(isoDate) {
+  if (!isoDate) return '';
+  const parts = isoDate.split('-');
+  if (parts.length !== 3) return isoDate;
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function normalizeItemName(s) { return (s || '').toLowerCase().replace(/[\s\-_.]/g, ''); }
+
+function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+// ---- Storage helpers ----
+async function loadKey(key, fallback) {
+  try {
+    const res = await window.storage.get(key, false);
+    if (res && res.value) return JSON.parse(res.value);
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+async function saveKey(key, value) {
+  try {
+    await window.storage.set(key, JSON.stringify(value), false);
+  } catch (e) {
+    console.error('save failed', key, e);
+  }
+}
+
+const TABS = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'machines', label: 'Machines', icon: Printer },
+  { id: 'sales', label: 'Sales', icon: FileText },
+  { id: 'payments', label: 'Payments', icon: IndianRupee },
+  { id: 'log', label: 'Log', icon: ClipboardList },
+];
+
+export default function App() {
+  const [ready, setReady] = useState(false);
+  const [tab, setTab] = useState('home');
+  const [machinesView, setMachinesView] = useState('list');
+  const [jumpToParty, setJumpToParty] = useState(null);
+  const [showBackup, setShowBackup] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const goTo = useCallback((tabId, view, partyName) => {
+    setTab(tabId);
+    if (view) setMachinesView(view);
+    setJumpToParty(partyName || null);
+  }, []);
+  const [machines, setMachines] = useState([]);
+  const [quotations, setQuotations] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [dailyLogs, setDailyLogs] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [items, setItems] = useState([]);
+  const [targets, setTargets] = useState({});
+  const [signatureImg, setSignatureImg] = useState('');
+  const [dismissedToday, setDismissedToday] = useState([]);
+  const [challans, setChallans] = useState([]);
+  const [gemLetters, setGemLetters] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [amcHistory, setAmcHistory] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd, amh, gl] = await Promise.all([
+        loadKey('argus-machines', SEED_MACHINES),
+        loadKey('argus-quotations', []),
+        loadKey('argus-orders', []),
+        loadKey('argus-payments', []),
+        loadKey('argus-dailylogs', []),
+        loadKey('argus-tasks', []),
+        loadKey('argus-items', []),
+        loadKey('argus-targets', {}),
+        loadKey('argus-signature', DEFAULT_SIGNATURE),
+        loadKey('argus-dismissed-today', []),
+        loadKey('argus-challans', []),
+        loadKey('argus-visits', []),
+        loadKey('argus-holidays', []),
+        loadKey('argus-amchistory', []),
+        loadKey('argus-gemletters', []),
+      ]);
+      setMachines(m);
+      setQuotations(q);
+      setOrders(o);
+      setPayments(p);
+      setDailyLogs(l);
+      setTasks(tk);
+      setItems(it);
+      setTargets(t);
+      setSignatureImg(sig || DEFAULT_SIGNATURE);
+      setDismissedToday(dm.filter(d => d.date === todayISO()));
+      setChallans(ch);
+      setVisits(vs);
+      setHolidays(hd);
+      setAmcHistory(amh);
+      setGemLetters(gl);
+      setReady(true);
+    })();
+  }, []);
+
+  useEffect(() => { if (ready) saveKey('argus-machines', machines); }, [machines, ready]);
+  useEffect(() => { if (ready) saveKey('argus-quotations', quotations); }, [quotations, ready]);
+  useEffect(() => { if (ready) saveKey('argus-orders', orders); }, [orders, ready]);
+  useEffect(() => { if (ready) saveKey('argus-payments', payments); }, [payments, ready]);
+  useEffect(() => { if (ready) saveKey('argus-dailylogs', dailyLogs); }, [dailyLogs, ready]);
+  useEffect(() => { if (ready) saveKey('argus-signature', signatureImg); }, [signatureImg, ready]);
+  useEffect(() => { if (ready) saveKey('argus-dismissed-today', dismissedToday); }, [dismissedToday, ready]);
+  useEffect(() => { if (ready) saveKey('argus-tasks', tasks); }, [tasks, ready]);
+  useEffect(() => { if (ready) saveKey('argus-items', items); }, [items, ready]);
+  useEffect(() => { if (ready) saveKey('argus-targets', targets); }, [targets, ready]);
+  useEffect(() => { if (ready) saveKey('argus-challans', challans); }, [challans, ready]);
+  useEffect(() => { if (ready) saveKey('argus-visits', visits); }, [visits, ready]);
+  useEffect(() => { if (ready) saveKey('argus-holidays', holidays); }, [holidays, ready]);
+  useEffect(() => { if (ready) saveKey('argus-amchistory', amcHistory); }, [amcHistory, ready]);
+  useEffect(() => { if (ready) saveKey('argus-gemletters', gemLetters); }, [gemLetters, ready]);
+
+  const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
+
+  const expiringSoon = useMemo(() => {
+    // Sirf wahi machines jinki AMC/warranty jaldi khatam ho rahi hai ya abhi-abhi khatam hui hai —
+    // bahut purani expired machines (jinka AMC lena hi chhod diya gaya ho) list mein nahi aani chahiye.
+    return activeMachines
+      .filter(m => (m.city || '').trim().toUpperCase() === 'LUCKNOW')
+      .map(m => ({ ...m, days: daysUntil(m.amcTo) }))
+      .filter(m => m.days !== null && m.days <= 60 && m.days >= -30)
+      .sort((a,b) => a.days - b.days);
+  }, [activeMachines]);
+
+  const outstanding = useMemo(() => {
+    return payments.reduce((sum, p) => sum + (Number(p.invoiceAmount||0) - Number(p.receivedAmount||0)), 0);
+  }, [payments]);
+
+  const thisMonthTarget = targets[monthKey()] || 0;
+  const thisMonthAchieved = useMemo(() => {
+    return payments
+      .filter(p => (p.date||'').startsWith(monthKey()))
+      .reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  }, [payments]);
+
+  const dueTasks = useMemo(() => {
+    const today = todayISO();
+    return tasks.filter(t => !t.done && t.dueDate <= today).sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+  }, [tasks]);
+
+  const completeTask = useCallback((id, extraNote) => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const today = todayISO();
+    setTasks(tasks.map(x => x.id === id ? { ...x, done: true, completedDate: today } : x));
+    const noteText = extraNote && extraNote.trim() ? `✔ Task complete: ${t.title} — ${extraNote.trim()}` : `✔ Task complete: ${t.title}`;
+    setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
+  }, [tasks]);
+
+  const markSuggestionDone = useCallback((key, title, extraNote) => {
+    const today = todayISO();
+    setDismissedToday(prev => [...prev, { date: today, key }]);
+    const noteText = extraNote && extraNote.trim() ? `✔ Kaam done: ${title} — ${extraNote.trim()}` : `✔ Kaam done: ${title}`;
+    setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
+  }, []);
+
+  const markPartyVisited = useCallback((party, key, extraNote) => {
+    const today = todayISO();
+    setDismissedToday(prev => [...prev, { date: today, key }]);
+    setVisits(prev => [{ id: uid(), party, date: today }, ...prev]);
+    const noteText = extraNote && extraNote.trim() ? `✔ Party visit: ${party} — ${extraNote.trim()}` : `✔ Party visit: ${party}`;
+    setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
+  }, []);
+
+  const toggleHoliday = useCallback((dateStr) => {
+    const d = dateStr || todayISO();
+    setHolidays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+          <p className="text-slate-500 text-sm">Loading Argus Tracker...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden">
+      <Header expiringCount={expiringSoon.length} tab={tab} onBack={() => setTab('home')} onOpenBackup={() => setShowBackup(true)} onOpenAlerts={() => setShowAlerts(true)} />
+      <div className="flex-1 overflow-y-auto pb-20">
+        {tab === 'home' && (
+          <HomeTab
+            machines={machines}
+            expiringSoon={expiringSoon}
+            quotations={quotations}
+            orders={orders}
+            payments={payments}
+            challans={challans}
+            visits={visits}
+            holidays={holidays}
+            toggleHoliday={toggleHoliday}
+            markPartyVisited={markPartyVisited}
+            outstanding={outstanding}
+            thisMonthTarget={thisMonthTarget}
+            thisMonthAchieved={thisMonthAchieved}
+            setTargets={setTargets}
+            targets={targets}
+            dueTasks={dueTasks}
+            completeTask={completeTask}
+            dismissedToday={dismissedToday}
+            markSuggestionDone={markSuggestionDone}
+            goTo={goTo}
+          />
+        )}
+        {tab === 'machines' && <MachinesTab machines={machines} setMachines={setMachines} view={machinesView} setView={setMachinesView} jumpToParty={jumpToParty} payments={payments} setPayments={setPayments} quotations={quotations} orders={orders} challans={challans} amcHistory={amcHistory} setAmcHistory={setAmcHistory} />}
+        {tab === 'sales' && (
+          <SalesTab
+            machines={machines}
+            quotations={quotations}
+            setQuotations={setQuotations}
+            orders={orders}
+            setOrders={setOrders}
+            items={items}
+            setItems={setItems}
+            payments={payments}
+            setPayments={setPayments}
+            signatureImg={signatureImg}
+            challans={challans}
+            setChallans={setChallans}
+            gemLetters={gemLetters}
+            setGemLetters={setGemLetters}
+          />
+        )}
+        {tab === 'payments' && (
+          <PaymentsTab machines={machines} payments={payments} setPayments={setPayments} />
+        )}
+        {tab === 'log' && (
+          <LogTab
+            dailyLogs={dailyLogs}
+            setDailyLogs={setDailyLogs}
+            tasks={tasks}
+            setTasks={setTasks}
+            completeTask={completeTask}
+          />
+        )}
+      </div>
+      <BottomNav tab={tab} setTab={setTab} badgeCount={expiringSoon.length} />
+      {showBackup && (
+        <BackupModal
+          data={{ machines, quotations, orders, payments, dailyLogs, tasks, items, targets }}
+          setters={{ setMachines, setQuotations, setOrders, setPayments, setDailyLogs, setTasks, setItems, setTargets }}
+          signatureImg={signatureImg}
+          setSignatureImg={setSignatureImg}
+          onClose={() => setShowBackup(false)}
+        />
+      )}
+      {showAlerts && (
+        <AlertsModal
+          expiringSoon={expiringSoon}
+          goTo={goTo}
+          onClose={() => setShowAlerts(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AlertsModal({ expiringSoon, goTo, onClose }) {
+  const duePartiesGrouped = useMemo(() => {
+    const map = {};
+    expiringSoon.forEach(m => {
+      if (!map[m.party]) map[m.party] = { party: m.party, city: m.city, machines: [] };
+      map[m.party].machines.push(m);
+    });
+    return Object.values(map)
+      .map(p => ({ ...p, minDays: Math.min(...p.machines.map(m => m.days)) }))
+      .sort((a, b) => a.minDays - b.minDays);
+  }, [expiringSoon]);
+
+  return (
+    <Modal title="AMC / Warranty Alerts" onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">Ye wahi machines hain jinki AMC/Warranty jald renew karni hai (60 din ke andar) ya abhi-abhi khatam hui hai.</p>
+      {duePartiesGrouped.length === 0 ? (
+        <Card className="text-center text-sm text-slate-400 py-8">Sab clear hai — koi urgent renewal nahi 🎉</Card>
+      ) : (
+        <div className="space-y-2">
+          {duePartiesGrouped.map(p => {
+            const worst = p.machines.reduce((w, m) => (m.days < w.days ? m : w), p.machines[0]);
+            const badge = amcBadge(worst.days, worst.contType);
+            return (
+              <Card key={p.party} className="!p-3">
+                <button className="w-full text-left" onClick={() => { onClose(); goTo('machines', 'parties', p.party); }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{p.city} · {p.machines.length} machine{p.machines.length > 1 ? 's' : ''}</p>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                  </div>
+                </button>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
+  );
+}
+function Header({ expiringCount, tab, onBack, onOpenBackup, onOpenAlerts }) {
+  return (
+    <div className="bg-teal-800 text-white px-4 pt-4 pb-3 shadow-sm shrink-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {tab !== 'home' ? (
+            <button onClick={onBack} className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center ring-2 ring-teal-400/40">
+              <ChevronLeft size={18} className="text-teal-100" />
+            </button>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center ring-2 ring-teal-400/40 relative">
+              <span className="text-sm font-black text-amber-400 leading-none" style={{ fontFamily: 'Georgia, serif' }}>A</span>
+              <span className="absolute top-[3px] w-[5px] h-[5px] rounded-full bg-amber-400" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-base font-bold tracking-tight leading-none">Argus Tracker</h1>
+            <p className="text-[11px] text-teal-200 leading-none mt-1">Shiv Dutt Pandey · Service Desk</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={onOpenAlerts} className="relative w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center">
+            <Bell size={16} className="text-teal-100" />
+            {expiringCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-amber-950 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {expiringCount > 9 ? '9+' : expiringCount}
+              </span>
+            )}
+          </button>
+          <button onClick={onOpenBackup} className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center">
+            <Settings size={16} className="text-teal-100" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({ tab, setTab, badgeCount }) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-stretch py-1 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+      {TABS.map(t => {
+        const Icon = t.icon;
+        const active = tab === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 flex-1 relative ${active ? 'text-teal-700' : 'text-slate-400'}`}
+          >
+            <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+            <span className={`text-[10px] ${active ? 'font-semibold' : ''}`}>{t.label}</span>
+            {t.id === 'home' && badgeCount > 0 && (
+              <span className="absolute top-0 right-4 w-2 h-2 rounded-full bg-amber-500" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Card({ children, className = '' }) {
+  return <div className={`bg-white rounded-2xl border border-slate-200 p-4 ${className}`}>{children}</div>;
+}
+
+function SectionTitle({ children, action }) {
+  return (
+    <div className="flex items-center justify-between mb-2 px-1">
+      <h2 className="text-sm font-bold text-slate-800">{children}</h2>
+      {action}
+    </div>
+  );
+}
+
+// ---------------- HOME TAB ----------------
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+  const [editTarget, setEditTarget] = useState(false);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
+  const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
+  const pendingOrders = orders.filter(o => o.deliveryStatus !== 'Delivered').length;
+  const pct = thisMonthTarget > 0 ? Math.min(100, Math.round((thisMonthAchieved / thisMonthTarget) * 100)) : 0;
+  const activeCount = machines.filter(m => normStatus(m.status) === 'ACTIVE').length;
+  const uniquePartyCount = useMemo(() => new Set(machines.map(m => m.party)).size, [machines]);
+
+  const duePartiesGrouped = useMemo(() => {
+    const map = {};
+    expiringSoon.forEach(m => {
+      if (!map[m.party]) map[m.party] = { party: m.party, city: m.city, machines: [] };
+      map[m.party].machines.push(m);
+    });
+    return Object.values(map)
+      .map(p => ({ ...p, minDays: Math.min(...p.machines.map(m => m.days)) }))
+      .sort((a, b) => a.minDays - b.minDays);
+  }, [expiringSoon]);
+
+  // ---- "Aaj Ke Kaam" — smart auto-suggested actions, computed fresh each day ----
+  const suggestedActions = useMemo(() => {
+    const list = [];
+    const dismissedKeys = new Set(dismissedToday.map(d => d.key));
+
+    // 1. Overdue/today tasks (highest priority — already promised deadlines)
+    dueTasks.slice(0, 2).forEach(t => {
+      const overdue = t.dueDate < todayISO();
+      list.push({
+        key: 'task-' + t.id,
+        icon: '✅',
+        title: t.title,
+        subtitle: overdue ? 'Overdue task' : 'Aaj ka task',
+        urgent: overdue,
+        onClick: () => goTo('log'),
+        onMarkDone: (note) => completeTask(t.id, note),
+      });
+    });
+
+    // 2. Most urgent AMC renewal
+    if (duePartiesGrouped.length > 0) {
+      const p = duePartiesGrouped[0];
+      const worstMachine = p.machines.reduce((w, m) => (m.days < w.days ? m : w), p.machines[0]);
+      const overdue = p.minDays < 0;
+      const deptTag = worstMachine.place ? ` (${worstMachine.place})` : '';
+      const key = 'amc-' + p.party;
+      list.push({
+        key,
+        icon: '🛠️',
+        title: `${p.party}${deptTag} — AMC renewal`,
+        subtitle: overdue ? `${Math.abs(p.minDays)} din pehle expire ho chuki` : `${p.minDays} din mein expire ho rahi`,
+        urgent: overdue || p.minDays <= 7,
+        onClick: () => goTo('machines', 'parties', p.party),
+        onMarkDone: (note) => markSuggestionDone(key, `${p.party} — AMC follow-up`, note),
+      });
+    }
+
+    // 3. Biggest outstanding party — collection follow-up
+    const byPartyOutstanding = {};
+    const partyDisplayName = {};
+    payments.forEach(p => {
+      const rawName = (p.party || '').trim();
+      if (!rawName) return;
+      const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+      if (!partyDisplayName[key]) partyDisplayName[key] = rawName;
+      const pend = Number(p.invoiceAmount||0) - Number(p.receivedAmount||0);
+      byPartyOutstanding[key] = (byPartyOutstanding[key] || 0) + pend;
+    });
+    const topOutstandingEntry = Object.entries(byPartyOutstanding).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1])[0];
+    const topOutstanding = topOutstandingEntry ? [partyDisplayName[topOutstandingEntry[0]], topOutstandingEntry[1]] : null;
+    if (topOutstanding) {
+      const key = 'due-' + topOutstanding[0];
+      list.push({
+        key,
+        icon: '💰',
+        title: `${topOutstanding[0]} — payment follow-up`,
+        subtitle: `₹${topOutstanding[1].toLocaleString('en-IN')} outstanding hai`,
+        urgent: topOutstanding[1] > 20000,
+        onClick: () => goTo('payments'),
+        onMarkDone: (note) => markSuggestionDone(key, `${topOutstanding[0]} — payment follow-up`, note),
+      });
+    }
+
+    // 4. Oldest pending quotation — needs follow-up call
+    const oldestQuote = quotations.filter(q => q.status === 'Sent').sort((a,b) => (a.date||'').localeCompare(b.date||''))[0];
+    if (oldestQuote) {
+      const key = 'quote-' + oldestQuote.id;
+      list.push({
+        key,
+        icon: '📄',
+        title: `${oldestQuote.party} — quotation follow-up`,
+        subtitle: `${oldestQuote.quotNo || ''} · ${oldestQuote.date} se pending hai`,
+        urgent: false,
+        onClick: () => goTo('sales'),
+        onMarkDone: (note) => markSuggestionDone(key, `${oldestQuote.party} — quotation follow-up`, note),
+      });
+    }
+
+    // 5. Longest-pending order delivery
+    const oldestOrder = orders.filter(o => o.deliveryStatus !== 'Delivered').sort((a,b) => (a.poDate||'').localeCompare(b.poDate||''))[0];
+    if (oldestOrder) {
+      const key = 'order-' + oldestOrder.id;
+      list.push({
+        key,
+        icon: '📦',
+        title: `${oldestOrder.party} — order delivery`,
+        subtitle: `PO ${oldestOrder.orderNo || ''} · ${oldestOrder.poDate} se pending hai`,
+        urgent: false,
+        onClick: () => goTo('sales'),
+        onMarkDone: (note) => markSuggestionDone(key, `${oldestOrder.party} — order delivery follow-up`, note),
+      });
+    }
+
+    // 6. Oldest pending Challan (bill nahi bana abhi tak)
+    const pendingChallans = (challans || []).filter(c => c.status === 'Pending').sort((a,b) => (a.date||'').localeCompare(b.date||''));
+    if (pendingChallans.length > 0) {
+      const c = pendingChallans[0];
+      const daysPending = Math.round((new Date() - new Date(c.date)) / 86400000);
+      const key = 'challan-' + c.id;
+      list.push({
+        key,
+        icon: '🚚',
+        title: `${c.party} — Challan ka bill banana hai`,
+        subtitle: `${c.challanNo || ''} · ${daysPending} din se pending hai`,
+        urgent: daysPending >= 5,
+        onClick: () => goTo('sales'),
+        onMarkDone: (note) => markSuggestionDone(key, `${c.party} — Challan bill follow-up`, note),
+      });
+    }
+
+    return list.filter(item => !dismissedKeys.has(item.key));
+  }, [dueTasks, duePartiesGrouped, payments, quotations, orders, challans, dismissedToday]);
+
+  // Aaj kaunsi 5 parties visit ki jayein — jo party sabse zyada dino se contact nahi hui, wo pehle
+  const today = todayISO();
+  const nowDate = new Date();
+  const isSunday = nowDate.getDay() === 0;
+  const isSecondSaturday = nowDate.getDay() === 6 && nowDate.getDate() >= 8 && nowDate.getDate() <= 14;
+  const isHoliday = (holidays || []).includes(today) || isSecondSaturday;
+  const isWorkingDay = !isSunday && !isHoliday;
+
+  const visitSuggestions = useMemo(() => {
+    if (!isWorkingDay) return [];
+    const dismissedKeys = new Set(dismissedToday.map(d => d.key));
+    const parties = Array.from(new Set(machines.map(m => m.party).filter(Boolean)));
+    const lastTouch = {};
+    parties.forEach(p => { lastTouch[p] = null; });
+    // Sirf AAJ SE PEHLE ki activity se rank karein — taaki aaj kisi ko "visit" mark karne se
+    // uska turant list se hatna aur ek NAYI (6th) party ka aa jaana na ho. Aaj ke top-5 fix rahein.
+    const bump = (party, date) => {
+      if (!party || !date) return;
+      if (date >= today) return;
+      if (!(party in lastTouch)) return;
+      if (!lastTouch[party] || date > lastTouch[party]) lastTouch[party] = date;
+    };
+    quotations.forEach(q => bump(q.party, q.date));
+    orders.forEach(o => bump(o.party, o.poDate));
+    payments.forEach(p => bump(p.party, p.date));
+    (challans || []).forEach(c => bump(c.party, c.date));
+    (visits || []).forEach(v => bump(v.party, v.date));
+
+    const ranked = parties
+      .sort((a, b) => {
+        const da = lastTouch[a] || '0000-00-00';
+        const db = lastTouch[b] || '0000-00-00';
+        return da.localeCompare(db); // sabse purani/never wali pehle
+      });
+
+    return ranked.slice(0, 5).map(party => {
+      const key = 'visit-' + party;
+      const last = lastTouch[party];
+      const cityMachine = machines.find(m => m.party === party);
+      return {
+        key,
+        icon: '🧑‍💼',
+        title: `${party} — visit karein`,
+        subtitle: last ? `Aakhri contact: ${formatDateDMY(last)}` : 'Kabhi contact nahi hua',
+        urgent: !last,
+        onClick: () => goTo('machines', 'parties', party),
+        onMarkDone: (note) => markPartyVisited(party, key, note),
+      };
+    }).filter(item => !dismissedKeys.has(item.key));
+  }, [isWorkingDay, machines, quotations, orders, payments, challans, visits, dismissedToday, today]);
+
+  const combinedSuggestions = [...suggestedActions, ...visitSuggestions].slice(0, 10);
+
+  return (
+    <div className="px-4 pt-4 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Active Machines</p>
+          <p className="text-2xl font-bold text-slate-800 mt-0.5">{activeCount} <span className="text-xs font-normal text-slate-400">/ {machines.length}</span></p>
+        </Card>
+        <Card className="!p-3">
+          <button onClick={() => goTo('machines', 'parties')} className="w-full text-left">
+            <p className="text-[11px] text-slate-500">Parties</p>
+            <p className="text-2xl font-bold text-slate-800 mt-0.5">{uniquePartyCount}</p>
+          </button>
+        </Card>
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Pending Quotes</p>
+          <p className="text-2xl font-bold text-slate-800 mt-0.5">{pendingQuotes}</p>
+        </Card>
+        <Card className="!p-3">
+          <p className="text-[11px] text-slate-500">Outstanding</p>
+          <p className="text-2xl font-bold text-red-600 mt-0.5">₹{outstanding.toLocaleString('en-IN')}</p>
+        </Card>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-sm font-bold text-slate-800">Aaj Ke Kaam {isWorkingDay && combinedSuggestions.length > 0 ? `(${combinedSuggestions.length})` : ''}</p>
+          <button onClick={() => setShowHolidayModal(true)} className={`text-[11px] font-semibold ${isHoliday ? 'text-red-600' : 'text-teal-700'}`}>
+            {isHoliday ? '✔ Aaj Holiday Hai' : 'Holidays Manage Karein'}
+          </button>
+        </div>
+        {showHolidayModal && (
+          <HolidayModal holidays={holidays} toggleHoliday={toggleHoliday} onClose={() => setShowHolidayModal(false)} />
+        )}
+        {!isWorkingDay ? (
+          <Card className="text-center text-sm text-slate-500 py-6">
+            {isSunday ? '🌞 Aaj Sunday hai — Aaram kijiye!' : isSecondSaturday ? '🎉 Aaj 2nd Saturday hai — Office Off!' : '🎉 Aaj Holiday hai — Aaram kijiye!'}
+          </Card>
+        ) : combinedSuggestions.length === 0 ? (
+          <Card className="text-center text-sm text-slate-400 py-6">Sab kuch clear hai — koi urgent kaam nahi 🎉</Card>
+        ) : (
+          <div className="space-y-2">
+            {combinedSuggestions.map(a => (
+              <SuggestionCard key={a.key} action={a} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-bold text-slate-800">This Month's Target</p>
+          <button onClick={() => setEditTarget(!editTarget)} className="text-xs text-teal-700 font-semibold">
+            {editTarget ? 'Cancel' : 'Set'}
+          </button>
+        </div>
+        {editTarget ? (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={targetInput}
+              onChange={e => setTargetInput(e.target.value)}
+              placeholder="Target amount ₹"
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-base"
+            />
+            <button
+              onClick={() => {
+                const mk = monthKey();
+                setTargets({ ...targets, [mk]: Number(targetInput) || 0 });
+                setEditTarget(false);
+              }}
+              className="bg-teal-700 text-white text-sm font-semibold px-4 rounded-lg"
+            >Save</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>₹{thisMonthAchieved.toLocaleString('en-IN')} collected</span>
+              <span>₹{thisMonthTarget.toLocaleString('en-IN')} target</span>
+            </div>
+            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved</p>
+            <button
+              onClick={() => downloadMonthlyReport({
+                monthLabel: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+                quotations: quotations.filter(q => (q.date||'').startsWith(monthKey())),
+                orders: orders.filter(o => (o.poDate||'').startsWith(monthKey())),
+                payments: payments.filter(p => (p.date||'').startsWith(monthKey())),
+                machines,
+                target: thisMonthTarget,
+                achieved: thisMonthAchieved,
+              })}
+              className="w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5"
+            >📊 Is Mahine Ki Report Download Karein</button>
+          </>
+        )}
+      </Card>
+
+      <div>
+        <SectionTitle action={<button onClick={() => goTo('log')} className="text-xs text-teal-700 font-semibold flex items-center">Sabhi Tasks <ChevronRight size={14} /></button>}>
+          Aaj ke / Bakaya Tasks{dueTasks.length > 0 ? ` (${dueTasks.length})` : ''}
+        </SectionTitle>
+        {dueTasks.length === 0 ? (
+          <Card className="text-center text-sm text-slate-400 py-6">Koi pending task nahi 👍</Card>
+        ) : (
+          <div className="space-y-2">
+            {dueTasks.slice(0, 6).map(t => {
+              const overdue = t.dueDate < todayISO();
+              return (
+                <Card key={t.id} className="!p-3 flex items-center gap-3">
+                  <button onClick={() => completeTask(t.id)} className="w-5 h-5 rounded-full border-2 border-teal-600 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-800 truncate">{t.title}</p>
+                    <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>{overdue ? 'Overdue · ' : ''}{t.dueDate}</p>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HolidayModal({ holidays, toggleHoliday, onClose }) {
+  const [newDate, setNewDate] = useState(todayISO());
+  const sorted = [...(holidays || [])].sort();
+
+  return (
+    <Modal title="Holidays Manage Karein" onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">Jis din bhi chhutti ho (aaj ya aage ki koi tareek), use yahan add kar dein — us din "Aaj Ke Kaam" suggestions nahi aayengi.</p>
+      <Field label="Naya Holiday Jodein">
+        <div className="flex gap-2">
+          <input type="date" className={inputCls} value={newDate} onChange={e => setNewDate(e.target.value)} />
+          <button
+            onClick={() => { if (newDate && !holidays.includes(newDate)) toggleHoliday(newDate); }}
+            className="bg-teal-700 text-white font-semibold px-4 rounded-lg text-sm shrink-0"
+          >Add</button>
+        </div>
+      </Field>
+
+      {sorted.length === 0 ? (
+        <p className="text-sm text-slate-400 text-center py-4">Abhi koi holiday mark nahi hai</p>
+      ) : (
+        <div className="space-y-1.5 mt-2">
+          {sorted.map(d => (
+            <div key={d} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <span className="text-sm text-slate-700">{formatDateDMY(d)} {d === todayISO() && <span className="text-teal-600 font-semibold">(Aaj)</span>}</span>
+              <button onClick={() => toggleHoliday(d)} className="text-xs text-red-600 font-semibold">Hatayein</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function SuggestionCard({ action }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+
+  if (open) {
+    return (
+      <Card className="!p-3 border-teal-200">
+        <p className="text-sm font-semibold text-slate-800 mb-1">{action.title}</p>
+        <p className="text-xs text-slate-500 mb-2">Kya hua, chhota sa note likh dein (optional)</p>
+        <input
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Jaise: Call kar liya, kal aayenge"
+          className={inputCls + ' mb-2'}
+        />
+        <div className="flex gap-2">
+          <button onClick={() => setOpen(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+          <button onClick={() => action.onMarkDone(note)} className="flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm">Done Mark Karein</button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="!p-3">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setOpen(true)} className="w-6 h-6 rounded-full border-2 border-teal-600 shrink-0 flex items-center justify-center" title="Kaam ho gaya, mark karein">
+        </button>
+        <button onClick={action.onClick} className="flex-1 min-w-0 text-left flex items-center gap-3">
+          <span className="text-lg shrink-0">{action.icon}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800 truncate">{action.title}</p>
+            <p className={`text-[11px] mt-0.5 ${action.urgent ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>{action.subtitle}</p>
+          </div>
+          <ChevronRight size={14} className="text-slate-300 shrink-0" />
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------- MACHINES TAB ----------------
+function MachinesTab({ machines, setMachines, view, setView, jumpToParty, payments, setPayments, quotations, orders, challans, amcHistory, setAmcHistory }) {
+  const [search, setSearch] = useState('');
+  const [cityFilter, setCityFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
+  const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [selectedParty, setSelectedParty] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(40);
+  const [showMerge, setShowMerge] = useState(false);
+
+  useEffect(() => {
+    if (jumpToParty) setSelectedParty(jumpToParty);
+  }, [jumpToParty]);
+
+  const cities = useMemo(() => ['All', ...Array.from(new Set(machines.map(m => m.city).filter(Boolean))).sort()], [machines]);
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return machines.filter(m => {
+      const matchesSearch = !s || [m.machineNo, m.party, m.model, m.city, m.contact].join(' ').toLowerCase().includes(s);
+      const matchesCity = cityFilter === 'All' || m.city === cityFilter;
+      const matchesStatus = statusFilter === 'ALL' || normStatus(m.status) === statusFilter;
+      return matchesSearch && matchesCity && matchesStatus;
+    }).sort((a,b) => {
+      const da = daysUntil(a.amcTo); const db = daysUntil(b.amcTo);
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    });
+  }, [machines, search, cityFilter, statusFilter]);
+
+  const parties = useMemo(() => {
+    const map = {};
+    machines.forEach(m => {
+      if (!map[m.party]) map[m.party] = { party: m.party, count: 0, active: 0, city: m.city || '', models: new Set(), hasExpiredAmc: false, hasNearAmc: false };
+      map[m.party].count += 1;
+      if (normStatus(m.status) === 'ACTIVE') {
+        map[m.party].active += 1;
+        const d = daysUntil(m.amcTo);
+        if (d !== null) {
+          if (d < 0) map[m.party].hasExpiredAmc = true;
+          else if (d <= 30) map[m.party].hasNearAmc = true;
+        }
+      }
+      if (m.model) map[m.party].models.add(m.model.toLowerCase());
+    });
+
+    // Payment behaviour per party (normalized, case/space-insensitive match)
+    const payMap = {};
+    (payments || []).forEach(p => {
+      const rawName = (p.party || '').trim();
+      if (!rawName) return;
+      const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+      if (!payMap[key]) payMap[key] = { invoiced: 0, received: 0 };
+      payMap[key].invoiced += Number(p.invoiceAmount||0);
+      payMap[key].received += Number(p.receivedAmount||0);
+    });
+
+    let list = Object.values(map).map(p => {
+      const key = p.party.trim().toLowerCase().replace(/\s+/g, ' ');
+      const pay = payMap[key] || { invoiced: 0, received: 0 };
+      const pending = pay.invoiced - pay.received;
+      const pendingRatio = pay.invoiced > 0 ? pending / pay.invoiced : 0;
+      let health = 'good';
+      if (p.hasExpiredAmc || (pending > 5000 && pendingRatio > 0.5)) health = 'risk';
+      else if (p.hasNearAmc || pending > 0) health = 'watch';
+      return { ...p, pending, health };
+    });
+
+    const s = search.trim().toLowerCase();
+    if (s) list = list.filter(p => p.party.toLowerCase().includes(s) || Array.from(p.models).some(mod => mod.includes(s)));
+    return list.sort((a, b) => {
+      const aLko = a.city.trim().toUpperCase() === 'LUCKNOW';
+      const bLko = b.city.trim().toUpperCase() === 'LUCKNOW';
+      if (aLko !== bLko) return aLko ? -1 : 1;
+      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      return a.party.localeCompare(b.party);
+    });
+  }, [machines, search, payments]);
+
+  const addMachine = (data) => {
+    setMachines([{ ...data, id: uid() }, ...machines]);
+    setShowAdd(false);
+  };
+
+  const updateMachine = (id, data, closeModal = true) => {
+    const before = machines.find(m => m.id === id);
+    if (before && setAmcHistory && ('amcFrom' in data || 'amcTo' in data)) {
+      const newFrom = 'amcFrom' in data ? data.amcFrom : before.amcFrom;
+      const newTo = 'amcTo' in data ? data.amcTo : before.amcTo;
+      if (newFrom !== before.amcFrom || newTo !== before.amcTo) {
+        setAmcHistory(prev => [{
+          id: uid(),
+          machineNo: before.machineNo,
+          oldFrom: before.amcFrom, oldTo: before.amcTo,
+          newFrom, newTo,
+          changedDate: todayISO(),
+        }, ...prev]);
+      }
+    }
+    setMachines(machines.map(m => m.id === id ? { ...m, ...data } : m));
+    if (closeModal) setSelected(null);
+    else setSelected(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
+  };
+
+  const deleteMachine = (id) => {
+    setMachines(machines.filter(m => m.id !== id));
+    setSelected(null);
+  };
+
+  const [showImport, setShowImport] = useState(false);
+  const importMachines = (rows) => {
+    const updated = [...machines];
+    let added = 0, upd = 0;
+    rows.forEach(row => {
+      const machineNo = getField(row, 'machineno', 'machine no', 'machine_no', 'phno');
+      if (!machineNo) return;
+      const data = {
+        machineNo,
+        model: getField(row, 'model', 'modelno', 'model no'),
+        party: getField(row, 'party', 'partyname', 'party name'),
+        contact: getField(row, 'contact', 'contactno', 'contact no'),
+        city: getField(row, 'city'),
+        place: getField(row, 'place', 'instplace', 'inst place'),
+        amcFrom: getField(row, 'amcfrom', 'amc from'),
+        amcTo: getField(row, 'amcto', 'amc to'),
+        status: getField(row, 'status') || 'ACTIVE',
+      };
+      const idx = updated.findIndex(m => m.machineNo.toLowerCase() === machineNo.toLowerCase());
+      if (idx >= 0) {
+        updated[idx] = { ...updated[idx], ...Object.fromEntries(Object.entries(data).filter(([k,v]) => v !== '')) };
+        upd++;
+      } else {
+        updated.push({ ...data, id: uid() });
+        added++;
+      }
+    });
+    setMachines(updated);
+    return { added, upd };
+  };
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-3">
+        <button onClick={() => setView('list')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${view === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Machines</button>
+        <button onClick={() => setView('parties')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${view === 'parties' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Parties</button>
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        <div className="flex-1 relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setVisibleCount(40); }}
+            placeholder={view === 'parties' ? 'Party ya machine model dhundein...' : 'Party, machine no, model...'}
+            className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-base bg-white"
+          />
+        </div>
+        <button onClick={() => setShowAdd(true)} className="bg-teal-700 text-white rounded-xl px-3 flex items-center justify-center">
+          <Plus size={18} />
+        </button>
+        <button onClick={() => setShowImport(true)} className="bg-slate-800 text-white rounded-xl px-3 flex items-center justify-center">
+          <Upload size={18} />
+        </button>
+      </div>
+      {showImport && (
+        <ImportModal
+          title="Machines List Upload Karein"
+          hint="CSV ya Excel file mein columns: Machine No, Model, Party, Contact, City, Place, AMC From, AMC To, Status. Machine No match hone par purani entry update ho jayegi, warna nayi jud jayegi."
+          onImport={importMachines}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {view === 'list' && (
+        <>
+          <div className="flex gap-1.5 mb-2">
+            {['ACTIVE', 'INACTIVE', 'BUYBACK', 'CLOSED', 'ALL'].map(s => (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setVisibleCount(40); }}
+                className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full whitespace-nowrap border ${statusFilter === s ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'}`}
+              >{s === 'ALL' ? 'Sabhi' : STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-1 -mx-1 px-1">
+            {cities.slice(0, 12).map(c => (
+              <button
+                key={c}
+                onClick={() => { setCityFilter(c); setVisibleCount(40); }}
+                className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap border ${cityFilter === c ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-600 border-slate-200'}`}
+              >{c}</button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mb-2 px-1">{filtered.length} machines mile</p>
+
+          <div className="space-y-2">
+            {filtered.slice(0, visibleCount).map(m => {
+              const st = normStatus(m.status);
+              const days = daysUntil(m.amcTo);
+              const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+              return (
+                <Card key={m.id} className={`!p-3 ${st !== 'ACTIVE' ? 'opacity-70' : ''}`}>
+                  <button className="w-full text-left" onClick={() => setSelected(m)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{m.party}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{m.machineNo} · {m.model}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{m.city}{m.place ? ' · ' + m.place : ''}</p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                    </div>
+                  </button>
+                </Card>
+              );
+            })}
+            {visibleCount < filtered.length && (
+              <button onClick={() => setVisibleCount(v => v + 40)} className="w-full text-sm text-teal-700 font-semibold py-3">
+                Aur dikhaye ({filtered.length - visibleCount} baaki)
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === 'parties' && (
+        <>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-xs text-slate-400">{parties.length} parties</p>
+            <button onClick={() => setShowMerge(true)} className="text-xs text-teal-700 font-semibold">Parties Merge Karein</button>
+          </div>
+          <div className="flex items-center gap-3 mb-3 px-1 text-[10px] text-slate-400">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />Good</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />Watch</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Risk</span>
+          </div>
+          <div className="space-y-2">
+            {parties.map((p, idx) => {
+              const showHeader = idx === 0 || parties[idx - 1].city !== p.city;
+              return (
+                <React.Fragment key={p.party}>
+                  {showHeader && (
+                    <p className="text-xs font-bold text-teal-700 uppercase tracking-wide px-1 pt-1">{p.city || 'Unknown City'}</p>
+                  )}
+                  <Card className="!p-3">
+                    <button className="w-full text-left" onClick={() => setSelectedParty(p.party)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${p.health === 'risk' ? 'bg-red-500' : p.health === 'watch' ? 'bg-amber-400' : 'bg-emerald-500'}`} title={p.health === 'risk' ? 'Risk' : p.health === 'watch' ? 'Watch' : 'Good'} />
+                            <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{p.city}{p.pending > 0 && <span className="text-red-500 font-medium ml-1">· ₹{p.pending.toLocaleString('en-IN')} due</span>}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-800">{p.count}</p>
+                          <p className="text-[10px] text-slate-400">machine{p.count > 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                    </button>
+                  </Card>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {showMerge && <MergePartiesModal machines={machines} setMachines={setMachines} onClose={() => setShowMerge(false)} />}
+
+      {showAdd && <MachineForm onSave={addMachine} onClose={() => setShowAdd(false)} defaultParty={selectedParty} />}
+      {selected && (
+        <MachineDetail
+          machine={selected}
+          onClose={() => setSelected(null)}
+          onStatusChange={(data) => updateMachine(selected.id, data, false)}
+          onSave={(data) => updateMachine(selected.id, data, true)}
+          onDelete={() => deleteMachine(selected.id)}
+          payments={payments}
+          setPayments={setPayments}
+          quotations={quotations}
+          orders={orders}
+          challans={challans}
+          amcHistory={amcHistory}
+        />
+      )}
+      {selectedParty && !selected && (
+        <PartyDetail
+          party={selectedParty}
+          machines={machines.filter(m => m.party === selectedParty)}
+          onClose={() => setSelectedParty(null)}
+          onSelectMachine={setSelected}
+          onAddMachine={() => setShowAdd(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImportModal({ title, hint, onImport, onClose }) {
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    try {
+      const rows = await parseUploadedFile(file);
+      const res = onImport(rows);
+      setResult({ total: rows.length, ...res });
+    } catch (e) {
+      setError('File padhne mein dikkat hui. CSV ya Excel (.xlsx) file try karein.');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">{hint}</p>
+      <label className="block border-2 border-dashed border-slate-300 rounded-xl p-6 text-center mb-3 cursor-pointer">
+        <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setFile(e.target.files[0]); setResult(null); setError(''); }} />
+        <Upload size={22} className="mx-auto text-slate-400 mb-2" />
+        <p className="text-sm text-slate-600 font-medium">{file ? file.name : 'File chunein (.csv / .xlsx)'}</p>
+      </label>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {result && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3 mb-3">
+          ✔ {result.total} rows mile. {result.added !== undefined && `${result.added} nayi jodi gayi, ${result.upd} update hui.`}
+        </div>
+      )}
+      <button
+        onClick={handleUpload}
+        disabled={!file || busy}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl disabled:opacity-40"
+      >{busy ? 'Process ho raha hai...' : 'Upload Karein'}</button>
+    </Modal>
+  );
+}
+
+function MergePartiesModal({ machines, setMachines, onClose }) {
+  const [selected, setSelected] = useState([]);
+  const [search, setSearch] = useState('');
+  const [newName, setNewName] = useState('');
+  const [done, setDone] = useState(null);
+
+  const partyCounts = useMemo(() => {
+    const map = {};
+    machines.forEach(m => { map[m.party] = (map[m.party] || 0) + 1; });
+    return Object.entries(map)
+      .map(([party, count]) => ({ party, count }))
+      .filter(p => !search || p.party.toLowerCase().includes(search.trim().toLowerCase()))
+      .sort((a, b) => a.party.localeCompare(b.party));
+  }, [machines, search]);
+
+  const toggle = (party) => {
+    setSelected(prev => prev.includes(party) ? prev.filter(p => p !== party) : [...prev, party]);
+  };
+
+  const handleMerge = () => {
+    if (selected.length < 1 || !newName.trim()) return;
+    const target = newName.trim();
+    const updated = machines.map(m => selected.includes(m.party) ? { ...m, party: target } : m);
+    setMachines(updated);
+    setDone({ count: updated.filter(m => m.party === target).length, target });
+    setSelected([]);
+  };
+
+  return (
+    <Modal title="Parties Merge Karein" onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">Jin parties ke naam alag-alag likhe hain par asal mein ek hi party hain (jaise "RML", "RAM MANOHAR LOHIA", "DR. RAM MANOHAR LOHIA HOSPITAL"), unhe neeche se select karein aur ek naya sahi naam de dein — sabki machines usi naam ke neeche aa jayengi.</p>
+
+      {done && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3 mb-3">
+          ✔ Merge ho gaya — "{done.target}" ke andar ab {done.count} machines hain.
+        </div>
+      )}
+
+      <input
+        className={inputCls + ' mb-2'}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Party dhundein..."
+      />
+
+      <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg mb-3">
+        {partyCounts.map(p => (
+          <label key={p.party} className="flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100 last:border-0 text-sm">
+            <input type="checkbox" checked={selected.includes(p.party)} onChange={() => toggle(p.party)} className="w-4 h-4" />
+            <span className="flex-1 truncate">{p.party}</span>
+            <span className="text-xs text-slate-400">{p.count}</span>
+          </label>
+        ))}
+        {partyCounts.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Koi party nahi mili</p>}
+      </div>
+
+      {selected.length > 0 && (
+        <>
+          <p className="text-xs font-semibold text-slate-500 mb-1.5">{selected.length} parties select ki gayi — naya sahi naam likhein</p>
+          <input
+            className={inputCls + ' mb-3'}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Jaise: RML"
+          />
+          <button
+            onClick={handleMerge}
+            disabled={!newName.trim()}
+            className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl disabled:opacity-40"
+          >{selected.length} Parties Ko "{newName.trim() || '...'}" Mein Merge Karein</button>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function PartyDetail({ party, machines, onClose, onSelectMachine, onAddMachine }) {
+  return (
+    <Modal title={party} onClose={onClose}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-slate-500">{machines.length} machine{machines.length > 1 ? 's' : ''}</p>
+        <button onClick={onAddMachine} className="text-xs bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+          <Plus size={13} /> Machine Jodein
+        </button>
+      </div>
+      <div className="space-y-2">
+        {machines.map(m => {
+          const st = normStatus(m.status);
+          const days = daysUntil(m.amcTo);
+          const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+          return (
+            <Card key={m.id} className={`!p-3 ${st !== 'ACTIVE' ? 'opacity-70' : ''}`}>
+              <button className="w-full text-left" onClick={() => onSelectMachine(m)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{m.machineNo} · {m.model}</p>
+                    <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin size={11}/>{m.city}{m.place ? ' · ' + m.place : ''}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${badge.color}`}>{badge.label}</span>
+                </div>
+              </button>
+            </Card>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
+function BackupModal({ data, setters, signatureImg, setSignatureImg, onClose }) {
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [status, setStatus] = useState('');
+  const [sigError, setSigError] = useState('');
+
+  const handleSignatureUpload = (file) => {
+    if (!file) return;
+    if (file.size > 800 * 1024) {
+      setSigError('Image bahut badi hai (800KB se kam rakhein). Photo thodi crop/compress kar ke try karein.');
+      return;
+    }
+    setSigError('');
+    const reader = new FileReader();
+    reader.onload = (e) => setSignatureImg(e.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const totalCount = Object.values(data).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0);
+
+  const handleBackup = () => {
+    try {
+      const payload = { ...data, exportedAt: new Date().toISOString(), app: 'argus-tracker' };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = todayISO();
+      a.href = url;
+      a.download = `argus-tracker-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setStatus('✔ Backup file download ho gayi. Ise WhatsApp/Drive/Email kahin bhi save kar lein.');
+    } catch (e) {
+      setStatus('Backup banane mein dikkat hui.');
+    }
+  };
+
+  const handleRestore = () => {
+    if (!restoreFile) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (parsed.machines) setters.setMachines(parsed.machines);
+        if (parsed.quotations) setters.setQuotations(parsed.quotations);
+        if (parsed.orders) setters.setOrders(parsed.orders);
+        if (parsed.payments) setters.setPayments(parsed.payments);
+        if (parsed.dailyLogs) setters.setDailyLogs(parsed.dailyLogs);
+        if (parsed.tasks) setters.setTasks(parsed.tasks);
+        if (parsed.items) setters.setItems(parsed.items);
+        if (parsed.targets) setters.setTargets(parsed.targets);
+        setStatus('✔ Data restore ho gaya.');
+        setConfirmRestore(false);
+        setRestoreFile(null);
+      } catch (err) {
+        setStatus('Ye file valid backup nahi hai.');
+      }
+    };
+    reader.readAsText(restoreFile);
+  };
+
+  return (
+    <Modal title="Backup & Restore" onClose={onClose}>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-1">Signature / Stamp</p>
+        <p className="text-xs text-slate-500 mb-3">Aapki asli stamp pehle se laga di gayi hai — har quotation mein apne aap dikhegi. Chahein to naya photo upload karke badal sakte hain.</p>
+        {signatureImg && (
+          <div className="border border-slate-200 rounded-lg p-2 mb-2 flex items-center justify-between">
+            <img src={signatureImg} alt="Signature" className="h-14 object-contain" />
+            <button onClick={() => setSignatureImg(DEFAULT_SIGNATURE)} className="text-xs text-teal-700 font-semibold px-2">Original Par Wapas</button>
+          </div>
+        )}
+        <label className="block border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer">
+          <input type="file" accept="image/*" className="hidden" onChange={e => handleSignatureUpload(e.target.files[0])} />
+          <Upload size={18} className="mx-auto text-slate-400 mb-1" />
+          <p className="text-xs text-slate-600 font-medium">{signatureImg ? 'Photo Badlein' : 'Photo Chunein'}</p>
+        </label>
+        {sigError && <p className="text-xs text-red-600 mt-2">{sigError}</p>}
+      </Card>
+
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-1">Backup Banayein</p>
+        <p className="text-xs text-slate-500 mb-3">Abhi total {totalCount} records hain (machines, quotations, orders, payments, log, tasks, items). Ek file download hogi jise aap kahin bhi save kar sakte hain — naya phone lene par wahi file yahin "Restore" mein daal kar sara data wapas le aayenge.</p>
+        <button onClick={handleBackup} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+          <Download size={16} /> Backup Download Karein
+        </button>
+      </Card>
+
+      <Card>
+        <p className="text-sm font-bold text-slate-800 mb-1">Restore Karein</p>
+        <p className="text-xs text-slate-500 mb-3">Pehle se li gayi backup .json file yahan select karein. Restore karne se abhi ka data uss file se badal jayega.</p>
+        <label className="block border-2 border-dashed border-slate-300 rounded-xl p-4 text-center mb-3 cursor-pointer">
+          <input type="file" accept=".json" className="hidden" onChange={e => { setRestoreFile(e.target.files[0]); setConfirmRestore(false); }} />
+          <Upload size={20} className="mx-auto text-slate-400 mb-1.5" />
+          <p className="text-sm text-slate-600 font-medium">{restoreFile ? restoreFile.name : 'Backup file chunein (.json)'}</p>
+        </label>
+        {restoreFile && !confirmRestore && (
+          <button onClick={() => setConfirmRestore(true)} className="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl text-sm">
+            Restore Karein
+          </button>
+        )}
+        {confirmRestore && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-800 font-semibold mb-2">Pakka? Isse abhi ka sara data is file se replace ho jayega.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmRestore(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+              <button onClick={handleRestore} className="flex-1 bg-red-600 text-white font-semibold py-2 rounded-lg text-sm">Haan, Restore Karein</button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {status && <p className="text-sm text-center mt-4 text-slate-600">{status}</p>}
+    </Modal>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prevPosition = body.style.position;
+    const prevTop = body.style.top;
+    const prevWidth = body.style.width;
+    const prevOverflow = body.style.overflow;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    return () => {
+      body.style.position = prevPosition;
+      body.style.top = prevTop;
+      body.style.width = prevWidth;
+      body.style.overflow = prevOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50" onClick={onClose}>
+      <div className="bg-white w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="shrink-0 bg-white flex items-center justify-between px-4 py-3 border-b border-slate-200 shadow-sm">
+          <button onClick={onClose} className="flex items-center gap-1 text-teal-700 font-semibold text-sm -ml-1 px-1 py-1">
+            <ChevronLeft size={20} /> Back
+          </button>
+          <h3 className="font-bold text-slate-800 text-sm absolute left-1/2 -translate-x-1/2">{title}</h3>
+          <button onClick={onClose}><X size={20} className="text-slate-400" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="mb-3">
+      <label className="text-xs font-semibold text-slate-500 mb-1 block">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = "w-full border border-slate-300 rounded-lg px-3 py-2 text-base";
+
+function MachineForm({ onSave, onClose, initial, defaultParty }) {
+  const [f, setF] = useState(initial || { machineNo: '', model: '', party: defaultParty || '', contact: '', city: '', place: '', amcFrom: '', amcTo: '', status: 'ACTIVE' });
+  const set = (k, v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title={initial ? 'Machine Edit Karein' : 'Nayi Machine Jodein'} onClose={onClose}>
+      <Field label="Machine No"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} placeholder="PH-XXXX" /></Field>
+      <Field label="Model"><input className={inputCls} value={f.model} onChange={e => set('model', e.target.value)} placeholder="AR-6020N" /></Field>
+      <Field label="Party Name"><input className={inputCls} value={f.party} onChange={e => set('party', e.target.value)} /></Field>
+      <Field label="Contact No"><input className={inputCls} value={f.contact} onChange={e => set('contact', e.target.value)} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="City"><input className={inputCls} value={f.city} onChange={e => set('city', e.target.value)} /></Field>
+        <Field label="Place"><input className={inputCls} value={f.place} onChange={e => set('place', e.target.value)} /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="AMC From (dd/mm/yy)"><input className={inputCls} value={f.amcFrom} onChange={e => set('amcFrom', e.target.value)} placeholder="01/01/26" /></Field>
+        <Field label="AMC To (dd/mm/yy)"><input className={inputCls} value={f.amcTo} onChange={e => set('amcTo', e.target.value)} placeholder="31/12/26" /></Field>
+      </div>
+      <button
+        onClick={() => onSave(f)}
+        disabled={!f.machineNo || !f.party}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40"
+      >Save</button>
+    </Modal>
+  );
+}
+
+function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, payments, setPayments, quotations, orders, challans, amcHistory }) {
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showAmcBilling, setShowAmcBilling] = useState(false);
+  const [amcAmount, setAmcAmount] = useState('');
+  const [amcDate, setAmcDate] = useState(todayISO());
+  const [amcSaved, setAmcSaved] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(machine.note || '');
+  const [noteSaved, setNoteSaved] = useState(false);
+  if (editing) return <MachineForm initial={machine} onSave={onSave} onClose={() => setEditing(false)} />;
+  const currentStatus = normStatus(machine.status);
+  const days = daysUntil(machine.amcTo);
+  const badge = currentStatus === 'ACTIVE' ? amcBadge(days, machine.contType) : { label: STATUS_LABELS[currentStatus], color: STATUS_COLORS[currentStatus] };
+
+  const history = useMemo(() => {
+    const events = [];
+    (quotations || []).forEach(q => {
+      if (q.machineNo === machine.machineNo) {
+        events.push({ date: q.date, type: 'Quotation', label: `${q.quotNo || ''} — ₹${Number(q.amount||0).toLocaleString('en-IN')}`, status: q.status, icon: '📄' });
+      }
+    });
+    (orders || []).forEach(o => {
+      if (o.machineNo === machine.machineNo) {
+        events.push({ date: o.poDate, type: 'Order', label: `PO ${o.orderNo || ''} — ₹${Number(o.amount||0).toLocaleString('en-IN')}`, status: o.deliveryStatus, icon: '📦' });
+      }
+    });
+    (challans || []).forEach(c => {
+      if (c.machineNo === machine.machineNo) {
+        events.push({ date: c.date, type: 'Challan', label: `${c.challanNo || ''} — ${c.items || ''}`, status: c.status, icon: '🚚' });
+      }
+    });
+    (payments || []).forEach(p => {
+      if (p.machineNo === machine.machineNo) {
+        const label = Number(p.receivedAmount||0) > 0 ? `Collection — ₹${Number(p.receivedAmount).toLocaleString('en-IN')}` : `Billing — ₹${Number(p.invoiceAmount||0).toLocaleString('en-IN')}`;
+        events.push({ date: p.date, type: 'Payment', label, status: p.note || '', icon: '💰' });
+      }
+    });
+    (amcHistory || []).forEach(a => {
+      if (a.machineNo === machine.machineNo) {
+        events.push({ date: a.changedDate, type: 'AMC Renewal', label: `${formatDateDMY(a.newFrom)} se ${formatDateDMY(a.newTo)} tak`, status: a.oldTo ? `Pehle: ${formatDateDMY(a.oldFrom)} - ${formatDateDMY(a.oldTo)}` : 'Pehli baar set hui', icon: '🛠️' });
+      }
+    });
+    return events.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  }, [quotations, orders, challans, payments, amcHistory, machine.machineNo]);
+
+  const saveNote = () => {
+    onStatusChange({ note: noteDraft });
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 1500);
+  };
+
+  const saveAmcBilling = () => {
+    if (!amcAmount) return;
+    setPayments([{
+      id: uid(),
+      party: machine.party,
+      machineNo: machine.machineNo,
+      invoiceAmount: Number(amcAmount),
+      receivedAmount: 0,
+      date: amcDate,
+      note: `AMC billing — ${machine.machineNo} (${machine.model})`,
+      billType: 'AMC',
+    }, ...payments]);
+    setAmcSaved(true);
+    setAmcAmount('');
+    setTimeout(() => { setShowAmcBilling(false); setAmcSaved(false); }, 1200);
+  };
+
+  return (
+    <Modal title={machine.machineNo} onClose={onClose}>
+      <div className="space-y-3">
+        <div>
+          <p className="text-base font-bold text-slate-800">{machine.party}</p>
+          <p className="text-sm text-slate-500">{machine.model}</p>
+        </div>
+        <span className={`inline-block text-xs font-semibold px-2 py-1 rounded-full ${badge.color}`}>{badge.label}</span>
+
+        <div>
+          <p className="text-xs font-semibold text-slate-500 mb-1.5">Machine Status Badalein</p>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_OPTIONS.map(s => (
+              <button
+                key={s}
+                onClick={() => onStatusChange({ status: s })}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${currentStatus === s ? STATUS_COLORS[s] + ' ring-1 ring-offset-1 ring-slate-300' : 'bg-white text-slate-500 border-slate-200'}`}
+              >{STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+          {currentStatus !== 'ACTIVE' && (
+            <p className="text-[11px] text-slate-400 mt-1.5">Ye machine ab AMC alerts aur active list mein nahi dikhegi.</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div><p className="text-xs text-slate-400">City</p><p className="font-medium">{machine.city || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">Place</p><p className="font-medium">{machine.place || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">AMC From</p><p className="font-medium">{machine.amcFrom || '-'}</p></div>
+          <div><p className="text-xs text-slate-400">AMC To</p><p className="font-medium">{machine.amcTo || '-'}</p></div>
+        </div>
+        {machine.contact && (
+          <div className="grid grid-cols-2 gap-2">
+            <a href={`tel:${machine.contact.split(',')[0].trim()}`} className="flex items-center justify-center gap-2 bg-teal-50 text-teal-800 rounded-xl px-3 py-2.5 text-sm font-medium">
+              <Phone size={16} /> Call
+            </a>
+            <a
+              href={`https://wa.me/91${machine.contact.split(',')[0].replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`Namaste, ${machine.party} — machine ${machine.machineNo} (${machine.model})${machine.amcTo ? ' ki AMC/Warranty ' + machine.amcTo + ' ko khatam ho rahi hai' : ''}. Renewal ke baare mein baat karni thi. — Argus Business Machines`)}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-800 rounded-xl px-3 py-2.5 text-sm font-medium"
+            >
+              WhatsApp
+            </a>
+          </div>
+        )}
+
+        <div className="border border-slate-200 rounded-xl p-3">
+          <p className="text-xs font-semibold text-slate-600 mb-1.5">Note (yaad rakhne ke liye)</p>
+          <textarea
+            value={noteDraft}
+            onChange={e => setNoteDraft(e.target.value)}
+            placeholder="Jaise: Machine 3 baar kharab hui, part order kiya hai, party se baat karni hai..."
+            rows={2}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none mb-2"
+          />
+          <button onClick={saveNote} className="w-full bg-slate-700 text-white font-semibold py-2 rounded-lg text-sm">
+            {noteSaved ? '✔ Save Ho Gaya' : 'Note Save Karein'}
+          </button>
+        </div>
+
+        <div className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-amber-800 mb-1">AMC Renewal Billing</p>
+          {!showAmcBilling ? (
+            <button onClick={() => setShowAmcBilling(true)} className="w-full bg-amber-600 text-white font-semibold py-2 rounded-lg text-sm">
+              AMC Billing Entry Karein
+            </button>
+          ) : amcSaved ? (
+            <p className="text-sm text-emerald-700 font-semibold text-center py-1">✔ Outstanding mein jud gaya</p>
+          ) : (
+            <>
+              <p className="text-[11px] text-amber-700 mb-2">AMC renew karne par is machine ki billing yahin daal dein — Payments/Outstanding mein apne aap jud jayega.</p>
+              <Field label="AMC Amount (₹)"><input type="number" className={inputCls} value={amcAmount} onChange={e => setAmcAmount(e.target.value)} /></Field>
+              <Field label="Date"><input type="date" className={inputCls} value={amcDate} onChange={e => setAmcDate(e.target.value)} /></Field>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAmcBilling(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+                <button onClick={saveAmcBilling} disabled={!amcAmount} className="flex-1 bg-amber-600 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40">Save</button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button onClick={() => setShowHistory(true)} className="flex-1 bg-teal-50 text-teal-700 font-semibold py-2.5 rounded-xl text-sm">History{history.length > 0 ? ` (${history.length})` : ''}</button>
+          <button onClick={() => setEditing(true)} className="flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Info Edit</button>
+        </div>
+        <div className="flex gap-2">
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)} className="flex-1 bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Permanently Hatayein</button>
+          ) : (
+            <button onClick={onDelete} className="flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm — Hamesha Ke Liye Delete</button>
+          )}
+        </div>
+      </div>
+      {showHistory && (
+        <Modal title={`${machine.machineNo} — History`} onClose={() => setShowHistory(false)}>
+          <p className="text-xs text-slate-500 mb-3">Is machine se judi sabhi Quotations, Orders, Challan aur Payments — nayi se purani.</p>
+          {history.length === 0 ? (
+            <Card className="text-center text-sm text-slate-400 py-8">Abhi tak koi history nahi hai. Ye tab banegi jab is machine se koi Quotation, Challan ya Billing judegi.</Card>
+          ) : (
+            <div className="space-y-2">
+              {history.map((h, i) => (
+                <Card key={i} className="!p-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-lg shrink-0">{h.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-teal-700">{h.type}</p>
+                        <p className="text-[10px] text-slate-400 whitespace-nowrap">{formatDateDMY(h.date)}</p>
+                      </div>
+                      <p className="text-sm text-slate-800 mt-0.5">{h.label}</p>
+                      {h.status && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{h.status}</p>}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
+    </Modal>
+  );
+}
+
+// ---------------- SALES TAB (Quotations + Orders + Items) ----------------
+function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg, challans, setChallans, gemLetters, setGemLetters }) {
+  const [sub, setSub] = useState('quotes');
+  const [showAdd, setShowAdd] = useState(false);
+  const [viewQuote, setViewQuote] = useState(null);
+  const [editQuote, setEditQuote] = useState(null);
+  const [duplicateSource, setDuplicateSource] = useState(null);
+  const [viewGemLetter, setViewGemLetter] = useState(null);
+  const [duplicateGemSource, setDuplicateGemSource] = useState(null);
+  const [editChallan, setEditChallan] = useState(null);
+
+  const addQuote = (data) => {
+    setQuotations([{ ...data, id: uid() }, ...quotations]);
+    setShowAdd(false);
+  };
+  const updateQuote = (id, data) => {
+    setQuotations(quotations.map(q => q.id === id ? { ...q, ...data } : q));
+    setEditQuote(null);
+    setViewQuote(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
+  };
+  const deleteQuote = (id) => {
+    setQuotations(quotations.filter(q => q.id !== id));
+    setViewQuote(null);
+  };
+  const addOrder = (data) => {
+    setOrders([{ ...data, id: uid() }, ...orders]);
+    setShowAdd(false);
+  };
+  const convertQuoteToOrder = (quote, orderNo, poDate) => {
+    const linkedMachineNo = quote.machineNo || quote.subject || (quote.lineItems && quote.lineItems[0] ? quote.lineItems[0].name : '');
+    setOrders([{
+      id: uid(),
+      orderNo,
+      poDate,
+      party: quote.party,
+      department: quote.department || '',
+      machineModel: quote.machineModel || '',
+      machineNo: linkedMachineNo,
+      quotationId: quote.id,
+      amount: quote.amount,
+      quotNo: quote.quotNo,
+      deliveryStatus: 'Pending',
+    }, ...orders]);
+    // Order banate hi uska amount outstanding mein bill ho jaye — alag se billing entry na daalni pade
+    setPayments([{
+      id: uid(),
+      party: quote.party,
+      machineNo: linkedMachineNo,
+      invoiceAmount: quote.amount,
+      receivedAmount: 0,
+      date: poDate,
+      note: `Order ${orderNo} (Quotation ${quote.quotNo || ''})`,
+    }, ...payments]);
+    updateQuote(quote.id, { orderNo, convertedToOrder: true });
+  };
+  const cycleOrderStatus = (id) => {
+    const order = ['Pending', 'Delivered'];
+    setOrders(orders.map(o => o.id === id ? { ...o, deliveryStatus: order[(order.indexOf(o.deliveryStatus) + 1) % order.length] } : o));
+  };
+  const addItem = (data) => setItems([{ ...data, id: uid() }, ...items]);
+  const updateItem = (id, data) => setItems(items.map(i => i.id === id ? { ...i, ...data } : i));
+  const deleteItem = (id) => setItems(items.filter(i => i.id !== id));
+
+  const addChallan = (data) => {
+    setChallans([{ ...data, id: uid(), status: 'Pending' }, ...challans]);
+    setShowAdd(false);
+  };
+  const markChallanBilled = (id, billAmount, billDate) => {
+    const ch = challans.find(c => c.id === id);
+    if (!ch) return;
+    setChallans(challans.map(c => c.id === id ? { ...c, status: 'Billed', billDate, billAmount } : c));
+    setPayments([{
+      id: uid(),
+      party: ch.party,
+      machineNo: ch.machineNo || '',
+      invoiceAmount: Number(billAmount) || 0,
+      receivedAmount: 0,
+      date: billDate,
+      note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
+    }, ...payments]);
+  };
+  const deleteChallan = (id) => setChallans(challans.filter(c => c.id !== id));
+  const updateChallan = (id, data) => {
+    setChallans(challans.map(c => c.id === id ? { ...c, ...data } : c));
+    setEditChallan(null);
+  };
+
+  const addGemLetter = (data) => {
+    setGemLetters([{ ...data, id: uid() }, ...gemLetters]);
+    setShowAdd(false);
+    setDuplicateGemSource(null);
+  };
+  const deleteGemLetter = (id) => {
+    setGemLetters(gemLetters.filter(g => g.id !== id));
+    setViewGemLetter(null);
+  };
+
+  const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-3 overflow-x-auto">
+        <button onClick={() => setSub('quotes')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'quotes' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Quotations</button>
+        <button onClick={() => setSub('orders')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'orders' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Orders</button>
+        <button onClick={() => setSub('challan')} className={`flex-1 text-xs font-semibold py-2 rounded-lg relative whitespace-nowrap px-2 ${sub === 'challan' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>
+          Challan
+          {challans.filter(c => c.status === 'Pending').length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{challans.filter(c => c.status === 'Pending').length}</span>
+          )}
+        </button>
+        <button onClick={() => setSub('gemletter')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'gemletter' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>GeM Letter</button>
+        <button onClick={() => setSub('items')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'items' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Items</button>
+      </div>
+
+      <button onClick={() => setShowAdd(true)} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mb-3 flex items-center justify-center gap-1">
+        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : sub === 'challan' ? 'Naya Challan Jodein' : sub === 'gemletter' ? 'Naya GeM Letter Banayein' : 'Naya Item Jodein'}
+      </button>
+
+      {sub === 'gemletter' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Sharp OEM ki taraf se GeM par uplabdh na hone wale parts ke liye party ko diya jaane wala letter — sirf Party, Date aur Machine Model bharna hai, baaki text fixed hai.</p>
+          {gemLetters.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi GeM Letter nahi</Card>}
+          {gemLetters.map(g => (
+            <Card key={g.id} className="!p-3">
+              <button className="w-full text-left" onClick={() => setViewGemLetter(g)}>
+                <p className="text-sm font-semibold text-slate-800 truncate">{g.party}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{formatDateDMY(g.date)}</p>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setDuplicateGemSource(g); }}
+                className="mt-2 text-xs text-teal-700 font-semibold flex items-center gap-1"
+              >📋 Isi Jaisi Nayi Letter Banayein</button>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'challan' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi saman challan par bhejein, yahan entry daal dein — jab tak bill nahi banta, ye "Aaj Ke Kaam" mein reminder ki tarah dikhta rahega.</p>
+          {challans.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi challan nahi</Card>}
+          {challans.map(c => (
+            <ChallanCard key={c.id} challan={c} onMarkBilled={markChallanBilled} onDelete={deleteChallan} onEdit={setEditChallan} />
+          ))}
+        </div>
+      )}
+
+      {sub === 'quotes' && (
+        <div className="space-y-2">
+          {quotations.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi quotation nahi</Card>}
+          {quotations.map(q => (
+            <Card key={q.id} className="!p-3">
+              <button className="w-full text-left" onClick={() => setViewQuote(q)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{q.party}</p>
+                    {q.department && <p className="text-[10px] text-teal-600 font-medium">{q.department}</p>}
+                    <p className="text-xs text-slate-500 mt-0.5">{q.quotNo || '—'} · ₹{Number(q.amount||0).toLocaleString('en-IN')} · {formatDateDMY(q.date)}</p>
+                    {q.subject && <p className="text-xs text-slate-400 mt-0.5 truncate">{q.subject}</p>}
+                    {q.convertedToOrder && <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">✔ Order banaya</p>}
+                  </div>
+                  <span className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[q.status]}`}>{q.status}</span>
+                </div>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setDuplicateSource(q); }}
+                className="mt-2 text-xs text-teal-700 font-semibold flex items-center gap-1"
+              >📋 Isi Jaisi Nayi Quotation Banayein</button>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'orders' && (
+        <div className="space-y-2">
+          {orders.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi order nahi</Card>}
+          {orders.map(o => (
+            <Card key={o.id} className="!p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{o.party}</p>
+                  {o.department && <p className="text-[10px] text-teal-600 font-medium">{o.department}</p>}
+                  <p className="text-xs text-slate-500 mt-0.5">{o.machineNo || '—'} · ₹{Number(o.amount||0).toLocaleString('en-IN')} · PO: {o.orderNo || '—'} ({o.poDate})</p>
+                  {o.quotNo && <p className="text-[11px] text-slate-400 mt-0.5">Se: {o.quotNo}</p>}
+                </div>
+                <button onClick={() => cycleOrderStatus(o.id)} className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${statusColor[o.deliveryStatus]}`}>{o.deliveryStatus}</button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'items' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Ek baar item add karein, quotation banate waqt select karte hi rate apne aap aa jayega</p>
+          {items.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi item nahi</Card>}
+          {items.map(it => (
+            <ItemRow key={it.id} item={it} items={items} onUpdate={data => updateItem(it.id, data)} onDelete={() => deleteItem(it.id)} />
+          ))}
+        </div>
+      )}
+
+      {showAdd && sub === 'quotes' && (
+        <QuotationBuilder machines={machines} items={items} setItems={setItems} quotations={quotations} onSave={addQuote} onClose={() => setShowAdd(false)} />
+      )}
+      {showAdd && sub === 'orders' && <OrderForm machines={machines} onSave={addOrder} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'items' && <ItemForm items={items} onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'challan' && <ChallanForm machines={machines} onSave={addChallan} onClose={() => setShowAdd(false)} />}
+      {showAdd && sub === 'gemletter' && <GemLetterForm machines={machines} onSave={addGemLetter} onClose={() => setShowAdd(false)} />}
+      {duplicateGemSource && (
+        <GemLetterForm
+          machines={machines}
+          initial={{ party: duplicateGemSource.party, recipientAddress: duplicateGemSource.recipientAddress, attention: duplicateGemSource.attention }}
+          onSave={addGemLetter}
+          onClose={() => setDuplicateGemSource(null)}
+        />
+      )}
+      {viewGemLetter && (
+        <GemLetterView letter={viewGemLetter} signatureImg={signatureImg} onClose={() => setViewGemLetter(null)} onDelete={() => deleteGemLetter(viewGemLetter.id)} />
+      )}
+      {editChallan && <ChallanForm machines={machines} initial={editChallan} onSave={(data) => updateChallan(editChallan.id, data)} onClose={() => setEditChallan(null)} />}
+
+      {viewQuote && !editQuote && (
+        <QuotationView
+          quote={viewQuote}
+          onClose={() => setViewQuote(null)}
+          onEdit={() => setEditQuote(viewQuote)}
+          onDelete={() => deleteQuote(viewQuote.id)}
+          onStatusChange={(status) => updateQuote(viewQuote.id, { status })}
+          onConvertToOrder={(orderNo, poDate) => convertQuoteToOrder(viewQuote, orderNo, poDate)}
+          signatureImg={signatureImg}
+        />
+      )}
+      {editQuote && (
+        <QuotationBuilder
+          machines={machines}
+          items={items}
+          setItems={setItems}
+          quotations={quotations}
+          initial={editQuote}
+          onSave={(data) => updateQuote(editQuote.id, data)}
+          onClose={() => setEditQuote(null)}
+        />
+      )}
+      {duplicateSource && (
+        <QuotationBuilder
+          machines={machines}
+          items={items}
+          setItems={setItems}
+          quotations={quotations}
+          initial={{
+            party: duplicateSource.party,
+            attention: duplicateSource.attention,
+            department: duplicateSource.department,
+            machineNo: duplicateSource.machineNo,
+            recipientAddress: duplicateSource.recipientAddress,
+            subject: duplicateSource.subject,
+            machineModel: duplicateSource.machineModel,
+            lineItems: (duplicateSource.lineItems || []).map(l => ({ ...l, lineId: uid() })),
+            deliveryPeriod: duplicateSource.deliveryPeriod,
+            serviceTerms: duplicateSource.serviceTerms,
+          }}
+          onSave={(data) => { addQuote(data); setDuplicateSource(null); }}
+          onClose={() => setDuplicateSource(null)}
+          isDuplicate
+        />
+      )}
+    </div>
+  );
+}
+
+function ItemRow({ item, items, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  if (editing) {
+    return (
+      <ItemForm
+        initial={item}
+        items={items}
+        onSave={(data) => { onUpdate(data); setEditing(false); }}
+        onClose={() => setEditing(false)}
+        inline
+      />
+    );
+  }
+  return (
+    <Card className="!p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
+          <p className="text-xs text-slate-500 mt-0.5 truncate">{item.description}</p>
+          {item.machineModel && <p className="text-[11px] text-teal-600 mt-0.5 truncate">Model: {item.machineModel}</p>}
+          <p className="text-xs text-slate-400 mt-0.5">₹{Number(item.rate||0).toLocaleString('en-IN')} · GST {item.gst}%</p>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button onClick={() => setEditing(true)} className="text-xs text-teal-700 font-semibold px-2 py-1">Edit</button>
+          {!confirmDel ? (
+            <button onClick={() => setConfirmDel(true)} className="text-xs text-red-600 font-semibold px-2 py-1">Delete</button>
+          ) : (
+            <button onClick={onDelete} className="text-xs text-white bg-red-600 font-semibold px-2 py-1 rounded">Sure?</button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function GemLetterForm({ machines, onSave, onClose, initial }) {
+  const [party, setParty] = useState(initial?.party || '');
+  const [recipientAddress, setRecipientAddress] = useState(initial?.recipientAddress || '');
+  const [attention, setAttention] = useState(initial?.attention || 'The Director');
+  const [date, setDate] = useState(todayISO());
+
+  const partyMachines = useMemo(() => {
+    if (!party) return [];
+    return machines.filter(m => m.party.toLowerCase() === party.toLowerCase());
+  }, [party, machines]);
+
+  useEffect(() => {
+    if (!recipientAddress && partyMachines.length > 0 && partyMachines[0].city) {
+      setRecipientAddress(partyMachines[0].city);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyMachines]);
+
+  const canSave = party.trim();
+
+  return (
+    <Modal title={initial ? 'GeM Letter (Copy)' : 'Naya GeM Letter'} onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-3">Sharp OEM ki taraf se — GeM par uplabdh na hone wale spare parts ke baare mein party ko diya jaane wala letter. Sirf neeche ke fields bharne hain, baaki poora text fixed template se aayega.</p>
+      <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
+      <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The CCF Bhu Abhilekh" /></Field>
+      <Field label="Address"><textarea rows={2} className={inputCls + ' resize-none'} value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} placeholder="Jaise: U.P. Forest, Lucknow" /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} /></Field>
+      <button
+        onClick={() => onSave({ party, recipientAddress, attention, date })}
+        disabled={!canSave}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40"
+      >Letter Save Karein</button>
+    </Modal>
+  );
+}
+
+const GEM_LETTER_STYLE_CSS = `
+  @page { size: A4; margin: 22mm 12mm 26mm; }
+  html, body { height: 100%; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#0f172a; padding: 32px 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; word-wrap: break-word; overflow-wrap: break-word; }
+  .header { margin-bottom: 18px; }
+  .company { font-size:19px; font-weight:800; }
+  .small { font-size:12.5px; color:#334155; }
+  .content { flex: 1 0 auto; width: 100%; font-size: 13.5px; line-height: 1.6; }
+  .content p { margin: 10px 0; }
+  .sign-block { margin-top: auto; padding-top: 24px; }
+  @media print { body { padding: 0; max-width: none; width: 100%; min-height: 273mm; } }
+`;
+
+function buildGemLetterInnerHTML(letter, signatureImg) {
+  return `
+  <div class="content">
+    <div class="header">
+      <div class="company">SHARP</div>
+      <div class="small">SHARP BUSINESS SYSTEMS (INDIA) PRIVATE LTD.</div>
+      <div class="small">Corporate Office: -3rd Floor, BITS Tower, Plot No.9, Sector 125, Noida, Uttar Pradesh</div>
+      <div class="small">Mobile: +91-9893547693 · E-Mail: himanshusinha@sharp-oa.com</div>
+      <div class="small">CIN: U74899DL2000PTC104046</div>
+    </div>
+    <p>${formatDateDMY(letter.date)}</p>
+    <p>To,<br/>${letter.attention || ''}<br/><b>${letter.party || ''}</b>${letter.recipientAddress ? `<br/>${letter.recipientAddress.replace(/\n/g, '<br/>')}` : ''}</p>
+    <p>Dear Sir,</p>
+    <p>We would like to confirm you that we as a OEM, due to technical problem on GEM in current days, we have not registered Machines, Toner Cartridges, Developer &amp; Drum on GEM Portal, we would also mention that D.V Unit, Main Board, Process Frame, Web Roll, Heater Roller, Bearing, Side Tray, Main Tray, Thermistor, Fusing Flap Cover, Pressure Roller, Cleaning Blade, Side Miller, Clutch Rod, Fusing Unit, Bypass paper guide, CCD Connector, HBT Card, Main Charger, Tray Rollers &amp; Spares Parts have not been registered on GEM as there is no provision to register these items on GEM. Also to inform you that we are still talking to GEM authorities regarding terms &amp; conditions for registering our services on GEM portal.</p>
+    <p>Meanwhile we would like to request you to kindly buy the genuine sharp consumables through our authorised dealer as per current company price list.</p>
+    <p>Also to confirm you that <b>M/s Argus Business Machines Pvt Ltd. Lucknow</b> is our authorise dealer and service provider responsible for selling consumables and provide services in your reputed department.</p>
+    <p>For any further clarifications you may please contact the undersigned.</p>
+    <p>Thanking and assuring for best services at all the times.</p>
+  </div>
+  <div class="sign-block">
+    <p style="margin:0;">For Sharp Business Systems India Private Limited</p>
+    <img src="${SHARP_STAMP}" style="height:90px;object-fit:contain;margin-top:8px;display:block;" />
+    <p style="margin:8px 0 0;">(Himanshu Sinha)</p>
+    <p style="margin:0;font-size:12.5px;color:#334155;">Regional Manager</p>
+    <p style="margin:16px 0 0;font-size:11.5px;color:#475569;">Corporate Office: -3rd Floor, BITS Tower, Plot No.9, Sector 125, Noida, Uttar Pradesh</p>
+  </div>`;
+}
+
+async function captureGemLetterCanvas(letter, signatureImg) {
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  container.style.background = '#ffffff';
+  const styleTag = document.createElement('style');
+  styleTag.textContent = GEM_LETTER_STYLE_CSS;
+  container.appendChild(styleTag);
+  const inner = document.createElement('div');
+  inner.style.display = 'block';
+  inner.style.width = '100%';
+  inner.style.padding = '20px';
+  inner.style.fontFamily = 'Arial, Helvetica, sans-serif';
+  inner.style.fontSize = '14px';
+  inner.style.color = '#0f172a';
+  inner.innerHTML = buildGemLetterInnerHTML(letter, signatureImg);
+  container.appendChild(inner);
+  document.body.appendChild(container);
+  try {
+    await new Promise(r => setTimeout(r, 100));
+    const fullHeight = Math.ceil(Math.max(container.scrollHeight, container.offsetHeight, inner.scrollHeight, inner.offsetHeight));
+    const fullWidth = Math.ceil(Math.max(container.scrollWidth, container.offsetWidth, 800));
+    const canvas = await window.html2canvas(container, {
+      scale: 2, backgroundColor: '#ffffff', useCORS: true, allowTaint: true, logging: false,
+      width: fullWidth, height: fullHeight, windowWidth: fullWidth, windowHeight: fullHeight,
+      scrollX: 0, scrollY: 0, x: 0, y: 0,
+    });
+    if (!canvas || canvas.height < 10) throw new Error('Canvas khaali bani (capture fail hua)');
+    return canvas;
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
+async function buildGemLetterPdf(letter, signatureImg) {
+  await loadScriptOnce('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+  await loadScriptOnce('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  const canvas = await captureGemLetterCanvas(letter, signatureImg);
+  const imgData = canvas.toDataURL('image/png');
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  let renderWidth = pageWidth;
+  let renderHeight = (canvas.height * renderWidth) / canvas.width;
+  if (renderHeight > pageHeight) {
+    renderHeight = pageHeight;
+    renderWidth = (canvas.width * renderHeight) / canvas.height;
+  }
+  const xOffset = (pageWidth - renderWidth) / 2;
+  const yOffset = (pageHeight - renderHeight) / 2;
+  pdf.addImage(imgData, 'PNG', xOffset, Math.max(0, yOffset), renderWidth, renderHeight);
+  return pdf;
+}
+
+function GemLetterView({ letter, signatureImg, onClose, onDelete }) {
+  const [sharing, setSharing] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloadMsg, setDownloadMsg] = useState('');
+  const [confirmDel, setConfirmDel] = useState(false);
+  const canShareFiles = typeof navigator !== 'undefined' && navigator.canShare;
+
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    setDownloadMsg('');
+    try {
+      const pdf = await buildGemLetterPdf(letter, signatureImg);
+      pdf.save(`GeM-Letter-${(letter.party || 'draft').replace(/[\/\s]/g, '-')}.pdf`);
+      setDownloadMsg('✔ PDF download ho gayi hai.');
+    } catch (e) {
+      setDownloadMsg(`PDF nahi ban paya: ${e && e.message ? e.message : 'unknown error'}`);
+    }
+    setPdfLoading(false);
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    setDownloadMsg('');
+    try {
+      const pdf = await buildGemLetterPdf(letter, signatureImg);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `GeM-Letter-${(letter.party || 'draft').replace(/[\/\s]/g, '-')}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      if (canShareFiles && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName, text: `GeM Letter for ${letter.party || ''}` });
+      } else {
+        pdf.save(fileName);
+        setDownloadMsg('Is device par direct Share support nahi hai, isliye PDF download kar di.');
+      }
+    } catch (e) {
+      if (e && e.name !== 'AbortError') setDownloadMsg(`Share nahi ho paya: ${e && e.message ? e.message : ''}`);
+    }
+    setSharing(false);
+  };
+
+  return (
+    <Modal title={letter.party || 'GeM Letter'} onClose={onClose}>
+      <div id="gemletter-print-area" className="border border-slate-200 rounded-xl p-3 bg-white text-slate-800">
+        <p className="text-base font-extrabold">SHARP</p>
+        <p className="text-[10px] text-slate-500">SHARP BUSINESS SYSTEMS (INDIA) PRIVATE LTD.</p>
+        <p className="text-[10px] text-slate-500">Corporate Office: -3rd Floor, BITS Tower, Plot No.9, Sector 125, Noida, Uttar Pradesh</p>
+        <p className="text-[10px] text-slate-500">Mobile: +91-9893547693 · E-Mail: himanshusinha@sharp-oa.com</p>
+        <p className="text-[10px] text-slate-500 mb-2">CIN: U74899DL2000PTC104046</p>
+        <p className="text-xs mb-2">{formatDateDMY(letter.date)}</p>
+        <p className="text-xs mb-1">To,</p>
+        <p className="text-sm font-bold">{letter.attention}</p>
+        <p className="text-sm font-extrabold">{letter.party}</p>
+        {letter.recipientAddress && <p className="text-xs text-slate-600 mb-2" style={{ whiteSpace: 'pre-line' }}>{letter.recipientAddress}</p>}
+        <p className="text-xs mt-2">Dear Sir,</p>
+        <p className="text-xs mt-2">We would like to confirm you that we as a OEM, due to technical problem on GEM in current days, we have not registered Machines, Toner Cartridges, Developer & Drum on GEM Portal, we would also mention that D.V Unit, Main Board, Process Frame, Web Roll, Heater Roller, Bearing, Side Tray, Main Tray, Thermistor, Fusing Flap Cover, Pressure Roller, Cleaning Blade, Side Miller, Clutch Rod, Fusing Unit, Bypass paper guide, CCD Connector, HBT Card, Main Charger, Tray Rollers & Spares Parts have not been registered on GEM as there is no provision to register these items on GEM. Also to inform you that we are still talking to GEM authorities regarding terms & conditions for registering our services on GEM portal.</p>
+        <p className="text-xs mt-2">Meanwhile we would like to request you to kindly buy the genuine sharp consumables through our authorised dealer as per current company price list.</p>
+        <p className="text-xs mt-2">Also to confirm you that <b>M/s Argus Business Machines Pvt Ltd. Lucknow</b> is our authorise dealer and service provider responsible for selling consumables and provide services in your reputed department.</p>
+        <p className="text-xs mt-2">For any further clarifications you may please contact the undersigned.</p>
+        <p className="text-xs mt-2">Thanking and assuring for best services at all the times.</p>
+        <p className="text-xs mt-4">For Sharp Business Systems India Private Limited</p>
+        <img src={SHARP_STAMP} alt="Sharp Stamp" className="h-16 object-contain mt-2" />
+        <p className="text-xs mt-1">(Himanshu Sinha)</p>
+        <p className="text-xs text-slate-600">Regional Manager</p>
+        <p className="text-[10px] text-slate-500 mt-3">Corporate Office: -3rd Floor, BITS Tower, Plot No.9, Sector 125, Noida, Uttar Pradesh</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button onClick={handleShare} disabled={sharing} className="bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60">{sharing ? 'Bhej rahe...' : 'PDF Share Karein'}</button>
+        <button onClick={handleDownloadPDF} disabled={pdfLoading} className="bg-red-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60">{pdfLoading ? 'Ban raha...' : 'PDF Download'}</button>
+      </div>
+      {downloadMsg && <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mt-2">{downloadMsg}</p>}
+
+      <div className="mt-3">
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} className="w-full bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Letter Delete Karein</button>
+        ) : (
+          <button onClick={onDelete} className="w-full bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm Delete</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ChallanForm({ machines, onSave, onClose, initial }) {
+  const [f, setF] = useState(initial || { party: '', machineNo: '', challanNo: '', date: todayISO(), items: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title={initial ? 'Challan Edit Karein' : 'Naya Challan'} onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Challan No"><input className={inputCls} value={f.challanNo} onChange={e => set('challanNo', e.target.value)} placeholder="Jaise: CH-045" /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Saman / Items ka vivaran"><textarea rows={2} className={inputCls + ' resize-none'} value={f.items} onChange={e => set('items', e.target.value)} placeholder="Jaise: 1 Drum, 1 Developer bheja" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.challanNo} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">{initial ? 'Update Karein' : 'Challan Save Karein'}</button>
+    </Modal>
+  );
+}
+
+function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
+  const [showBill, setShowBill] = useState(false);
+  const [billAmount, setBillAmount] = useState('');
+  const [billDate, setBillDate] = useState(todayISO());
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const daysPending = challan.status === 'Pending' ? Math.round((new Date() - new Date(challan.date)) / 86400000) : null;
+  const isOverdue = daysPending !== null && daysPending >= 5;
+
+  return (
+    <Card className="!p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-800 truncate">{challan.party}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{challan.challanNo} · {formatDateDMY(challan.date)}</p>
+          {challan.items && <p className="text-xs text-slate-400 mt-0.5">{challan.items}</p>}
+          {challan.status === 'Billed' && <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">✔ Bill ban gaya — ₹{Number(challan.billAmount||0).toLocaleString('en-IN')}</p>}
+        </div>
+        {challan.status === 'Pending' ? (
+          <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${isOverdue ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {isOverdue ? `${daysPending}d se pending` : 'Pending'}
+          </span>
+        ) : (
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">Billed</span>
+        )}
+      </div>
+
+      {challan.status === 'Pending' && (
+        <>
+          {!showBill ? (
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setShowBill(true)} className="flex-1 bg-slate-800 text-white font-semibold py-2 rounded-lg text-sm">Bill Bana Diya</button>
+              <button onClick={() => onEdit(challan)} className="text-xs text-teal-700 font-semibold px-3">Edit</button>
+              {!confirmDel ? (
+                <button onClick={() => setConfirmDel(true)} className="text-xs text-red-600 font-semibold px-3">Delete</button>
+              ) : (
+                <button onClick={() => onDelete(challan.id)} className="text-xs bg-red-600 text-white font-semibold px-3 rounded-lg">Sure?</button>
+              )}
+            </div>
+          ) : (
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={billAmount} onChange={e => setBillAmount(e.target.value)} /></Field>
+              <Field label="Bill Date"><input type="date" className={inputCls} value={billDate} onChange={e => setBillDate(e.target.value)} /></Field>
+              <div className="flex gap-2">
+                <button onClick={() => setShowBill(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+                <button onClick={() => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }} disabled={!billAmount} className="flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40">Confirm</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function ItemForm({ onSave, onClose, initial, inline, items }) {
+  const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+
+  const duplicate = useMemo(() => {
+    if (!items || !f.name || !f.name.trim()) return null;
+    const target = normalizeItemName(f.name);
+    return items.find(it => normalizeItemName(it.name) === target && (!initial || it.id !== initial.id)) || null;
+  }, [items, f.name, initial]);
+
+  const body = (
+    <>
+      <Field label="Item / Part No"><input className={inputCls} value={f.name} onChange={e => set('name', e.target.value)} placeholder="Jaise: MX-312AR" /></Field>
+      {duplicate && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-3">
+          <p className="text-xs text-amber-800 font-semibold">⚠️ Ye item pehle se saved hai</p>
+          <p className="text-xs text-amber-700 mt-0.5">{duplicate.description} · ₹{duplicate.rate} · GST {duplicate.gst}% — dubara add karne se pehle check kar lein.</p>
+        </div>
+      )}
+      <Field label="Description"><input className={inputCls} value={f.description} onChange={e => set('description', e.target.value)} placeholder="Jaise: Drum" /></Field>
+      <Field label="Machine Model(s)"><input className={inputCls} value={f.machineModel} onChange={e => set('machineModel', e.target.value)} placeholder="Jaise: 20M22, MX-2010U (comma se alag karein)" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Rate (₹)"><input type="number" className={inputCls} value={f.rate} onChange={e => set('rate', e.target.value)} /></Field>
+        <Field label="GST %"><input type="number" className={inputCls} value={f.gst} onChange={e => set('gst', e.target.value)} /></Field>
+      </div>
+      <button onClick={() => onSave(f)} disabled={!f.name || !f.rate} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Item</button>
+    </>
+  );
+  if (inline) return <Card className="!p-3 border-teal-200">{body}</Card>;
+  return <Modal title={initial ? 'Item Edit Karein' : 'Naya Item'} onClose={onClose}>{body}</Modal>;
+}
+
+function PartyPicker({ machines, value, onChange, onMachineNo }) {
+  const [q, setQ] = useState(value || '');
+  const [open, setOpen] = useState(false);
+  const matches = useMemo(() => {
+    if (!q || q.length < 2) return [];
+    const s = q.toLowerCase();
+    const seen = new Set();
+    return machines.filter(m => {
+      if (seen.has(m.party)) return false;
+      const ok = m.party.toLowerCase().includes(s);
+      if (ok) seen.add(m.party);
+      return ok;
+    }).slice(0, 6);
+  }, [q, machines]);
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { onChange(q); setTimeout(() => setOpen(false), 150); }}
+        placeholder="Party name type karein..."
+      />
+      {open && matches.length > 0 && (
+        <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-y-auto">
+          {matches.map(m => (
+            <button
+              key={m.id}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={(e) => { e.preventDefault(); setQ(m.party); onChange(m.party); onMachineNo && onMachineNo(m.machineNo); setOpen(false); }}
+            >
+              <p className="font-medium text-slate-700 truncate">{m.party}</p>
+              <p className="text-[11px] text-slate-400">{m.machineNo} · {m.city}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DepartmentPicker({ machines, party, value, onChange }) {
+  const [q, setQ] = useState(value || '');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setQ(value || ''); }, [value]);
+
+  const suggestions = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    machines.forEach(m => {
+      if (!m.place) return;
+      if (party && m.party.toLowerCase() !== party.toLowerCase()) return;
+      if (seen.has(m.place)) return;
+      if (q && q.length >= 1 && !m.place.toLowerCase().includes(q.toLowerCase())) return;
+      seen.add(m.place);
+      list.push(m.place);
+    });
+    return list.slice(0, 6);
+  }, [q, machines, party]);
+
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        value={q}
+        onChange={e => { setQ(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Jaise: CCF HQ, Audit Section"
+      />
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-y-auto">
+          {suggestions.map(place => (
+            <button
+              key={place}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={(e) => { e.preventDefault(); setQ(place); onChange(place); setOpen(false); }}
+            >
+              {place}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function nextQuotNo(quotations) {
+  const seq = quotations.length + 1;
+  const yy = new Date().getFullYear() % 100;
+  return `ABM/SD/${String(seq).padStart(3, '0')}/${yy}-${yy + 1}`;
+}
+
+function MachineSearchPicker({ machines, value, onSelect }) {
+  const [q, setQ] = useState(value || '');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setQ(value || ''); }, [value]);
+
+  const matches = useMemo(() => {
+    if (!q || q.trim().length < 2) return [];
+    const s = q.toLowerCase();
+    return machines.filter(m =>
+      (m.party || '').toLowerCase().includes(s) ||
+      (m.machineNo || '').toLowerCase().includes(s)
+    ).slice(0, 8);
+  }, [q, machines]);
+
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Party naam ya PH/Machine No se dhundein..."
+      />
+      {open && matches.length > 0 && (
+        <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-56 overflow-y-auto">
+          {matches.map(m => (
+            <button
+              key={m.id}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={(e) => { e.preventDefault(); setQ(`${m.machineNo} · ${m.party}`); onSelect(m); setOpen(false); }}
+            >
+              <p className="font-medium text-slate-700 truncate">{m.machineNo} · {m.model}</p>
+              <p className="text-[11px] text-slate-400 truncate">{m.party} {m.place ? '· ' + m.place : ''}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuotationBuilder({ machines, items, quotations, setItems, onSave, onClose, initial, isDuplicate }) {
+  const [party, setParty] = useState(initial?.party || '');
+  const [attention, setAttention] = useState(initial?.attention || 'The Director');
+  const [department, setDepartment] = useState(initial?.department || '');
+  const [machineNo, setMachineNo] = useState(initial?.machineNo || '');
+  const [recipientAddress, setRecipientAddress] = useState(initial?.recipientAddress || '');
+  const [quotNo, setQuotNo] = useState(initial?.quotNo || nextQuotNo(quotations));
+  const [date, setDate] = useState(initial?.date || todayISO());
+  const [subject, setSubject] = useState(initial?.subject || '');
+  const [selectedModel, setSelectedModel] = useState(initial?.machineModel || '');
+  const [modelDraft, setModelDraft] = useState(initial?.machineModel || '');
+  const [lines, setLines] = useState(initial?.lineItems || []);
+  const [deliveryPeriod, setDeliveryPeriod] = useState(initial?.deliveryPeriod || '0-15 days from the date of receipt of purchase order.');
+  const [serviceTerms, setServiceTerms] = useState(initial?.serviceTerms || 'Service Charge is valid for one day only. Another per call charge would be applicable for any other day except the day machine has been repaired.');
+
+  const handleMachineSelect = (m) => {
+    setDepartment(m.place || '');
+    setMachineNo(m.machineNo || '');
+    setSelectedModel(m.model || '');
+    setModelDraft(m.model || '');
+    setSubject(`Machine ${m.model} (${m.machineNo}${m.place ? ' -' + m.place : ''})`);
+    if (!party) setParty(m.party);
+  };
+
+  const partyMachines = useMemo(() => {
+    if (!party) return [];
+    return machines.filter(m => m.party.toLowerCase() === party.toLowerCase());
+  }, [party, machines]);
+
+  useEffect(() => {
+    if (!recipientAddress && partyMachines.length > 0 && partyMachines[0].city) {
+      setRecipientAddress(partyMachines[0].city);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyMachines]);
+
+  const suggestedItems = useMemo(() => {
+    if (!selectedModel) return [];
+    const s = selectedModel.trim().toLowerCase();
+    return items.filter(it => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || m === s));
+  }, [selectedModel, items]);
+
+  const addLine = (item) => {
+    setLines([...lines, {
+      lineId: uid(),
+      name: item ? item.name : '',
+      description: item ? item.description : '',
+      rate: item ? item.rate : '',
+      qty: 1,
+      gst: item ? item.gst : 18,
+    }]);
+  };
+  const updateLine = (lineId, data) => setLines(lines.map(l => l.lineId === lineId ? { ...l, ...data } : l));
+  const removeLine = (lineId) => setLines(lines.filter(l => l.lineId !== lineId));
+
+  const computed = lines.map(l => {
+    const base = Number(l.rate || 0) * Number(l.qty || 0);
+    const gstAmt = base * Number(l.gst || 0) / 100;
+    return { ...l, base, gstAmt, total: base + gstAmt };
+  });
+  const grandTotal = computed.reduce((s, l) => s + l.total, 0);
+
+  const canSave = party.trim() && lines.length > 0 && lines.every(l => l.name && l.rate);
+
+  const handleSave = () => {
+    // Manually-typed naye items (jo master mein pehle se nahi hain) ko aage ke liye auto-save kar dein
+    if (setItems) {
+      const existingNames = new Set(items.map(it => normalizeItemName ? normalizeItemName(it.name) : it.name.trim().toLowerCase()));
+      const newOnes = [];
+      computed.forEach(l => {
+        const key = (l.name || '').trim().toLowerCase().replace(/[\s\-_.]/g, '');
+        if (key && !existingNames.has(key) && !newOnes.some(n => n._key === key)) {
+          newOnes.push({ _key: key, id: uid(), name: l.name, description: l.description, rate: Number(l.rate) || 0, gst: Number(l.gst) || 18, machineModel: selectedModel || '' });
+        }
+      });
+      if (newOnes.length > 0) {
+        setItems([...newOnes.map(({ _key, ...rest }) => rest), ...items]);
+      }
+    }
+    onSave({
+      party, attention, department, machineNo, recipientAddress, quotNo, date, subject, machineModel: selectedModel,
+      lineItems: computed.map(({ lineId, name, description, rate, qty, gst }) => ({ lineId, name, description, rate: Number(rate), qty: Number(qty), gst: Number(gst) })),
+      amount: grandTotal,
+      deliveryPeriod, serviceTerms,
+      status: initial?.status || 'Sent',
+    });
+  };
+
+  return (
+    <Modal title={isDuplicate ? 'Nayi Quotation (Copy)' : initial ? 'Quotation Edit Karein' : 'Nayi Quotation'} onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
+      <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
+      <Field label="Address (To, block mein designation ke saath print hoga)"><textarea rows={2} className={inputCls + ' resize-none'} value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} placeholder="Jaise: 2nd Floor, Vidhan Bhawan, Lucknow" /></Field>
+      <Field label="Machine Dhundein (Party ya PH/Machine No se) — quotation isi se connect rahegi">
+        <MachineSearchPicker machines={machines} value={machineNo ? `${machineNo} · ${party}` : ''} onSelect={handleMachineSelect} />
+      </Field>
+      {machineNo && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-teal-800 truncate">{machineNo} {department && `· ${department}`}</p>
+            <p className="text-[10px] text-teal-600">Ye quotation is machine se connect hai — Order/Outstanding mein bhi yehi dikhega</p>
+          </div>
+          <button onClick={() => { setMachineNo(''); setDepartment(''); }} className="text-[11px] text-red-600 font-semibold shrink-0 ml-2">Hatayein</button>
+        </div>
+      )}
+
+      {partyMachines.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs font-semibold text-slate-500 mb-1.5">Is Party Ki Machines (tap to select)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {partyMachines.map(m => {
+              const days = daysUntil(m.amcTo);
+              const st = normStatus(m.status);
+              const badge = st === 'ACTIVE' ? amcBadge(days, m.contType) : { label: STATUS_LABELS[st], color: STATUS_COLORS[st] };
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handleMachineSelect(m)}
+                  className={`text-left border rounded-lg px-2.5 py-1.5 ${selectedModel === m.model ? 'border-teal-600 bg-teal-50' : 'border-slate-200'}`}
+                >
+                  <p className="text-xs font-medium text-slate-700">{m.machineNo} · {m.model}</p>
+                  {m.place && <p className="text-[9px] text-teal-600">{m.place}</p>}
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <Field label="Subject / Reference"><input className={inputCls} value={subject} onChange={e => setSubject(e.target.value)} placeholder="Jaise: Quotation of Drum for Sharp Machine..." /></Field>
+      <Field label="Machine Model (parts suggest karne ke liye)"><input className={inputCls} value={modelDraft} onChange={e => setModelDraft(e.target.value)} onBlur={() => setSelectedModel(modelDraft)} placeholder="Jaise: 20M22" /></Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Quotation No"><input className={inputCls} value={quotNo} onChange={e => setQuotNo(e.target.value)} /></Field>
+        <Field label="Date"><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} /></Field>
+      </div>
+
+      <p className="text-xs font-semibold text-slate-500 mt-3 mb-1.5">Items</p>
+
+      {suggestedItems.length > 0 && (
+        <div className="mb-2">
+          <p className="text-[11px] text-teal-700 font-semibold mb-1">Model {selectedModel} ke liye suggested parts</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestedItems.map(it => (
+              <button
+                key={it.id}
+                onClick={() => addLine(it)}
+                className="text-xs bg-teal-50 text-teal-800 border border-teal-200 rounded-full px-2.5 py-1.5 font-medium"
+              >+ {it.name} (₹{it.rate})</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2 mb-2">
+        {lines.map(l => (
+          <QuotationLineEditor key={l.lineId} line={l} items={items} selectedModel={selectedModel} onUpdate={data => updateLine(l.lineId, data)} onRemove={() => removeLine(l.lineId)} />
+        ))}
+      </div>
+      <button onClick={() => addLine(null)} className="w-full border-2 border-dashed border-slate-300 text-slate-500 font-semibold py-2 rounded-lg text-sm mb-3">+ Item Line Jodein</button>
+
+      {lines.length > 0 && (
+        <div className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 mb-3">
+          <span className="text-sm font-semibold text-slate-600">Grand Total</span>
+          <span className="text-base font-bold text-slate-800">₹{grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+        </div>
+      )}
+
+      <Field label="Delivery Period"><input className={inputCls} value={deliveryPeriod} onChange={e => setDeliveryPeriod(e.target.value)} /></Field>
+      <Field label="Service Terms"><textarea rows={2} className={inputCls + ' resize-none'} value={serviceTerms} onChange={e => setServiceTerms(e.target.value)} /></Field>
+
+      <button onClick={handleSave} disabled={!canSave} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">
+        {initial ? 'Update Quotation' : 'Quotation Banayein'}
+      </button>
+    </Modal>
+  );
+}
+
+function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove }) {
+  const [q, setQ] = useState(line.name || '');
+  const [open, setOpen] = useState(false);
+  const matches = useMemo(() => {
+    const modelLower = (selectedModel || '').trim().toLowerCase();
+    const matchesModel = (it) => (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || (modelLower && m === modelLower));
+
+    let pool = items.slice();
+    if (q) {
+      const s = q.toLowerCase();
+      pool = pool.filter(it => it.name.toLowerCase().includes(s) || (it.description||'').toLowerCase().includes(s));
+    }
+
+    if (modelLower) {
+      const narrowed = pool.filter(matchesModel);
+      // Agar is exact model ke items maujood hain to sirf wahi dikhayein (narrow).
+      // Warna (koi match nahi) poori list dikha dein taaki user manually dhundh sake.
+      if (narrowed.length > 0) pool = narrowed;
+    }
+
+    return pool.slice(0, 8);
+  }, [q, items, selectedModel]);
+
+  const base = Number(line.rate || 0) * Number(line.qty || 0);
+  const gstAmt = base * Number(line.gst || 0) / 100;
+
+  return (
+    <Card className="!p-3">
+      <div className="relative mb-2">
+        <input
+          className={inputCls}
+          value={q}
+          onChange={e => { setQ(e.target.value); onUpdate({ name: e.target.value }); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Item search / naya naam likhein"
+        />
+        {open && matches.length > 0 && (
+          <div className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 w-full max-h-40 overflow-y-auto">
+            {matches.map(it => {
+              const modelLower = (selectedModel || '').trim().toLowerCase();
+              const isModelMatch = (it.machineModel || '').toLowerCase().split(',').map(x => x.trim()).some(m => m === 'all' || (modelLower && m === modelLower));
+              return (
+                <button
+                  key={it.id}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setQ(it.name);
+                    onUpdate({ name: it.name, description: it.description, rate: it.rate, gst: it.gst });
+                    setOpen(false);
+                  }}
+                >
+                  <p className="font-medium text-slate-700">{it.name} {isModelMatch && <span className="text-[10px] text-teal-600 font-semibold">· is model ke liye</span>}</p>
+                  <p className="text-[11px] text-slate-400">{it.description} · ₹{it.rate} · GST {it.gst}%</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <input
+        className={inputCls + ' mb-2'}
+        value={line.description || ''}
+        onChange={e => onUpdate({ description: e.target.value })}
+        placeholder="Description"
+      />
+      <div className="grid grid-cols-4 gap-1.5 items-center">
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.rate} onChange={e => onUpdate({ rate: e.target.value })} placeholder="Rate" />
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.qty} onChange={e => onUpdate({ qty: e.target.value })} placeholder="Qty" />
+        <input type="number" className={inputCls + ' col-span-1 !px-2'} value={line.gst} onChange={e => onUpdate({ gst: e.target.value })} placeholder="GST%" />
+        <button onClick={onRemove} className="col-span-1 text-red-500 text-xs font-semibold py-2">Remove</button>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5 text-right">Line Total: ₹{(base + gstAmt).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+    </Card>
+  );
+}
+
+function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved }) {
+  const quotesInMonth = quotations;
+  const ordersInMonth = orders;
+  const totalBilled = payments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const totalCollected = payments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  const approvedQuotes = quotesInMonth.filter(q => q.status === 'Approved').length;
+  const rejectedQuotes = quotesInMonth.filter(q => q.status === 'Rejected').length;
+
+  const byPartyOutstanding = {};
+  payments.forEach(p => {
+    const pend = Number(p.invoiceAmount||0) - Number(p.receivedAmount||0);
+    if (pend > 0) byPartyOutstanding[p.party] = (byPartyOutstanding[p.party]||0) + pend;
+  });
+  const topOutstandingRows = Object.entries(byPartyOutstanding)
+    .sort((a,b) => b[1]-a[1]).slice(0,10)
+    .map(([party, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${party}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`)
+    .join('');
+
+  const pct = target > 0 ? Math.min(100, Math.round((achieved/target)*100)) : 0;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Monthly Report — ${monthLabel}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding:20px; max-width:750px; margin:0 auto; word-wrap:break-word; }
+  .header { text-align:center; border-bottom:3px solid #b91c1c; padding-bottom:10px; margin-bottom:16px; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; }
+  .small { font-size:11px; color:#64748b; }
+  h2 { font-size:14px; margin:18px 0 8px; color:#0f766e; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid #cbd5e1; border-radius:8px; padding:10px; }
+  .stat-label { font-size:11px; color:#64748b; }
+  .stat-value { font-size:18px; font-weight:800; color:#1e293b; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+  .bar-bg { width:100%; height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar-fill { height:100%; background:#0f766e; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">Monthly Business Report — ${monthLabel}</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Quotations Bheji Gayi</div><div class="stat-value">${quotesInMonth.length}</div></div>
+    <div class="stat"><div class="stat-label">Approved / Rejected</div><div class="stat-value">${approvedQuotes} / ${rejectedQuotes}</div></div>
+    <div class="stat"><div class="stat-label">Orders Bane</div><div class="stat-value">${ordersInMonth.length}</div></div>
+    <div class="stat"><div class="stat-label">Total Billing</div><div class="stat-value">₹${totalBilled.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Collection Hui</div><div class="stat-value">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Outstanding Bacha</div><div class="stat-value">₹${(totalBilled-totalCollected).toLocaleString('en-IN')}</div></div>
+  </div>
+
+  <h2>Target vs Achievement</h2>
+  <p class="small">₹${achieved.toLocaleString('en-IN')} collected of ₹${target.toLocaleString('en-IN')} target (${pct}%)</p>
+  <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+
+  ${topOutstandingRows ? `
+  <h2>Sabse Zyada Outstanding Wali Parties</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Outstanding</th></tr></thead>
+    <tbody>${topOutstandingRows}</tbody>
+  </table>` : ''}
+
+  <p class="small" style="margin-top:20px;">Report generated on ${todayISO()} — Argus Tracker</p>
+</body></html>`;
+}
+
+function downloadMonthlyReport(payload) {
+  const html = buildMonthlyReportHTML(payload);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Monthly-Report-${payload.monthLabel.replace(/\s/g,'-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function buildQuotationInnerHTML(quote, signatureImg) {
+  const lines = quote.lineItems || [];
+  const rows = lines.map((l, i) => {
+    const base = Number(l.rate||0) * Number(l.qty||0);
+    const amt = base + base * Number(l.gst||0) / 100;
+    return `<tr>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;">${l.name || ''}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;">${l.description || ''}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${Number(l.rate||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.qty}</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:center;">${l.gst}%</td>
+      <td style="border:1px solid #cbd5e1;padding:4px;text-align:right;">${amt.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="content">
+    <div class="header">
+      <div class="company">${COMPANY.name}</div>
+      <div class="small">${COMPANY.address}</div>
+      <div class="small">Telephone: ${COMPANY.phone} · E-mail: ${COMPANY.email}</div>
+      <div class="small" style="font-weight:600;color:#334155;">GSTIN: ${COMPANY.gstin}  PAN NO. ${COMPANY.pan}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">
+      <b>${quote.quotNo || ''}</b><span style="font-weight:700;">Date: ${formatDateDMY(quote.date)}</span>
+    </div>
+    <p style="font-size:13px;margin:4px 0;font-weight:700;">To,</p>
+    ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:700;">${quote.attention}</p>` : ''}
+    <p style="font-size:14px;font-weight:800;margin:2px 0 4px;">${quote.party || ''}</p>
+    ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;white-space:pre-line;font-weight:700;">${quote.recipientAddress}</p>` : ''}
+    ${quote.subject ? `<p style="font-size:13px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
+    <p style="font-size:13px;margin:4px 0 2px;">Dear Sir,</p>
+    <p style="font-size:13px;margin:0 0 10px;">With reference to your requirements we are pleased to quote our rates.</p>
+    <table>
+      <thead><tr>
+        <th style="width:4%;">S.No</th>
+        <th style="width:21%;">Item</th>
+        <th style="width:29%;">Description</th>
+        <th style="width:14%;">Rate</th>
+        <th style="width:7%;">Qty</th>
+        <th style="width:10%;">GST%</th>
+        <th style="width:15%;">Amount</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr><td colspan="6" style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">Grand Total</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;font-weight:bold;">₹${Number(quote.amount||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>
+      </tbody>
+    </table>
+    ${quote.deliveryPeriod ? `<p class="terms"><b>Delivery Period: </b>${quote.deliveryPeriod}</p>` : ''}
+    ${quote.serviceTerms ? `<p class="terms"><b>Service Terms: </b>${quote.serviceTerms}</p>` : ''}
+    <p class="terms" style="font-weight:600;text-decoration:underline;">Please mention our quotation no. in your order.</p>
+    <p class="terms">Thanking you & assuring you of our best services at all times.</p>
+  </div>
+  <div class="sign-block">
+    <p class="terms">Yours faithfully,</p>
+    <p class="terms" style="margin-top:14px;">For ${COMPANY.name}</p>
+    ${signatureImg ? `<img src="${signatureImg}" style="height:70px;object-fit:contain;margin-top:8px;display:block;" />` : ''}
+    <p style="font-size:13px;font-weight:700;margin-top:${signatureImg ? '6px' : '30px'};">(${COMPANY.contactName})</p>
+    <p class="small">${COMPANY.contactPhone}</p>
+    <div class="footer">
+      <div>${COMPANY.footer1}</div>
+      <div>${COMPANY.footer2}</div>
+    </div>
+  </div>`;
+}
+
+const QUOTATION_STYLE_CSS = `
+  @page { size: A4; margin: 22mm 12mm 26mm; }
+  html, body { height: 100%; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color:#0f172a; padding: 32px 20px; max-width: 800px; margin: 0 auto; display:flex; flex-direction:column; min-height: 100vh; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
+  .header { text-align:center; border-bottom: 3px solid #b91c1c; padding-bottom: 10px; margin-bottom: 14px; }
+  .company { font-size:19px; font-weight:800; color:#b91c1c; }
+  .small { font-size:12.5px; color:#334155; font-weight:500; }
+  table { width:100%; border-collapse: collapse; margin: 14px 0; font-size:13.5px; table-layout: fixed; }
+  th, td { word-wrap: break-word; overflow-wrap: break-word; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:6px; font-weight:700; color:#0f172a; }
+  td { border:1px solid #cbd5e1; color:#0f172a; }
+  .terms { font-size:13.5px; margin-top: 5px; width: 100%; word-wrap: break-word; overflow-wrap: break-word; color:#0f172a; }
+  .content { flex: 1 0 auto; width: 100%; }
+  .sign-block { margin-top: auto; padding-top: 28px; }
+  .footer { text-align:center; border-top:1px solid #cbd5e1; margin-top:18px; padding-top:9px; font-size:11px; color:#334155; font-weight:600; }
+  @media print {
+    body { padding: 0; max-width: none; width: 100%; min-height: 273mm; }
+  }`;
+
+function buildQuotationHTML(quote, signatureImg) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${quote.quotNo || 'Quotation'}</title>
+<style>${QUOTATION_STYLE_CSS}</style></head>
+<body>
+${buildQuotationInnerHTML(quote, signatureImg)}
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script>
+</body></html>`;
+}
+
+// Renders the quotation (plain CSS, no Tailwind) into a temporary off-screen container so
+// html2canvas can capture it reliably — avoids modern CSS color functions Tailwind may use
+// that html2canvas cannot parse.
+async function captureQuotationCanvas(quote, signatureImg) {
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  container.style.background = '#ffffff';
+  const styleTag = document.createElement('style');
+  styleTag.textContent = QUOTATION_STYLE_CSS;
+  container.appendChild(styleTag);
+  const inner = document.createElement('div');
+  inner.style.display = 'block';
+  inner.style.width = '100%';
+  inner.style.padding = '20px';
+  inner.style.fontFamily = 'Arial, Helvetica, sans-serif';
+  inner.style.fontSize = '14px';
+  inner.style.color = '#1e293b';
+  inner.innerHTML = buildQuotationInnerHTML(quote, signatureImg);
+  container.appendChild(inner);
+  document.body.appendChild(container);
+  try {
+    // wait a tick for the stamp <img> (data URI) to paint and layout to settle
+    await new Promise(r => setTimeout(r, 100));
+    const fullHeight = Math.ceil(Math.max(container.scrollHeight, container.offsetHeight, inner.scrollHeight, inner.offsetHeight));
+    const fullWidth = Math.ceil(Math.max(container.scrollWidth, container.offsetWidth, 800));
+    const canvas = await window.html2canvas(container, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      width: fullWidth,
+      height: fullHeight,
+      windowWidth: fullWidth,
+      windowHeight: fullHeight,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+    });
+    if (!canvas || canvas.height < 10) throw new Error('Canvas khaali bani (capture fail hua)');
+    return canvas;
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
+function downloadQuotationHTML(quote, signatureImg) {
+  const html = buildQuotationHTML(quote, signatureImg);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onConvertToOrder, signatureImg }) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
+  const [orderNo, setOrderNo] = useState('');
+  const [poDate, setPoDate] = useState(todayISO());
+  const lines = quote.lineItems || [];
+  const statusOptions = ['Sent', 'Approved', 'Rejected'];
+  const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200' };
+
+  const [downloadMsg, setDownloadMsg] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const canShareFiles = typeof navigator !== 'undefined' && navigator.canShare;
+
+  const handleDownload = () => {
+    downloadQuotationHTML(quote, signatureImg);
+    setDownloadMsg('File download shuru ho gayi hai. Ek popup aayega jisme "Download file" dabayein — file aapke phone ke Downloads folder mein save ho jayegi. Wahan se WhatsApp/Email par attach karke share kar sakte hain.');
+  };
+
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    setDownloadMsg('');
+    try {
+      await downloadQuotationPDF(quote, signatureImg);
+      setDownloadMsg('✔ Asli PDF file download ho gayi hai — ab seedhe WhatsApp/Email mein attach kar sakte hain.');
+    } catch (e) {
+      setDownloadMsg(`PDF nahi ban paya: ${e && e.message ? e.message : 'unknown error'} — isliye HTML file download kar di, usko khol kar "Save as PDF" kar lein.`);
+      downloadQuotationHTML(quote, signatureImg);
+    }
+    setPdfLoading(false);
+  };
+
+  const handlePrint = () => {
+    // In a real deployed site (not a sandboxed embed) window.print() works directly on the current page.
+    // We still fall back to the downloadable HTML (which auto-triggers print) if that fails.
+    try {
+      window.print();
+    } catch (e) {
+      downloadQuotationHTML(quote, signatureImg);
+    }
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    setDownloadMsg('');
+    try {
+      const pdf = await buildQuotationPdf(quote, signatureImg);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `Quotation-${(quote.quotNo || 'draft').replace(/\//g, '-')}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      if (canShareFiles && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: quote.quotNo || 'Quotation', text: `Quotation for ${quote.party || ''}` });
+      } else {
+        pdf.save(fileName);
+        setDownloadMsg('Is device par direct Share support nahi hai, isliye PDF download kar di — wahan se WhatsApp/Email mein attach kar dein.');
+      }
+    } catch (e) {
+      if (e && e.name !== 'AbortError') {
+        downloadQuotationHTML(quote, signatureImg);
+        setDownloadMsg('PDF share nahi ho paya (internet dheema ho sakta hai), isliye HTML file download kar di.');
+      }
+    }
+    setSharing(false);
+  };
+
+  return (
+    <Modal title={quote.quotNo || 'Quotation'} onClose={onClose}>
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #quot-print-area, #quot-print-area * { visibility: visible; }
+          #quot-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16px; }
+        }
+      `}</style>
+
+      {quote.department && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3">
+          <p className="text-[10px] text-teal-600 font-semibold">Department (internal reference)</p>
+          <p className="text-sm text-teal-800 font-medium">{quote.department}</p>
+        </div>
+      )}
+
+      <div className="flex gap-1.5 mb-3">
+        {statusOptions.map(s => (
+          <button
+            key={s}
+            onClick={() => onStatusChange(s)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${quote.status === s ? statusColor[s] + ' ring-1 ring-offset-1 ring-slate-300' : 'bg-white text-slate-500 border-slate-200'}`}
+          >{s}</button>
+        ))}
+      </div>
+
+      <div id="quot-print-area" className="border border-slate-200 rounded-xl p-3 bg-white text-slate-800 flex flex-col" style={{ minHeight: '480px' }}>
+        <div className="text-center border-b-2 border-red-700 pb-2 mb-2">
+          <p className="text-sm font-extrabold tracking-tight text-red-700">{COMPANY.name}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{COMPANY.address}</p>
+          <p className="text-[10px] text-slate-500">Telephone: {COMPANY.phone} · E-mail: {COMPANY.email}</p>
+          <p className="text-[10px] font-semibold text-slate-600 mt-0.5">GSTIN: {COMPANY.gstin}  PAN NO. {COMPANY.pan}</p>
+        </div>
+
+        <div className="flex justify-between text-xs mb-2">
+          <span className="font-semibold">{quote.quotNo}</span>
+          <span className="font-bold">Date: {formatDateDMY(quote.date)}</span>
+        </div>
+
+        <p className="text-sm font-bold mb-1">To,</p>
+        {quote.attention && <p className="text-sm font-bold mb-0.5">{quote.attention}</p>}
+        <p className="text-sm font-extrabold mb-0.5">{quote.party}</p>
+        {quote.recipientAddress && <p className="text-sm font-bold text-slate-700 mb-2" style={{ whiteSpace: 'pre-line' }}>{quote.recipientAddress}</p>}
+
+        {quote.subject && (
+          <p className="text-sm mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
+        )}
+        <p className="text-sm mb-0.5">Dear Sir,</p>
+        <p className="text-sm mb-2">With reference to your requirements we are pleased to quote our rates.</p>
+
+        <table className="w-full text-[10px] border-collapse mb-2" style={{ tableLayout: 'fixed', wordBreak: 'break-word' }}>
+          <thead>
+            <tr className="bg-slate-100">
+              <th className="border border-slate-300 px-1 py-1">S.No</th>
+              <th className="border border-slate-300 px-1 py-1 text-left">Item</th>
+              <th className="border border-slate-300 px-1 py-1 text-left">Description</th>
+              <th className="border border-slate-300 px-1 py-1">Rate</th>
+              <th className="border border-slate-300 px-1 py-1">Qty</th>
+              <th className="border border-slate-300 px-1 py-1">GST%</th>
+              <th className="border border-slate-300 px-1 py-1">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l, i) => {
+              const base = Number(l.rate||0) * Number(l.qty||0);
+              const amt = base + base * Number(l.gst||0)/100;
+              return (
+                <tr key={l.lineId || i}>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{i+1}</td>
+                  <td className="border border-slate-300 px-1 py-1">{l.name}</td>
+                  <td className="border border-slate-300 px-1 py-1">{l.description}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{Number(l.rate).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{l.qty}</td>
+                  <td className="border border-slate-300 px-1 py-1 text-center">{l.gst}%</td>
+                  <td className="border border-slate-300 px-1 py-1 text-right">{amt.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td colSpan={6} className="border border-slate-300 px-1 py-1 text-right font-bold">Grand Total</td>
+              <td className="border border-slate-300 px-1 py-1 text-right font-bold">₹{Number(quote.amount||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {quote.deliveryPeriod && <p className="text-[10px] mb-1"><span className="font-semibold">Delivery Period: </span>{quote.deliveryPeriod}</p>}
+        {quote.serviceTerms && <p className="text-[10px] mb-1"><span className="font-semibold">Service Terms: </span>{quote.serviceTerms}</p>}
+        <p className="text-[10px] font-semibold underline mt-1">Please mention our quotation no. in your order.</p>
+        <p className="text-[10px] mt-1">Thanking you & assuring you of our best services at all times.</p>
+
+        <div className="mt-auto pt-4">
+          <p className="text-[10px] mt-1">Yours faithfully,</p>
+          <p className="text-[10px] mt-2">For {COMPANY.name}</p>
+          {signatureImg && <img src={signatureImg} alt="Signature" className="h-12 object-contain mt-1" />}
+          <p className={`text-xs font-semibold ${signatureImg ? 'mt-1' : 'mt-4'}`}>({COMPANY.contactName})</p>
+          <p className="text-[10px]">{COMPANY.contactPhone}</p>
+
+          <div className="border-t border-slate-300 mt-3 pt-1.5 text-center">
+            <p className="text-[9px] text-slate-500">{COMPANY.footer1}</p>
+            <p className="text-[9px] text-slate-500">{COMPANY.footer2}</p>
+          </div>
+        </div>
+      </div>
+
+      {!quote.convertedToOrder ? (
+        showConvert ? (
+          <div className="border border-teal-200 bg-teal-50 rounded-xl p-3 mt-3">
+            <p className="text-xs font-semibold text-teal-800 mb-2">Order Bana Rahe Hain</p>
+            <p className="text-[11px] text-teal-700 mb-2">Order confirm hote hi is amount ki billing entry Payments mein apne aap ban jayegi (outstanding mein jud jayega).</p>
+            <Field label="Order No / PO No"><input className={inputCls} value={orderNo} onChange={e => setOrderNo(e.target.value)} placeholder="Party ka PO number" /></Field>
+            <Field label="Order Date"><input type="date" className={inputCls} value={poDate} onChange={e => setPoDate(e.target.value)} /></Field>
+            <div className="flex gap-2">
+              <button onClick={() => setShowConvert(false)} className="flex-1 bg-white text-slate-600 font-semibold py-2.5 rounded-xl text-sm border border-slate-200">Cancel</button>
+              <button
+                onClick={() => { onConvertToOrder(orderNo, poDate); setShowConvert(false); }}
+                disabled={!orderNo}
+                className="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-40"
+              >Order Confirm Karein</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowConvert(true)} className="w-full bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm mt-3">
+            Order Me Convert Karein
+          </button>
+        )
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold text-center py-2.5 rounded-xl mt-3">
+          ✔ Order Ban Chuka Hai (PO: {quote.orderNo})
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button onClick={handleShare} disabled={sharing} className="bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
+          {sharing ? 'Bhej rahe...' : 'PDF Share Karein'}
+        </button>
+        <button onClick={handleDownloadPDF} disabled={pdfLoading} className="bg-red-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
+          <Download size={16} /> {pdfLoading ? 'Ban raha...' : 'PDF Download'}
+        </button>
+      </div>
+      <p className="text-[10px] text-slate-400 text-center mt-1.5">"PDF Share Karein" se seedhe WhatsApp/Email par bhej sakte hain</p>
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button onClick={handlePrint} className="bg-slate-100 text-slate-600 font-semibold py-2 rounded-xl text-xs">Print Karein</button>
+        <button onClick={handleDownload} className="bg-slate-100 text-slate-600 font-semibold py-2 rounded-xl text-xs flex items-center justify-center gap-1">HTML File</button>
+      </div>
+      {downloadMsg && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mt-2">{downloadMsg}</p>
+      )}
+      <button onClick={onEdit} className="w-full bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm mt-2">Edit</button>
+      <div className="mt-2">
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} className="w-full bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Quotation Delete Karein</button>
+        ) : (
+          <button onClick={onDelete} className="w-full bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm Delete</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+
+function OrderForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', amount: '', poDate: todayISO(), deliveryStatus: 'Pending' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Naya Order" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Amount (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
+      <Field label="PO Date"><input type="date" className={inputCls} value={f.poDate} onChange={e => set('poDate', e.target.value)} /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.amount} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save</button>
+    </Modal>
+  );
+}
+
+// ---------------- PAYMENTS TAB ----------------
+function PaymentsTab({ machines, payments, setPayments }) {
+  const [addMode, setAddMode] = useState(null); // 'billing' | 'collection' | null
+  const [editEntry, setEditEntry] = useState(null);
+  const [showImport, setShowImport] = useState(false);
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(30);
+  const addPayment = (data) => {
+    setPayments([{ ...data, id: uid() }, ...payments]);
+    setAddMode(null);
+  };
+  const updatePayment = (id, data) => {
+    setPayments(payments.map(p => p.id === id ? { ...p, ...data } : p));
+    setEditEntry(null);
+  };
+  const deletePayment = (id) => {
+    setPayments(payments.filter(p => p.id !== id));
+    setEditEntry(null);
+  };
+
+  const importPayments = (rows) => {
+    const newEntries = [];
+    rows.forEach(row => {
+      const party = getField(row, 'party', 'partyname', 'party name');
+      if (!party) return;
+      const invoiceAmount = getField(row, 'invoiceamount', 'invoice amount', 'billamount', 'bill amount', 'billed');
+      const receivedAmount = getField(row, 'receivedamount', 'received amount', 'received', 'collected', 'collection');
+      const outstanding = getField(row, 'outstanding', 'outstandingamount', 'outstanding amount', 'pending', 'due');
+      const date = getField(row, 'date', 'billdate', 'bill date') || todayISO();
+      const note = getField(row, 'note', 'remark', 'remarks') || 'Imported';
+      if (outstanding && !invoiceAmount && !receivedAmount) {
+        newEntries.push({ id: uid(), party, invoiceAmount: Number(outstanding) || 0, receivedAmount: 0, date, note, billType: 'OTHER' });
+      } else if (invoiceAmount || receivedAmount) {
+        newEntries.push({ id: uid(), party, invoiceAmount: Number(invoiceAmount) || 0, receivedAmount: Number(receivedAmount) || 0, date, note, billType: 'OTHER' });
+      }
+    });
+    setPayments([...newEntries, ...payments]);
+    return { added: newEntries.length };
+  };
+
+  const isAmcEntry = (p) => p.billType === 'AMC' || /amc/i.test(p.note || '');
+
+  const totalInvoiced = payments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const totalReceived = payments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  const totalOutstanding = totalInvoiced - totalReceived;
+  const amcInvoiced = payments.filter(isAmcEntry).reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const otherInvoiced = totalInvoiced - amcInvoiced;
+
+  const byParty = useMemo(() => {
+    const map = {};
+    payments.forEach(p => {
+      const rawName = (p.party || 'Unknown').trim();
+      const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+      if (!map[key]) map[key] = { party: rawName, invoiced: 0, received: 0 };
+      map[key].invoiced += Number(p.invoiceAmount||0);
+      map[key].received += Number(p.receivedAmount||0);
+    });
+    return Object.values(map).map(v => ({ ...v, pending: v.invoiced - v.received })).filter(x => x.pending > 0).sort((a,b) => b.pending - a.pending);
+  }, [payments]);
+
+  const searchLower = search.trim().toLowerCase();
+  const filteredByParty = searchLower ? byParty.filter(p => p.party.toLowerCase().includes(searchLower)) : byParty;
+  const filteredPayments = useMemo(() => {
+    if (!searchLower) return payments;
+    return payments.filter(p =>
+      (p.party || '').toLowerCase().includes(searchLower) ||
+      (p.note || '').toLowerCase().includes(searchLower) ||
+      (p.machineNo || '').toLowerCase().includes(searchLower)
+    );
+  }, [payments, searchLower]);
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Billed</p><p className="text-sm font-bold text-slate-800">₹{totalInvoiced.toLocaleString('en-IN')}</p></Card>
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Collected</p><p className="text-sm font-bold text-emerald-600">₹{totalReceived.toLocaleString('en-IN')}</p></Card>
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Outstanding</p><p className="text-sm font-bold text-red-600">₹{totalOutstanding.toLocaleString('en-IN')}</p></Card>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <Card className="!p-2.5 text-center border-amber-200 bg-amber-50"><p className="text-[10px] text-amber-700">AMC Billing</p><p className="text-sm font-bold text-amber-800">₹{amcInvoiced.toLocaleString('en-IN')}</p></Card>
+        <Card className="!p-2.5 text-center"><p className="text-[10px] text-slate-500">Baki Billing (parts/service)</p><p className="text-sm font-bold text-slate-800">₹{otherInvoiced.toLocaleString('en-IN')}</p></Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <button onClick={() => setAddMode('billing')} className="bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1">
+          <Plus size={16} /> Billing Entry
+        </button>
+        <button onClick={() => setAddMode('collection')} className="bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1">
+          <Plus size={16} /> Collection Entry
+        </button>
+      </div>
+      <button onClick={() => setShowImport(true)} className="w-full bg-white border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 mb-3">
+        <Upload size={16} /> Outstanding List Upload Karein
+      </button>
+      {showImport && (
+        <ImportModal
+          title="Outstanding List Upload Karein"
+          hint="April 2024 se ab tak ki party-wise outstanding CSV/Excel se ek saath dalein. Columns: Party, aur ya to 'Outstanding' (sirf due amount) ya 'Invoice Amount' + 'Received Amount' alag-alag. Date optional hai."
+          onImport={importPayments}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      <div className="relative mb-3">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Party, note ya machine se dhundein..."
+          className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-base"
+        />
+      </div>
+
+      {filteredByParty.length > 0 && (
+        <div className="mb-4">
+          <SectionTitle>Party-wise Outstanding{searchLower ? ` (${filteredByParty.length})` : ''}</SectionTitle>
+          <div className="space-y-2">
+            {filteredByParty.map(p => (
+              <Card key={p.party} className="!p-3 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-700 truncate pr-2">{p.party}</p>
+                <p className="text-sm font-bold text-red-600 whitespace-nowrap">₹{p.pending.toLocaleString('en-IN')}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+      {searchLower && filteredByParty.length === 0 && (
+        <p className="text-xs text-slate-400 px-1 mb-3">Is search se koi outstanding party nahi mili (ho sakta hai unka bill clear ho chuka ho)</p>
+      )}
+
+      <SectionTitle>Recent Entries{searchLower ? ` (${filteredPayments.length})` : ''}</SectionTitle>
+      <div className="space-y-2">
+        {filteredPayments.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">{searchLower ? 'Koi entry nahi mili' : 'Abhi tak koi entry nahi'}</Card>}
+        {filteredPayments.slice(0, visibleCount).map(p => {
+          const isBilling = Number(p.invoiceAmount||0) > 0 && Number(p.receivedAmount||0) === 0;
+          const isCollection = Number(p.receivedAmount||0) > 0 && Number(p.invoiceAmount||0) === 0;
+          const kindLabel = isBilling ? 'Billing' : isCollection ? 'Collection' : 'Entry';
+          const kindColor = isBilling ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-teal-50 text-teal-700 border border-teal-200';
+          const amcTag = isAmcEntry(p);
+          return (
+            <Card key={p.id} className="!p-3">
+              <button className="w-full text-left" onClick={() => setEditEntry(p)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{p.party}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {p.date}
+                      {Number(p.invoiceAmount||0) > 0 && ` · Bill ₹${Number(p.invoiceAmount).toLocaleString('en-IN')}`}
+                      {Number(p.receivedAmount||0) > 0 && ` · Collected ₹${Number(p.receivedAmount).toLocaleString('en-IN')}`}
+                    </p>
+                    {p.note && <p className="text-xs text-slate-400 mt-0.5">{p.note}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${kindColor}`}>{kindLabel}</span>
+                    {amcTag && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">AMC</span>}
+                  </div>
+                </div>
+              </button>
+            </Card>
+          );
+        })}
+      </div>
+      {filteredPayments.length > visibleCount && (
+        <button onClick={() => setVisibleCount(v => v + 30)} className="w-full text-center text-sm text-teal-700 font-semibold py-3">
+          Aur Dikhayein ({filteredPayments.length - visibleCount} baaki)
+        </button>
+      )}
+
+      {addMode === 'billing' && <BillingForm machines={machines} onSave={addPayment} onClose={() => setAddMode(null)} />}
+      {addMode === 'collection' && <CollectionForm machines={machines} onSave={addPayment} onClose={() => setAddMode(null)} />}
+      {editEntry && (
+        <PaymentEditForm
+          entry={editEntry}
+          machines={machines}
+          onSave={(data) => updatePayment(editEntry.id, data)}
+          onDelete={() => deletePayment(editEntry.id)}
+          onClose={() => setEditEntry(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentEditForm({ entry, machines, onSave, onDelete, onClose }) {
+  const [party, setParty] = useState(entry.party || '');
+  const [invoiceAmount, setInvoiceAmount] = useState(entry.invoiceAmount || 0);
+  const [receivedAmount, setReceivedAmount] = useState(entry.receivedAmount || 0);
+  const [date, setDate] = useState(entry.date || todayISO());
+  const [note, setNote] = useState(entry.note || '');
+  const [billType, setBillType] = useState(entry.billType || (/amc/i.test(entry.note||'') ? 'AMC' : 'OTHER'));
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  return (
+    <Modal title="Entry Edit Karein" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} /></Field>
+        <Field label="Received (₹)"><input type="number" className={inputCls} value={receivedAmount} onChange={e => setReceivedAmount(e.target.value)} /></Field>
+      </div>
+      <Field label="Date"><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} /></Field>
+      <Field label="Bill Type">
+        <div className="flex gap-2">
+          <button onClick={() => setBillType('AMC')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${billType === 'AMC' ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-500'}`}>AMC</button>
+          <button onClick={() => setBillType('OTHER')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${billType === 'OTHER' ? 'bg-teal-50 border-teal-300 text-teal-800' : 'bg-white border-slate-200 text-slate-500'}`}>Baki (Parts/Service)</button>
+        </div>
+      </Field>
+      <Field label="Note"><input className={inputCls} value={note} onChange={e => setNote(e.target.value)} /></Field>
+      <button
+        onClick={() => onSave({ party, invoiceAmount: Number(invoiceAmount)||0, receivedAmount: Number(receivedAmount)||0, date, note, billType })}
+        className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2"
+      >Save Karein</button>
+      <div className="mt-2">
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} className="w-full bg-red-50 text-red-600 font-semibold py-2.5 rounded-xl text-sm">Entry Delete Karein</button>
+        ) : (
+          <button onClick={onDelete} className="w-full bg-red-600 text-white font-semibold py-2.5 rounded-xl text-sm">Confirm Delete</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function BillingForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: '', receivedAmount: 0, date: todayISO(), note: '', billType: 'OTHER' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Billing Entry (Bulk Order)" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No / Order Ref (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={f.invoiceAmount} onChange={e => set('invoiceAmount', e.target.value)} placeholder="Bulk order ka total billing" /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Bill Type">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => set('billType', 'AMC')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${f.billType === 'AMC' ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-500'}`}>AMC</button>
+          <button type="button" onClick={() => set('billType', 'OTHER')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${f.billType === 'OTHER' ? 'bg-teal-50 border-teal-300 text-teal-800' : 'bg-white border-slate-200 text-slate-500'}`}>Baki (Parts/Service)</button>
+        </div>
+      </Field>
+      <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: 5 machine bulk order" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.invoiceAmount} className="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Billing</button>
+    </Modal>
+  );
+}
+
+function CollectionForm({ machines, onSave, onClose }) {
+  const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: 0, receivedAmount: '', date: todayISO(), note: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  return (
+    <Modal title="Collection Entry" onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine No (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Amount Collected (₹)"><input type="number" className={inputCls} value={f.receivedAmount} onChange={e => set('receivedAmount', e.target.value)} /></Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: Cheque no. / cash" /></Field>
+      <button onClick={() => onSave(f)} disabled={!f.party || !f.receivedAmount} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">Save Collection</button>
+    </Modal>
+  );
+}
+
+// ---------------- DAILY LOG TAB ----------------
+function LogTab({ dailyLogs, setDailyLogs, tasks, setTasks, completeTask }) {
+  const [sub, setSub] = useState('log');
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+        <button onClick={() => setSub('log')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${sub === 'log' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Daily Log</button>
+        <button onClick={() => setSub('tasks')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${sub === 'tasks' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>To-Do Tasks</button>
+      </div>
+      {sub === 'log' ? (
+        <DailyLogSection dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} />
+      ) : (
+        <TasksSection tasks={tasks} setTasks={setTasks} completeTask={completeTask} />
+      )}
+    </div>
+  );
+}
+
+function DailyLogSection({ dailyLogs, setDailyLogs }) {
+  const [note, setNote] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+  const today = todayISO();
+  const todayLogs = dailyLogs.filter(l => l.date === today);
+  const speechSupported = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current && recognitionRef.current.stop();
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = 'hi-IN';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setNote(prev => (prev ? prev.trim() + ' ' : '') + transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+
+  const addLog = () => {
+    if (!note.trim()) return;
+    setDailyLogs([{ id: uid(), date: today, note: note.trim(), time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...dailyLogs]);
+    setNote('');
+  };
+
+  const grouped = useMemo(() => {
+    const map = {};
+    dailyLogs.forEach(l => {
+      if (!map[l.date]) map[l.date] = [];
+      map[l.date].push(l);
+    });
+    return Object.entries(map).sort((a,b) => b[0].localeCompare(a[0]));
+  }, [dailyLogs]);
+
+  const [copyStatus, setCopyStatus] = useState('');
+  const copyTodayReport = () => {
+    const dateLabel = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    let text = `📋 Daily Report — ${dateLabel}\n\n`;
+    if (todayLogs.length === 0) {
+      text += 'Aaj koi entry nahi hai.';
+    } else {
+      todayLogs.slice().reverse().forEach((l, i) => {
+        text += `${i + 1}. ${l.note} (${l.time})\n`;
+      });
+    }
+    text += `\n— Argus Tracker`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopyStatus('✔ Copy ho gaya — ab WhatsApp/group mein paste kar dein');
+        setTimeout(() => setCopyStatus(''), 3000);
+      }).catch(() => setCopyStatus('Copy nahi ho paya, text select karke manually copy karein'));
+    } else {
+      setCopyStatus('Is device par copy support nahi hai');
+    }
+  };
+
+  return (
+    <>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-2">Aaj ka Update Likhein</p>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Jaise: XYZ office gaye, AMC renewal follow up kiya, ₹5000 collect hua..."
+          rows={3}
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-base resize-none"
+        />
+        <div className="flex gap-2 mt-2">
+          {speechSupported && (
+            <button
+              onClick={toggleVoice}
+              className={`px-4 rounded-xl text-sm font-semibold flex items-center gap-1.5 ${listening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-100 text-slate-700'}`}
+            >🎤 {listening ? 'Sun raha hun...' : 'Bolkar Likhein'}</button>
+          )}
+          <button onClick={addLog} disabled={!note.trim()} className="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-40">
+            Entry Jodein
+          </button>
+        </div>
+      </Card>
+
+      {todayLogs.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-sm font-bold text-slate-800">Aaj ({todayLogs.length} entries)</p>
+            <button onClick={copyTodayReport} className="text-xs text-teal-700 font-semibold flex items-center gap-1">📋 Copy Karein</button>
+          </div>
+          {copyStatus && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-2">{copyStatus}</p>}
+          <div className="space-y-2">
+            {todayLogs.map(l => (
+              <Card key={l.id} className="!p-3">
+                <p className="text-sm text-slate-700">{l.note}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{l.time}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <SectionTitle>Purane Din</SectionTitle>
+      <div className="space-y-3">
+        {grouped.filter(([d]) => d !== today).slice(0, 20).map(([date, logs]) => (
+          <div key={date}>
+            <p className="text-xs font-semibold text-slate-500 mb-1.5 px-1">{new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {logs.length} entries</p>
+            <div className="space-y-1.5">
+              {logs.map(l => (
+                <Card key={l.id} className="!p-2.5">
+                  <p className="text-sm text-slate-600">{l.note}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{l.time}</p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
+        {dailyLogs.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi log entry nahi</Card>}
+      </div>
+    </>
+  );
+}
+
+function TasksSection({ tasks, setTasks, completeTask }) {
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState(todayISO());
+  const today = todayISO();
+
+  const addTask = () => {
+    if (!title.trim()) return;
+    setTasks([{ id: uid(), title: title.trim(), dueDate, done: false, completedDate: null }, ...tasks]);
+    setTitle('');
+    setDueDate(today);
+  };
+
+  const pending = useMemo(() => tasks.filter(t => !t.done).sort((a,b) => a.dueDate.localeCompare(b.dueDate)), [tasks]);
+  const done = useMemo(() => tasks.filter(t => t.done).sort((a,b) => (b.completedDate||'').localeCompare(a.completedDate||'')), [tasks]);
+
+  return (
+    <>
+      <Card className="mb-4">
+        <p className="text-sm font-bold text-slate-800 mb-2">Naya Task Jodein</p>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Jaise: PH-2115 AMC renewal call karein"
+          className={inputCls + ' mb-2'}
+        />
+        <div className="flex gap-2">
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls + ' flex-1'} />
+          <button onClick={addTask} disabled={!title.trim()} className="bg-teal-700 text-white font-semibold px-4 rounded-lg text-sm disabled:opacity-40">Add</button>
+        </div>
+      </Card>
+
+      <SectionTitle>Pending Tasks ({pending.length})</SectionTitle>
+      <div className="space-y-2 mb-4">
+        {pending.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Koi pending task nahi</Card>}
+        {pending.map(t => {
+          const overdue = t.dueDate < today;
+          const isToday = t.dueDate === today;
+          return (
+            <Card key={t.id} className="!p-3 flex items-center gap-3">
+              <button onClick={() => completeTask(t.id)} className="w-5 h-5 rounded-full border-2 border-teal-600 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-slate-800">{t.title}</p>
+                <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-600 font-semibold' : isToday ? 'text-amber-600 font-semibold' : 'text-slate-400'}`}>
+                  {overdue ? 'Overdue · ' : isToday ? 'Aaj · ' : ''}{t.dueDate}
+                </p>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {done.length > 0 && (
+        <>
+          <SectionTitle>Complete Ho Chuke ({done.length})</SectionTitle>
+          <div className="space-y-1.5">
+            {done.slice(0, 15).map(t => (
+              <Card key={t.id} className="!p-2.5 flex items-center gap-3 opacity-60">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-600 line-through truncate">{t.title}</p>
+                  <p className="text-[10px] text-slate-400">{t.completedDate}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
