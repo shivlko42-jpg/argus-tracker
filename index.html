@@ -573,6 +573,7 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
     const [editTarget, setEditTarget] = useState(false);
     const [editAnnualTarget, setEditAnnualTarget] = useState(false);
     const [showHolidayModal, setShowHolidayModal] = useState(false);
+    const [showReportCenter, setShowReportCenter] = useState(false);
     const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
     const [annualTargetInput, setAnnualTargetInput] = useState(thisYearTarget || '');
     const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
@@ -888,15 +889,8 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
             targetAdvice && (React.createElement("div", { className: `mt-3 rounded-lg p-3 border ${targetAdvice.tone === 'good' ? 'bg-emerald-50 border-emerald-200' : targetAdvice.tone === 'watch' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}` },
                 React.createElement("p", { className: `text-xs font-bold mb-1.5 ${targetAdvice.tone === 'good' ? 'text-emerald-800' : targetAdvice.tone === 'watch' ? 'text-amber-800' : 'text-red-800'}` }, "\uD83D\uDCA1 Target Achieve Karne Ki Salah"),
                 React.createElement("div", { className: "space-y-1" }, targetAdvice.lines.map((line, i) => (React.createElement("p", { key: i, className: `text-[11.5px] leading-snug ${targetAdvice.tone === 'good' ? 'text-emerald-700' : targetAdvice.tone === 'watch' ? 'text-amber-700' : 'text-red-700'}` }, line)))))),
-            React.createElement("button", { onClick: () => downloadMonthlyReport({
-                    monthLabel: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
-                    quotations: quotations.filter(q => (q.date || '').startsWith(monthKey())),
-                    orders: orders.filter(o => (o.poDate || '').startsWith(monthKey())),
-                    payments: payments.filter(p => (p.date || '').startsWith(monthKey())),
-                    machines,
-                    target: thisMonthTarget,
-                    achieved: thisMonthAchieved,
-                }), className: "w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" }, "\uD83D\uDCCA Is Mahine Ki Report Download Karein")),
+            React.createElement("button", { onClick: () => setShowReportCenter(true), className: "w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" }, "\uD83D\uDCCA Report Center \u2014 Mahina/Saal Chunkar Download Karein")),
+        showReportCenter && (React.createElement(ReportCenterModal, { quotations: quotations, orders: orders, payments: payments, machines: machines, targets: targets, annualTargets: annualTargets, onClose: () => setShowReportCenter(false) })),
         React.createElement("div", null,
             React.createElement(SectionTitle, { action: React.createElement("button", { onClick: () => goTo('log'), className: "text-xs text-teal-700 font-semibold flex items-center" },
                     "Sabhi Tasks ",
@@ -913,6 +907,63 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
                             overdue ? 'Overdue · ' : '',
                             t.dueDate))));
             }))))));
+}
+function ReportCenterModal({ quotations, orders, payments, machines, targets, annualTargets, onClose }) {
+    const now = new Date();
+    const [reportType, setReportType] = useState('monthly'); // 'monthly' | 'annual'
+    const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+    const [selYear, setSelYear] = useState(now.getFullYear());
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const yearsAvailable = useMemo(() => {
+        const ys = new Set([now.getFullYear()]);
+        quotations.forEach(q => { if (q.date)
+            ys.add(Number(q.date.slice(0, 4))); });
+        payments.forEach(p => { if (p.date)
+            ys.add(Number(p.date.slice(0, 4))); });
+        return Array.from(ys).sort((a, b) => b - a);
+    }, [quotations, payments]);
+    const handleDownload = () => {
+        if (reportType === 'monthly') {
+            const mk = `${selYear}-${String(selMonth).padStart(2, '0')}`;
+            const prevDate = new Date(selYear, selMonth - 2, 1);
+            const prevMk = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+            const prevCollected = payments.filter(p => (p.date || '').startsWith(prevMk)).reduce((s, p) => s + Number(p.receivedAmount || 0), 0);
+            downloadMonthlyReport({
+                monthLabel: `${monthNames[selMonth - 1]} ${selYear}`,
+                quotations: quotations.filter(q => (q.date || '').startsWith(mk)),
+                orders: orders.filter(o => (o.poDate || '').startsWith(mk)),
+                payments: payments.filter(p => (p.date || '').startsWith(mk)),
+                machines,
+                target: targets[mk] || 0,
+                achieved: payments.filter(p => (p.date || '').startsWith(mk)).reduce((s, p) => s + Number(p.receivedAmount || 0), 0),
+                prevCollected,
+            });
+        }
+        else {
+            const yearPayments = payments.filter(p => (p.date || '').startsWith(String(selYear)));
+            downloadAnnualReport({
+                year: selYear,
+                quotations, orders, payments,
+                annualTarget: annualTargets[String(selYear)] || 0,
+                annualAchieved: yearPayments.reduce((s, p) => s + Number(p.receivedAmount || 0), 0),
+            });
+        }
+        onClose();
+    };
+    return (React.createElement(Modal, { title: "Report Center", onClose: onClose },
+        React.createElement("div", { className: "flex bg-slate-100 rounded-xl p-1 mb-4" },
+            React.createElement("button", { onClick: () => setReportType('monthly'), className: `flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'monthly' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}` }, "Monthly Report"),
+            React.createElement("button", { onClick: () => setReportType('annual'), className: `flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'annual' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}` }, "Annual Report")),
+        reportType === 'monthly' && (React.createElement(Field, { label: "Mahina Chunein" },
+            React.createElement("select", { value: selMonth, onChange: e => setSelMonth(Number(e.target.value)), className: inputCls }, monthNames.map((name, i) => React.createElement("option", { key: i, value: i + 1 }, name))))),
+        React.createElement(Field, { label: "Saal Chunein" },
+            React.createElement("select", { value: selYear, onChange: e => setSelYear(Number(e.target.value)), className: inputCls }, yearsAvailable.map(y => React.createElement("option", { key: y, value: y }, y)))),
+        React.createElement("p", { className: "text-xs text-slate-500 mb-3" }, reportType === 'monthly'
+            ? 'Report mein: Quotations, Orders, Billing/Collection, Target vs Achievement, pichle mahine se tulna, aur sabse badi parties shamil hongi.'
+            : 'Report mein: Poore saal ka mahine-dar-mahine vivaran, annual target vs achievement, aur saal ki sabse badi parties shamil hongi.'),
+        React.createElement("button", { onClick: handleDownload, className: "w-full bg-teal-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-1.5" },
+            React.createElement(Download, { size: 16 }),
+            " Report Download Karein")));
 }
 function HolidayModal({ holidays, toggleHoliday, onClose }) {
     const [newDate, setNewDate] = useState(todayISO());
@@ -2407,7 +2458,7 @@ function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove })
             "Line Total: \u20B9",
             (base + gstAmt).toLocaleString('en-IN', { maximumFractionDigits: 0 }))));
 }
-function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved }) {
+function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved, prevCollected }) {
     const quotesInMonth = quotations;
     const ordersInMonth = orders;
     const totalBilled = payments.reduce((s, p) => s + Number(p.invoiceAmount || 0), 0);
@@ -2415,16 +2466,37 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
     const approvedQuotes = quotesInMonth.filter(q => q.status === 'Approved').length;
     const rejectedQuotes = quotesInMonth.filter(q => q.status === 'Rejected').length;
     const byPartyOutstanding = {};
+    const byPartyBilled = {};
     payments.forEach(p => {
+        const rawName = (p.party || '').trim();
+        if (!rawName)
+            return;
+        const key = rawName.toLowerCase().replace(/\s+/g, ' ');
         const pend = Number(p.invoiceAmount || 0) - Number(p.receivedAmount || 0);
-        if (pend > 0)
-            byPartyOutstanding[p.party] = (byPartyOutstanding[p.party] || 0) + pend;
+        if (pend > 0) {
+            if (!byPartyOutstanding[key])
+                byPartyOutstanding[key] = { name: rawName, amt: 0 };
+            byPartyOutstanding[key].amt += pend;
+        }
+        if (Number(p.invoiceAmount || 0) > 0) {
+            if (!byPartyBilled[key])
+                byPartyBilled[key] = { name: rawName, amt: 0 };
+            byPartyBilled[key].amt += Number(p.invoiceAmount || 0);
+        }
     });
-    const topOutstandingRows = Object.entries(byPartyOutstanding)
-        .sort((a, b) => b[1] - a[1]).slice(0, 10)
-        .map(([party, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${party}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`)
+    const topOutstandingRows = Object.values(byPartyOutstanding)
+        .sort((a, b) => b.amt - a.amt).slice(0, 10)
+        .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
+        .join('');
+    const topBilledRows = Object.values(byPartyBilled)
+        .sort((a, b) => b.amt - a.amt).slice(0, 5)
+        .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
         .join('');
     const pct = target > 0 ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
+    const growthPct = prevCollected > 0 ? Math.round(((totalCollected - prevCollected) / prevCollected) * 100) : null;
+    const growthLine = growthPct === null ? '' : growthPct >= 0
+        ? `<p class="small" style="color:#15803d;font-weight:600;">▲ Pichle mahine se ${growthPct}% zyada collection hui hai.</p>`
+        : `<p class="small" style="color:#b91c1c;font-weight:600;">▼ Pichle mahine se ${Math.abs(growthPct)}% kam collection hui hai.</p>`;
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Monthly Report — ${monthLabel}</title>
 <style>
@@ -2462,6 +2534,14 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
   <h2>Target vs Achievement</h2>
   <p class="small">₹${achieved.toLocaleString('en-IN')} collected of ₹${target.toLocaleString('en-IN')} target (${pct}%)</p>
   <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+  ${growthLine}
+
+  ${topBilledRows ? `
+  <h2>Sabse Zyada Business Wali Parties (Is Mahine)</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Billing</th></tr></thead>
+    <tbody>${topBilledRows}</tbody>
+  </table>` : ''}
 
   ${topOutstandingRows ? `
   <h2>Sabse Zyada Outstanding Wali Parties</h2>
@@ -2470,7 +2550,96 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
     <tbody>${topOutstandingRows}</tbody>
   </table>` : ''}
 
-  <p class="small" style="margin-top:20px;">Report generated on ${todayISO()} — Argus Tracker</p>
+  <p class="small" style="margin-top:20px;">Report generated on ${formatDateDMY(todayISO())} — Argus Tracker</p>
+</body></html>`;
+}
+function buildAnnualReportHTML({ year, quotations, orders, payments, annualTarget, annualAchieved }) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthRows = monthNames.map((name, i) => {
+        const mk = `${year}-${String(i + 1).padStart(2, '0')}`;
+        const mQuotes = quotations.filter(q => (q.date || '').startsWith(mk)).length;
+        const mOrders = orders.filter(o => (o.poDate || '').startsWith(mk)).length;
+        const mPayments = payments.filter(p => (p.date || '').startsWith(mk));
+        const mBilled = mPayments.reduce((s, p) => s + Number(p.invoiceAmount || 0), 0);
+        const mCollected = mPayments.reduce((s, p) => s + Number(p.receivedAmount || 0), 0);
+        return `<tr>
+      <td style="border:1px solid #cbd5e1;padding:5px;">${name}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:center;">${mQuotes}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:center;">${mOrders}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${mBilled.toLocaleString('en-IN')}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${mCollected.toLocaleString('en-IN')}</td>
+    </tr>`;
+    }).join('');
+    const yearPayments = payments.filter(p => (p.date || '').startsWith(String(year)));
+    const totalBilled = yearPayments.reduce((s, p) => s + Number(p.invoiceAmount || 0), 0);
+    const totalCollected = yearPayments.reduce((s, p) => s + Number(p.receivedAmount || 0), 0);
+    const yearQuotes = quotations.filter(q => (q.date || '').startsWith(String(year))).length;
+    const yearOrders = orders.filter(o => (o.poDate || '').startsWith(String(year))).length;
+    const byPartyBilled = {};
+    yearPayments.forEach(p => {
+        const rawName = (p.party || '').trim();
+        if (!rawName || Number(p.invoiceAmount || 0) <= 0)
+            return;
+        const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+        if (!byPartyBilled[key])
+            byPartyBilled[key] = { name: rawName, amt: 0 };
+        byPartyBilled[key].amt += Number(p.invoiceAmount || 0);
+    });
+    const topPartyRows = Object.values(byPartyBilled)
+        .sort((a, b) => b.amt - a.amt).slice(0, 10)
+        .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
+        .join('');
+    const pct = annualTarget > 0 ? Math.min(100, Math.round((annualAchieved / annualTarget) * 100)) : 0;
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Annual Report — ${year}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding:20px; max-width:750px; margin:0 auto; word-wrap:break-word; }
+  .header { text-align:center; border-bottom:3px solid #b91c1c; padding-bottom:10px; margin-bottom:16px; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; }
+  .small { font-size:11px; color:#64748b; }
+  h2 { font-size:14px; margin:18px 0 8px; color:#0f766e; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid #cbd5e1; border-radius:8px; padding:10px; }
+  .stat-label { font-size:11px; color:#64748b; }
+  .stat-value { font-size:18px; font-weight:800; color:#1e293b; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; margin-top:6px; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+  .bar-bg { width:100%; height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar-fill { height:100%; background:#4338ca; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">Annual Business Report — ${year}</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Total Quotations</div><div class="stat-value">${yearQuotes}</div></div>
+    <div class="stat"><div class="stat-label">Total Orders</div><div class="stat-value">${yearOrders}</div></div>
+    <div class="stat"><div class="stat-label">Total Billing</div><div class="stat-value">₹${totalBilled.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Total Collection</div><div class="stat-value">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+  </div>
+
+  <h2>Annual Target vs Achievement</h2>
+  <p class="small">₹${annualAchieved.toLocaleString('en-IN')} collected of ₹${annualTarget.toLocaleString('en-IN')} target (${pct}%)</p>
+  <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+
+  <h2>Mahine-Dar-Mahine Vivaran</h2>
+  <table>
+    <thead><tr><th>Mahina</th><th style="text-align:center;">Quotes</th><th style="text-align:center;">Orders</th><th style="text-align:right;">Billing</th><th style="text-align:right;">Collection</th></tr></thead>
+    <tbody>${monthRows}</tbody>
+  </table>
+
+  ${topPartyRows ? `
+  <h2>Saal Ki Sabse Badi Parties (Billing Ke Hisab Se)</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Total Billing</th></tr></thead>
+    <tbody>${topPartyRows}</tbody>
+  </table>` : ''}
+
+  <p class="small" style="margin-top:20px;">Report generated on ${formatDateDMY(todayISO())} — Argus Tracker</p>
 </body></html>`;
 }
 function downloadMonthlyReport(payload) {
@@ -2480,6 +2649,18 @@ function downloadMonthlyReport(payload) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `Monthly-Report-${payload.monthLabel.replace(/\s/g, '-')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function downloadAnnualReport(payload) {
+    const html = buildAnnualReportHTML(payload);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Annual-Report-${payload.year}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
