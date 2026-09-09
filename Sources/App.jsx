@@ -2190,36 +2190,14 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
     setViewGemLetter(null);
   };
 
-  const addMachineSale = (data) => {
-    const saleId = uid();
-    setMachineSales([{ ...data, id: saleId }, ...machineSales]);
-    setPayments([{
-      id: saleId,
-      party: data.party,
-      machineNo: '',
-      invoiceAmount: Number(data.amount) || 0,
-      receivedAmount: Number(data.receivedAmount) || 0,
-      date: data.date,
-      note: `Machine Sale — ${data.model} (${data.paymentMode})`,
-      fromMachineSale: true,
-    }, ...payments]);
-  };
+  // Machine Sale (naya machine bechna) — Service Department ke Billing/Collection/Outstanding se
+  // bilkul alag rakha gaya hai, taaki dono department ka hisaab mix na ho.
+  const addMachineSale = (data) => setMachineSales([{ ...data, id: uid() }, ...machineSales]);
   const updateMachineSale = (id, data) => {
     setMachineSales(machineSales.map(s => s.id === id ? { ...s, ...data } : s));
-    setPayments(payments.map(p => p.id === id ? {
-      ...p,
-      party: data.party,
-      invoiceAmount: Number(data.amount) || 0,
-      receivedAmount: Number(data.receivedAmount) || 0,
-      date: data.date,
-      note: `Machine Sale — ${data.model} (${data.paymentMode})`,
-    } : p));
     setEditMachineSale(null);
   };
-  const deleteMachineSale = (id) => {
-    setMachineSales(machineSales.filter(s => s.id !== id));
-    setPayments(payments.filter(p => p.id !== id));
-  };
+  const deleteMachineSale = (id) => setMachineSales(machineSales.filter(s => s.id !== id));
 
   const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
 
@@ -2264,20 +2242,23 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
 
       {sub === 'machinesale' && (
         <div className="space-y-2">
-          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi nayi photocopier machine bikti hai (AMC/service billing se alag), yahan entry daal dein — model, amount aur payment mode ke saath. Baaki payment outstanding mein khud dikh jayega, aur monthly/annual report bhi nikal sakte hain.</p>
+          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi nayi photocopier machine bikti hai (AMC/service billing se bilkul alag department) — yahan entry daal dein. Ye Service Department ke Billing/Collection/Outstanding se mix nahi hota, apna alag hisaab rehta hai.</p>
           {(() => {
-            const mk = monthKey();
-            const thisMonthSales = machineSales.filter(s => (s.date||'').startsWith(mk));
-            const thisMonthAmount = thisMonthSales.reduce((s,x) => s + Number(x.amount||0), 0);
+            const fy = getFinancialYear();
+            const fySales = machineSales.filter(s => isDateInFY(s.date, fy));
+            const fyAmount = fySales.reduce((s,x) => s + Number(x.amount||0), 0);
+            const fyCollected = fySales.reduce((s,x) => s + Number(x.receivedAmount||0), 0);
             return (
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                  <p className="text-[10px] text-emerald-600 font-semibold">Is Mahine Bikin</p>
-                  <p className="text-lg font-bold text-emerald-800">{thisMonthSales.length}</p>
+                  <p className="text-[10px] text-emerald-600 font-semibold">FY {fy} Ki Sale</p>
+                  <p className="text-lg font-bold text-emerald-800">₹{fyAmount.toLocaleString('en-IN')}</p>
+                  <p className="text-[10px] text-emerald-500 mt-0.5">{fySales.length} machines</p>
                 </div>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                  <p className="text-[10px] text-emerald-600 font-semibold">Is Mahine Ki Sale</p>
-                  <p className="text-lg font-bold text-emerald-800">₹{thisMonthAmount.toLocaleString('en-IN')}</p>
+                  <p className="text-[10px] text-emerald-600 font-semibold">FY {fy} Collection</p>
+                  <p className="text-lg font-bold text-emerald-800">₹{fyCollected.toLocaleString('en-IN')}</p>
+                  <p className="text-[10px] text-emerald-500 mt-0.5">{fyAmount > fyCollected ? `₹${(fyAmount-fyCollected).toLocaleString('en-IN')} baki` : 'poora mila'}</p>
                 </div>
               </div>
             );
@@ -2696,12 +2677,12 @@ function MachineSaleForm({ machines, onSave, onClose, initial }) {
       <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} /></Field>
       <Field label="Machine Model"><input className={inputCls} value={f.model} onChange={e => set('model', e.target.value)} placeholder="Jaise: AR-6020N" /></Field>
       <Field label="Sale Amount / Bill (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
-      <Field label="Abhi Kitna Mila (Received Amount ₹) — baaki khud outstanding mein reh jayega">
+      <Field label="Abhi Kitna Mila (Received Amount ₹) — sirf machine sale ke apne hisaab ke liye">
         <input type="number" className={inputCls} value={f.receivedAmount} onChange={e => set('receivedAmount', e.target.value)} placeholder="0 agar poora udhaar hai" />
       </Field>
       {f.amount && (
         <p className={`text-xs mb-3 -mt-2 ${pending > 0 ? 'text-red-600' : 'text-emerald-600'} font-medium`}>
-          {pending > 0 ? `₹${pending.toLocaleString('en-IN')} abhi bhi baki hai (Outstanding mein dikhega)` : '✔ Poora payment mil chuka hai'}
+          {pending > 0 ? `₹${pending.toLocaleString('en-IN')} abhi bhi baki hai` : '✔ Poora payment mil chuka hai'}
         </p>
       )}
       <Field label="Payment Mode (jo abhi mila uska)">
