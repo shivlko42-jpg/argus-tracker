@@ -317,6 +317,11 @@ export default function App() {
       .filter(p => isDateInFY(p.date, currentFY))
       .reduce((s,p) => s + Number(p.receivedAmount||0), 0);
   }, [payments, currentFY]);
+  const thisYearBilled = useMemo(() => {
+    return payments
+      .filter(p => isDateInFY(p.date, currentFY))
+      .reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  }, [payments, currentFY]);
 
   // Agar kisi mahine ka target manually set nahi kiya gaya, to annual target ko 12 se divide karke
   // apne aap us mahine ka target ban jata hai — manual override hamesha priority par rahega.
@@ -326,6 +331,11 @@ export default function App() {
     return payments
       .filter(p => (p.date||'').startsWith(monthKey()))
       .reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  }, [payments]);
+  const thisMonthBilled = useMemo(() => {
+    return payments
+      .filter(p => (p.date||'').startsWith(monthKey()))
+      .reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
   }, [payments]);
 
   const dueTasks = useMemo(() => {
@@ -393,11 +403,13 @@ export default function App() {
             thisMonthTarget={thisMonthTarget}
             thisMonthTargetIsAuto={thisMonthTargetIsAuto}
             thisMonthAchieved={thisMonthAchieved}
+            thisMonthBilled={thisMonthBilled}
             setTargets={setTargets}
             targets={targets}
             thisYearTarget={thisYearTarget}
             currentFY={currentFY}
             thisYearAchieved={thisYearAchieved}
+            thisYearBilled={thisYearBilled}
             setAnnualTargets={setAnnualTargets}
             annualTargets={annualTargets}
             dueTasks={dueTasks}
@@ -579,7 +591,7 @@ function SectionTitle({ children, action }) {
 }
 
 // ---------------- HOME TAB ----------------
-function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthTargetIsAuto, thisMonthAchieved, setTargets, targets, thisYearTarget, thisYearAchieved, currentFY, setAnnualTargets, annualTargets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthTargetIsAuto, thisMonthAchieved, thisMonthBilled, setTargets, targets, thisYearTarget, thisYearAchieved, thisYearBilled, currentFY, setAnnualTargets, annualTargets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
   const [editTarget, setEditTarget] = useState(false);
   const [editAnnualTarget, setEditAnnualTarget] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
@@ -904,7 +916,10 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
             <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full bg-indigo-600 rounded-full transition-all" style={{ width: `${yearPct}%` }} />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">{yearPct}% achieved</p>
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-[11px] text-slate-400">{yearPct}% achieved</p>
+              <p className="text-[11px] text-slate-500">💼 Billing: <b className="text-slate-700">₹{thisYearBilled.toLocaleString('en-IN')}</b></p>
+            </div>
           </>
         )}
 
@@ -947,7 +962,10 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved{thisMonthTargetIsAuto && thisMonthTarget > 0 ? ' — annual target se auto-calculate hua hai' : ''}</p>
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-[11px] text-slate-400">{pct}% achieved{thisMonthTargetIsAuto && thisMonthTarget > 0 ? ' — auto (÷12)' : ''}</p>
+                <p className="text-[11px] text-slate-500">💼 Billing: <b className="text-slate-700">₹{thisMonthBilled.toLocaleString('en-IN')}</b></p>
+              </div>
             </>
           )}
         </div>
