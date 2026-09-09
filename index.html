@@ -478,6 +478,11 @@ function App() {
             .filter(p => isDateInFY(p.date, currentFY))
             .reduce((s, p) => s + Number(p.receivedAmount || 0), 0);
     }, [payments, currentFY]);
+    const thisYearBilled = useMemo(() => {
+        return payments
+            .filter(p => isDateInFY(p.date, currentFY))
+            .reduce((s, p) => s + Number(p.invoiceAmount || 0), 0);
+    }, [payments, currentFY]);
     // Agar kisi mahine ka target manually set nahi kiya gaya, to annual target ko 12 se divide karke
     // apne aap us mahine ka target ban jata hai — manual override hamesha priority par rahega.
     const thisMonthTargetIsAuto = !targets[monthKey()];
@@ -486,6 +491,11 @@ function App() {
         return payments
             .filter(p => (p.date || '').startsWith(monthKey()))
             .reduce((s, p) => s + Number(p.receivedAmount || 0), 0);
+    }, [payments]);
+    const thisMonthBilled = useMemo(() => {
+        return payments
+            .filter(p => (p.date || '').startsWith(monthKey()))
+            .reduce((s, p) => s + Number(p.invoiceAmount || 0), 0);
     }, [payments]);
     const dueTasks = useMemo(() => {
         const today = todayISO();
@@ -526,7 +536,7 @@ function App() {
     return (React.createElement("div", { className: "h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden" },
         React.createElement(Header, { expiringCount: expiringSoon.length, tab: tab, onBack: () => setTab('home'), onOpenBackup: () => setShowBackup(true), onOpenAlerts: () => setShowAlerts(true) }),
         React.createElement("div", { className: "flex-1 overflow-y-auto pb-20" },
-            tab === 'home' && (React.createElement(HomeTab, { machines: machines, expiringSoon: expiringSoon, quotations: quotations, orders: orders, payments: payments, challans: challans, visits: visits, holidays: holidays, toggleHoliday: toggleHoliday, markPartyVisited: markPartyVisited, outstanding: outstanding, thisMonthTarget: thisMonthTarget, thisMonthTargetIsAuto: thisMonthTargetIsAuto, thisMonthAchieved: thisMonthAchieved, setTargets: setTargets, targets: targets, thisYearTarget: thisYearTarget, currentFY: currentFY, thisYearAchieved: thisYearAchieved, setAnnualTargets: setAnnualTargets, annualTargets: annualTargets, dueTasks: dueTasks, completeTask: completeTask, dismissedToday: dismissedToday, markSuggestionDone: markSuggestionDone, goTo: goTo })),
+            tab === 'home' && (React.createElement(HomeTab, { machines: machines, expiringSoon: expiringSoon, quotations: quotations, orders: orders, payments: payments, challans: challans, visits: visits, holidays: holidays, toggleHoliday: toggleHoliday, markPartyVisited: markPartyVisited, outstanding: outstanding, thisMonthTarget: thisMonthTarget, thisMonthTargetIsAuto: thisMonthTargetIsAuto, thisMonthAchieved: thisMonthAchieved, thisMonthBilled: thisMonthBilled, setTargets: setTargets, targets: targets, thisYearTarget: thisYearTarget, currentFY: currentFY, thisYearAchieved: thisYearAchieved, thisYearBilled: thisYearBilled, setAnnualTargets: setAnnualTargets, annualTargets: annualTargets, dueTasks: dueTasks, completeTask: completeTask, dismissedToday: dismissedToday, markSuggestionDone: markSuggestionDone, goTo: goTo })),
             tab === 'machines' && React.createElement(MachinesTab, { machines: machines, setMachines: setMachines, view: machinesView, setView: setMachinesView, jumpToParty: jumpToParty, payments: payments, setPayments: setPayments, quotations: quotations, orders: orders, challans: challans, amcHistory: amcHistory, setAmcHistory: setAmcHistory }),
             tab === 'sales' && (React.createElement(SalesTab, { machines: machines, quotations: quotations, setQuotations: setQuotations, orders: orders, setOrders: setOrders, items: items, setItems: setItems, payments: payments, setPayments: setPayments, signatureImg: signatureImg, challans: challans, setChallans: setChallans, gemLetters: gemLetters, setGemLetters: setGemLetters, machineSales: machineSales, setMachineSales: setMachineSales })),
             tab === 'payments' && (React.createElement(PaymentsTab, { machines: machines, payments: payments, setPayments: setPayments })),
@@ -603,7 +613,7 @@ function SectionTitle({ children, action }) {
         action));
 }
 // ---------------- HOME TAB ----------------
-function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthTargetIsAuto, thisMonthAchieved, setTargets, targets, thisYearTarget, thisYearAchieved, currentFY, setAnnualTargets, annualTargets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthTargetIsAuto, thisMonthAchieved, thisMonthBilled, setTargets, targets, thisYearTarget, thisYearAchieved, thisYearBilled, currentFY, setAnnualTargets, annualTargets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
     const [editTarget, setEditTarget] = useState(false);
     const [editAnnualTarget, setEditAnnualTarget] = useState(false);
     const [showHolidayModal, setShowHolidayModal] = useState(false);
@@ -892,9 +902,15 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
                         " target")),
                 React.createElement("div", { className: "w-full h-2.5 bg-slate-100 rounded-full overflow-hidden" },
                     React.createElement("div", { className: "h-full bg-indigo-600 rounded-full transition-all", style: { width: `${yearPct}%` } })),
-                React.createElement("p", { className: "text-[11px] text-slate-400 mt-1" },
-                    yearPct,
-                    "% achieved"))),
+                React.createElement("div", { className: "flex items-center justify-between mt-1.5" },
+                    React.createElement("p", { className: "text-[11px] text-slate-400" },
+                        yearPct,
+                        "% achieved"),
+                    React.createElement("p", { className: "text-[11px] text-slate-500" },
+                        "\uD83D\uDCBC Billing: ",
+                        React.createElement("b", { className: "text-slate-700" },
+                            "\u20B9",
+                            thisYearBilled.toLocaleString('en-IN')))))),
             React.createElement("div", { className: "border-t border-slate-100 mt-3 pt-3" },
                 React.createElement("div", { className: "flex items-center justify-between mb-2" },
                     React.createElement("div", { className: "flex items-center gap-1.5" },
@@ -919,10 +935,16 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
                             " target")),
                     React.createElement("div", { className: "w-full h-2.5 bg-slate-100 rounded-full overflow-hidden" },
                         React.createElement("div", { className: "h-full bg-teal-600 rounded-full transition-all", style: { width: `${pct}%` } })),
-                    React.createElement("p", { className: "text-[11px] text-slate-400 mt-1" },
-                        pct,
-                        "% achieved",
-                        thisMonthTargetIsAuto && thisMonthTarget > 0 ? ' — annual target se auto-calculate hua hai' : '')))),
+                    React.createElement("div", { className: "flex items-center justify-between mt-1.5" },
+                        React.createElement("p", { className: "text-[11px] text-slate-400" },
+                            pct,
+                            "% achieved",
+                            thisMonthTargetIsAuto && thisMonthTarget > 0 ? ' — auto (÷12)' : ''),
+                        React.createElement("p", { className: "text-[11px] text-slate-500" },
+                            "\uD83D\uDCBC Billing: ",
+                            React.createElement("b", { className: "text-slate-700" },
+                                "\u20B9",
+                                thisMonthBilled.toLocaleString('en-IN'))))))),
             React.createElement("div", { className: "border-t border-slate-100 mt-3 pt-3" },
                 React.createElement("p", { className: "text-xs font-bold text-slate-600 mb-2" },
                     "FY ",
