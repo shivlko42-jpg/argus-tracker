@@ -2172,12 +2172,36 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
     setViewGemLetter(null);
   };
 
-  const addMachineSale = (data) => setMachineSales([{ ...data, id: uid() }, ...machineSales]);
+  const addMachineSale = (data) => {
+    const saleId = uid();
+    setMachineSales([{ ...data, id: saleId }, ...machineSales]);
+    setPayments([{
+      id: saleId,
+      party: data.party,
+      machineNo: '',
+      invoiceAmount: Number(data.amount) || 0,
+      receivedAmount: Number(data.receivedAmount) || 0,
+      date: data.date,
+      note: `Machine Sale — ${data.model} (${data.paymentMode})`,
+      fromMachineSale: true,
+    }, ...payments]);
+  };
   const updateMachineSale = (id, data) => {
     setMachineSales(machineSales.map(s => s.id === id ? { ...s, ...data } : s));
+    setPayments(payments.map(p => p.id === id ? {
+      ...p,
+      party: data.party,
+      invoiceAmount: Number(data.amount) || 0,
+      receivedAmount: Number(data.receivedAmount) || 0,
+      date: data.date,
+      note: `Machine Sale — ${data.model} (${data.paymentMode})`,
+    } : p));
     setEditMachineSale(null);
   };
-  const deleteMachineSale = (id) => setMachineSales(machineSales.filter(s => s.id !== id));
+  const deleteMachineSale = (id) => {
+    setMachineSales(machineSales.filter(s => s.id !== id));
+    setPayments(payments.filter(p => p.id !== id));
+  };
 
   const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
 
@@ -2222,8 +2246,25 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
 
       {sub === 'machinesale' && (
         <div className="space-y-2">
-          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi nayi photocopier machine bikti hai (AMC/service billing se alag), yahan entry daal dein — model, amount aur payment mode ke saath. Financial Year ki alag report bhi nikal sakte hain.</p>
-          <button onClick={() => setShowSalesReport(true)} className="w-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold py-2 rounded-lg text-xs mb-2">📊 Machine Sales Ki FY Report Nikalein</button>
+          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi nayi photocopier machine bikti hai (AMC/service billing se alag), yahan entry daal dein — model, amount aur payment mode ke saath. Baaki payment outstanding mein khud dikh jayega, aur monthly/annual report bhi nikal sakte hain.</p>
+          {(() => {
+            const mk = monthKey();
+            const thisMonthSales = machineSales.filter(s => (s.date||'').startsWith(mk));
+            const thisMonthAmount = thisMonthSales.reduce((s,x) => s + Number(x.amount||0), 0);
+            return (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                  <p className="text-[10px] text-emerald-600 font-semibold">Is Mahine Bikin</p>
+                  <p className="text-lg font-bold text-emerald-800">{thisMonthSales.length}</p>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                  <p className="text-[10px] text-emerald-600 font-semibold">Is Mahine Ki Sale</p>
+                  <p className="text-lg font-bold text-emerald-800">₹{thisMonthAmount.toLocaleString('en-IN')}</p>
+                </div>
+              </div>
+            );
+          })()}
+          <button onClick={() => setShowSalesReport(true)} className="w-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold py-2 rounded-lg text-xs mb-2">📊 Machine Sales Report (Mahina ya Saal) Nikalein</button>
           {machineSales.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi machine sale nahi</Card>}
           {machineSales.map(s => (
             <MachineSaleCard key={s.id} sale={s} onEdit={setEditMachineSale} onDelete={deleteMachineSale} />
@@ -2627,16 +2668,25 @@ function GemLetterView({ letter, signatureImg, onClose, onDelete }) {
 const PAYMENT_MODES = ['Cash', 'Cheque', 'Bank Transfer/NEFT', 'UPI', 'Other'];
 
 function MachineSaleForm({ machines, onSave, onClose, initial }) {
-  const [f, setF] = useState(initial || { party: '', model: '', amount: '', paymentMode: 'Cash', date: todayISO(), note: '' });
+  const [f, setF] = useState(initial || { party: '', model: '', amount: '', receivedAmount: '', paymentMode: 'Cash', date: todayISO(), note: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
   const canSave = f.party.trim() && f.model.trim() && f.amount;
+  const pending = Math.max(0, Number(f.amount||0) - Number(f.receivedAmount||0));
 
   return (
     <Modal title={initial ? 'Machine Sale Edit Karein' : 'Nayi Machine Sale'} onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} /></Field>
       <Field label="Machine Model"><input className={inputCls} value={f.model} onChange={e => set('model', e.target.value)} placeholder="Jaise: AR-6020N" /></Field>
-      <Field label="Amount (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
-      <Field label="Payment Mode">
+      <Field label="Sale Amount / Bill (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
+      <Field label="Abhi Kitna Mila (Received Amount ₹) — baaki khud outstanding mein reh jayega">
+        <input type="number" className={inputCls} value={f.receivedAmount} onChange={e => set('receivedAmount', e.target.value)} placeholder="0 agar poora udhaar hai" />
+      </Field>
+      {f.amount && (
+        <p className={`text-xs mb-3 -mt-2 ${pending > 0 ? 'text-red-600' : 'text-emerald-600'} font-medium`}>
+          {pending > 0 ? `₹${pending.toLocaleString('en-IN')} abhi bhi baki hai (Outstanding mein dikhega)` : '✔ Poora payment mil chuka hai'}
+        </p>
+      )}
+      <Field label="Payment Mode (jo abhi mila uska)">
         <select className={inputCls} value={f.paymentMode} onChange={e => set('paymentMode', e.target.value)}>
           {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
@@ -2650,6 +2700,7 @@ function MachineSaleForm({ machines, onSave, onClose, initial }) {
 
 function MachineSaleCard({ sale, onEdit, onDelete }) {
   const [confirmDel, setConfirmDel] = useState(false);
+  const pending = Math.max(0, Number(sale.amount||0) - Number(sale.receivedAmount||0));
   return (
     <Card className="!p-3">
       <div className="flex items-start justify-between gap-2">
@@ -2657,6 +2708,7 @@ function MachineSaleCard({ sale, onEdit, onDelete }) {
           <p className="text-sm font-semibold text-slate-800 truncate">{sale.party}</p>
           <p className="text-xs text-slate-500 mt-0.5">{sale.model} · {formatDateDMY(sale.date)}</p>
           {sale.note && <p className="text-[11px] text-slate-400 mt-0.5">{sale.note}</p>}
+          {pending > 0 && <p className="text-[11px] text-red-600 font-semibold mt-0.5">₹{pending.toLocaleString('en-IN')} baki hai</p>}
         </div>
         <div className="text-right shrink-0">
           <p className="text-sm font-bold text-emerald-700">₹{Number(sale.amount||0).toLocaleString('en-IN')}</p>
@@ -2676,37 +2728,56 @@ function MachineSaleCard({ sale, onEdit, onDelete }) {
 }
 
 function MachineSalesReportModal({ machineSales, onClose }) {
+  const now = new Date();
+  const [reportType, setReportType] = useState('monthly'); // 'monthly' | 'annual'
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+  const [selYear, setSelYear] = useState(now.getFullYear());
   const [selFY, setSelFY] = useState(getFinancialYear());
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
   const fyAvailable = useMemo(() => {
     const fys = new Set([getFinancialYear()]);
     machineSales.forEach(s => { if (s.date) fys.add(getFinancialYear(new Date(s.date))); });
     return Array.from(fys).sort((a,b) => b.localeCompare(a));
   }, [machineSales]);
+  const yearsAvailable = useMemo(() => {
+    const ys = new Set([now.getFullYear()]);
+    machineSales.forEach(s => { if (s.date) ys.add(Number(s.date.slice(0,4))); });
+    return Array.from(ys).sort((a,b) => b-a);
+  }, [machineSales]);
 
-  const fySales = useMemo(() => machineSales.filter(s => isDateInFY(s.date, selFY)), [machineSales, selFY]);
+  const periodLabel = reportType === 'monthly' ? `${monthNames[selMonth-1]} ${selYear}` : `FY ${selFY}`;
+  const periodSales = useMemo(() => {
+    if (reportType === 'monthly') {
+      const mk = `${selYear}-${String(selMonth).padStart(2,'0')}`;
+      return machineSales.filter(s => (s.date||'').startsWith(mk));
+    }
+    return machineSales.filter(s => isDateInFY(s.date, selFY));
+  }, [machineSales, reportType, selMonth, selYear, selFY]);
 
   const summary = useMemo(() => {
-    const totalAmount = fySales.reduce((s,x) => s + Number(x.amount||0), 0);
+    const totalAmount = periodSales.reduce((s,x) => s + Number(x.amount||0), 0);
+    const totalReceived = periodSales.reduce((s,x) => s + Number(x.receivedAmount||0), 0);
     const byModel = {};
     const byMode = {};
-    fySales.forEach(s => {
+    periodSales.forEach(s => {
       const model = s.model || 'Unknown';
       byModel[model] = (byModel[model] || 0) + Number(s.amount||0);
       byMode[s.paymentMode] = (byMode[s.paymentMode] || 0) + Number(s.amount||0);
     });
-    return { totalAmount, byModel, byMode, count: fySales.length };
-  }, [fySales]);
+    return { totalAmount, totalReceived, byModel, byMode, count: periodSales.length };
+  }, [periodSales]);
 
   const handleDownload = () => {
     const modelRows = Object.entries(summary.byModel).sort((a,b) => b[1]-a[1])
       .map(([model, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${model}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`).join('');
     const modeRows = Object.entries(summary.byMode).sort((a,b) => b[1]-a[1])
       .map(([mode, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${mode}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`).join('');
-    const listRows = fySales.slice().sort((a,b) => (a.date||'').localeCompare(b.date||''))
+    const listRows = periodSales.slice().sort((a,b) => (a.date||'').localeCompare(b.date||''))
       .map(s => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${formatDateDMY(s.date)}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.party}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.model}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.paymentMode}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${Number(s.amount||0).toLocaleString('en-IN')}</td></tr>`).join('');
 
     const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Machine Sales Report — FY ${selFY}</title>
+<html><head><meta charset="utf-8"><title>Machine Sales Report — ${periodLabel}</title>
 <style>
   @page { size: A4; margin: 15mm; }
   * { box-sizing: border-box; }
@@ -2725,11 +2796,13 @@ function MachineSalesReportModal({ machineSales, onClose }) {
 <body>
   <div class="header">
     <div class="company">${COMPANY.name}</div>
-    <div class="small">Machine Sales Report — FY ${selFY}</div>
+    <div class="small">Machine Sales Report — ${periodLabel}</div>
   </div>
   <div class="grid">
     <div class="stat"><div class="stat-label">Total Machines Bikin</div><div class="stat-value">${summary.count}</div></div>
     <div class="stat"><div class="stat-label">Total Sale Amount</div><div class="stat-value">₹${summary.totalAmount.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Received</div><div class="stat-value">₹${summary.totalReceived.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Outstanding</div><div class="stat-value">₹${(summary.totalAmount-summary.totalReceived).toLocaleString('en-IN')}</div></div>
   </div>
   <h2>Model Ke Hisab Se</h2>
   <table><thead><tr><th>Model</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${modelRows || '<tr><td colspan="2" style="padding:8px;border:1px solid #cbd5e1;">Koi data nahi</td></tr>'}</tbody></table>
@@ -2744,7 +2817,7 @@ function MachineSalesReportModal({ machineSales, onClose }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Machine-Sales-Report-FY-${selFY}.html`;
+    a.download = `Machine-Sales-Report-${periodLabel.replace(/\s/g,'-')}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2753,13 +2826,34 @@ function MachineSalesReportModal({ machineSales, onClose }) {
 
   return (
     <Modal title="Machine Sales Report" onClose={onClose}>
-      <Field label="Financial Year Chunein">
-        <select value={selFY} onChange={e => setSelFY(e.target.value)} className={inputCls}>
-          {fyAvailable.map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
-        </select>
-      </Field>
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+        <button onClick={() => setReportType('monthly')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'monthly' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Monthly</button>
+        <button onClick={() => setReportType('annual')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'annual' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Annual (FY)</button>
+      </div>
+
+      {reportType === 'monthly' ? (
+        <>
+          <Field label="Mahina Chunein">
+            <select value={selMonth} onChange={e => setSelMonth(Number(e.target.value))} className={inputCls}>
+              {monthNames.map((name, i) => <option key={i} value={i+1}>{name}</option>)}
+            </select>
+          </Field>
+          <Field label="Saal Chunein">
+            <select value={selYear} onChange={e => setSelYear(Number(e.target.value))} className={inputCls}>
+              {yearsAvailable.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </Field>
+        </>
+      ) : (
+        <Field label="Financial Year Chunein">
+          <select value={selFY} onChange={e => setSelFY(e.target.value)} className={inputCls}>
+            {fyAvailable.map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
+          </select>
+        </Field>
+      )}
+
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
-        <p className="text-sm text-slate-600">Total <b>{summary.count}</b> machines bikin, total <b>₹{summary.totalAmount.toLocaleString('en-IN')}</b> ki.</p>
+        <p className="text-sm text-slate-600">Total <b>{summary.count}</b> machines bikin, total <b>₹{summary.totalAmount.toLocaleString('en-IN')}</b> ki — <b>₹{summary.totalReceived.toLocaleString('en-IN')}</b> mila.</p>
       </div>
       <button onClick={handleDownload} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-1.5">
         <Download size={16} /> Report Download Karein
