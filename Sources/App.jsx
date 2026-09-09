@@ -152,6 +152,32 @@ function normalizeItemName(s) { return (s || '').toLowerCase().replace(/[\s\-_.]
 
 function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 
+// India mein Financial Year 1 April se 31 March tak hota hai
+function getFinancialYear(date = new Date()) {
+  const y = date.getFullYear();
+  const m = date.getMonth(); // 0-indexed, 3 = April
+  return m >= 3 ? `${y}-${String(y+1).slice(2)}` : `${y-1}-${String(y).slice(2)}`;
+}
+function getFYRange(fyLabel) {
+  const startYear = parseInt(fyLabel.split('-')[0], 10);
+  return { start: `${startYear}-04-01`, end: `${startYear+1}-03-31` };
+}
+function isDateInFY(dateStr, fyLabel) {
+  if (!dateStr) return false;
+  const { start, end } = getFYRange(fyLabel);
+  return dateStr >= start && dateStr <= end;
+}
+// FY order ke mahine: April(4) se shuru, March(3) par khatam
+const FY_MONTH_ORDER = [4,5,6,7,8,9,10,11,12,1,2,3];
+function fyMonthKeys(fyLabel) {
+  const startYear = parseInt(fyLabel.split('-')[0], 10);
+  return FY_MONTH_ORDER.map(m => {
+    const y = m >= 4 ? startYear : startYear + 1;
+    return `${y}-${String(m).padStart(2,'0')}`;
+  });
+}
+const FY_MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
 // ---- Storage helpers ----
 async function loadKey(key, fallback) {
   try {
@@ -198,17 +224,19 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [items, setItems] = useState([]);
   const [targets, setTargets] = useState({});
+  const [annualTargets, setAnnualTargets] = useState({});
   const [signatureImg, setSignatureImg] = useState('');
   const [dismissedToday, setDismissedToday] = useState([]);
   const [challans, setChallans] = useState([]);
   const [gemLetters, setGemLetters] = useState([]);
+  const [machineSales, setMachineSales] = useState([]);
   const [visits, setVisits] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [amcHistory, setAmcHistory] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd, amh, gl] = await Promise.all([
+      const [m, q, o, p, l, tk, it, t, sig, dm, ch, vs, hd, amh, gl, at, ms] = await Promise.all([
         loadKey('argus-machines', SEED_MACHINES),
         loadKey('argus-quotations', []),
         loadKey('argus-orders', []),
@@ -224,6 +252,8 @@ export default function App() {
         loadKey('argus-holidays', []),
         loadKey('argus-amchistory', []),
         loadKey('argus-gemletters', []),
+        loadKey('argus-annualtargets', {}),
+        loadKey('argus-machinesales', []),
       ]);
       setMachines(m);
       setQuotations(q);
@@ -240,6 +270,8 @@ export default function App() {
       setHolidays(hd);
       setAmcHistory(amh);
       setGemLetters(gl);
+      setAnnualTargets(at);
+      setMachineSales(ms);
       setReady(true);
     })();
   }, []);
@@ -259,6 +291,8 @@ export default function App() {
   useEffect(() => { if (ready) saveKey('argus-holidays', holidays); }, [holidays, ready]);
   useEffect(() => { if (ready) saveKey('argus-amchistory', amcHistory); }, [amcHistory, ready]);
   useEffect(() => { if (ready) saveKey('argus-gemletters', gemLetters); }, [gemLetters, ready]);
+  useEffect(() => { if (ready) saveKey('argus-annualtargets', annualTargets); }, [annualTargets, ready]);
+  useEffect(() => { if (ready) saveKey('argus-machinesales', machineSales); }, [machineSales, ready]);
 
   const activeMachines = useMemo(() => machines.filter(m => normStatus(m.status) === 'ACTIVE'), [machines]);
 
@@ -276,7 +310,18 @@ export default function App() {
     return payments.reduce((sum, p) => sum + (Number(p.invoiceAmount||0) - Number(p.receivedAmount||0)), 0);
   }, [payments]);
 
-  const thisMonthTarget = targets[monthKey()] || 0;
+  const currentFY = getFinancialYear();
+  const thisYearTarget = annualTargets[currentFY] || 0;
+  const thisYearAchieved = useMemo(() => {
+    return payments
+      .filter(p => isDateInFY(p.date, currentFY))
+      .reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  }, [payments, currentFY]);
+
+  // Agar kisi mahine ka target manually set nahi kiya gaya, to annual target ko 12 se divide karke
+  // apne aap us mahine ka target ban jata hai — manual override hamesha priority par rahega.
+  const thisMonthTargetIsAuto = !targets[monthKey()];
+  const thisMonthTarget = targets[monthKey()] || (thisYearTarget > 0 ? Math.round(thisYearTarget / 12) : 0);
   const thisMonthAchieved = useMemo(() => {
     return payments
       .filter(p => (p.date||'').startsWith(monthKey()))
@@ -346,9 +391,15 @@ export default function App() {
             markPartyVisited={markPartyVisited}
             outstanding={outstanding}
             thisMonthTarget={thisMonthTarget}
+            thisMonthTargetIsAuto={thisMonthTargetIsAuto}
             thisMonthAchieved={thisMonthAchieved}
             setTargets={setTargets}
             targets={targets}
+            thisYearTarget={thisYearTarget}
+            currentFY={currentFY}
+            thisYearAchieved={thisYearAchieved}
+            setAnnualTargets={setAnnualTargets}
+            annualTargets={annualTargets}
             dueTasks={dueTasks}
             completeTask={completeTask}
             dismissedToday={dismissedToday}
@@ -373,6 +424,8 @@ export default function App() {
             setChallans={setChallans}
             gemLetters={gemLetters}
             setGemLetters={setGemLetters}
+            machineSales={machineSales}
+            setMachineSales={setMachineSales}
           />
         )}
         {tab === 'payments' && (
@@ -526,15 +579,72 @@ function SectionTitle({ children, action }) {
 }
 
 // ---------------- HOME TAB ----------------
-function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthAchieved, setTargets, targets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
+function HomeTab({ machines, expiringSoon, quotations, orders, payments, challans, visits, holidays, toggleHoliday, markPartyVisited, outstanding, thisMonthTarget, thisMonthTargetIsAuto, thisMonthAchieved, setTargets, targets, thisYearTarget, thisYearAchieved, currentFY, setAnnualTargets, annualTargets, dueTasks, completeTask, dismissedToday, markSuggestionDone, goTo }) {
   const [editTarget, setEditTarget] = useState(false);
+  const [editAnnualTarget, setEditAnnualTarget] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [showReportCenter, setShowReportCenter] = useState(false);
   const [targetInput, setTargetInput] = useState(thisMonthTarget || '');
+  const [annualTargetInput, setAnnualTargetInput] = useState(thisYearTarget || '');
   const pendingQuotes = quotations.filter(q => q.status === 'Sent').length;
   const pendingOrders = orders.filter(o => o.deliveryStatus !== 'Delivered').length;
   const pct = thisMonthTarget > 0 ? Math.min(100, Math.round((thisMonthAchieved / thisMonthTarget) * 100)) : 0;
+  const yearPct = thisYearTarget > 0 ? Math.min(100, Math.round((thisYearAchieved / thisYearTarget) * 100)) : 0;
   const activeCount = machines.filter(m => normStatus(m.status) === 'ACTIVE').length;
   const uniquePartyCount = useMemo(() => new Set(machines.map(m => m.party)).size, [machines]);
+
+  // Target achieve karne ke liye smart, data-driven salah
+  const targetAdvice = useMemo(() => {
+    if (thisMonthTarget <= 0) return null;
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysPassed = today.getDate();
+    const daysLeft = Math.max(1, daysInMonth - daysPassed);
+    const gap = thisMonthTarget - thisMonthAchieved;
+    const expectedByNow = (thisMonthTarget / daysInMonth) * daysPassed;
+    const onTrack = thisMonthAchieved >= expectedByNow * 0.9;
+
+    if (gap <= 0) {
+      return { tone: 'good', lines: [`🎉 Badhai ho! Is mahine ka target (₹${thisMonthTarget.toLocaleString('en-IN')}) pura ho chuka hai — ${pct}% achieve.`] };
+    }
+
+    const perDayNeeded = Math.ceil(gap / daysLeft);
+    const byPartyOutstanding = {};
+    payments.forEach(p => {
+      const rawName = (p.party || '').trim();
+      if (!rawName) return;
+      const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+      const pend = Number(p.invoiceAmount||0) - Number(p.receivedAmount||0);
+      if (!byPartyOutstanding[key]) byPartyOutstanding[key] = { name: rawName, amount: 0 };
+      byPartyOutstanding[key].amount += pend;
+    });
+    const topOutstandingParties = Object.values(byPartyOutstanding).filter(x => x.amount > 0).sort((a,b) => b.amount - a.amount);
+
+    const lines = [];
+    lines.push(onTrack
+      ? `👍 Aap sahi raah par hain — ₹${thisMonthAchieved.toLocaleString('en-IN')} collect ho chuka hai (${pct}%).`
+      : `⚠️ Abhi thoda peeche hain — ${daysPassed}/${daysInMonth} din beet chuke, sirf ${pct}% target achieve hua hai.`);
+    lines.push(`Target pura karne ke liye baaki ${daysLeft} dino mein rozana lagbhag ₹${perDayNeeded.toLocaleString('en-IN')} collect karna hoga.`);
+
+    if (topOutstandingParties.length > 0) {
+      let running = 0;
+      const picks = [];
+      for (const p of topOutstandingParties) {
+        if (running >= gap) break;
+        picks.push(p);
+        running += p.amount;
+      }
+      if (picks.length > 0) {
+        const names = picks.slice(0, 3).map(p => `${p.name} (₹${p.amount.toLocaleString('en-IN')})`).join(', ');
+        lines.push(`Sabse pehle in outstanding parties se follow-up karein: ${names}${picks.length > 3 ? ' aadi' : ''} — inse hi target ka bada hissa pura ho sakta hai.`);
+      }
+    }
+    if (pendingQuotes > 0) {
+      lines.push(`${pendingQuotes} quotations abhi tak "Sent" status mein pending hain — unko order mein convert karwane ke liye call karein, isse bhi collection badh sakta hai.`);
+    }
+
+    return { tone: onTrack ? 'watch' : 'risk', lines };
+  }, [thisMonthTarget, thisMonthAchieved, payments, pendingQuotes, pct]);
 
   const duePartiesGrouped = useMemo(() => {
     const map = {};
@@ -763,25 +873,24 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
 
       <Card>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-bold text-slate-800">This Month's Target</p>
-          <button onClick={() => setEditTarget(!editTarget)} className="text-xs text-teal-700 font-semibold">
-            {editTarget ? 'Cancel' : 'Set'}
+          <p className="text-sm font-bold text-slate-800">FY {currentFY} Ka Target</p>
+          <button onClick={() => setEditAnnualTarget(!editAnnualTarget)} className="text-xs text-teal-700 font-semibold">
+            {editAnnualTarget ? 'Cancel' : 'Set'}
           </button>
         </div>
-        {editTarget ? (
+        {editAnnualTarget ? (
           <div className="flex gap-2">
             <input
               type="number"
-              value={targetInput}
-              onChange={e => setTargetInput(e.target.value)}
-              placeholder="Target amount ₹"
+              value={annualTargetInput}
+              onChange={e => setAnnualTargetInput(e.target.value)}
+              placeholder="Annual target ₹"
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-base"
             />
             <button
               onClick={() => {
-                const mk = monthKey();
-                setTargets({ ...targets, [mk]: Number(targetInput) || 0 });
-                setEditTarget(false);
+                setAnnualTargets({ ...annualTargets, [currentFY]: Number(annualTargetInput) || 0 });
+                setEditAnnualTarget(false);
               }}
               className="bg-teal-700 text-white text-sm font-semibold px-4 rounded-lg"
             >Save</button>
@@ -789,28 +898,107 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
         ) : (
           <>
             <div className="flex justify-between text-xs text-slate-500 mb-1">
-              <span>₹{thisMonthAchieved.toLocaleString('en-IN')} collected</span>
-              <span>₹{thisMonthTarget.toLocaleString('en-IN')} target</span>
+              <span>₹{thisYearAchieved.toLocaleString('en-IN')} collected</span>
+              <span>₹{thisYearTarget.toLocaleString('en-IN')} target</span>
             </div>
             <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-indigo-600 rounded-full transition-all" style={{ width: `${yearPct}%` }} />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved</p>
-            <button
-              onClick={() => downloadMonthlyReport({
-                monthLabel: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
-                quotations: quotations.filter(q => (q.date||'').startsWith(monthKey())),
-                orders: orders.filter(o => (o.poDate||'').startsWith(monthKey())),
-                payments: payments.filter(p => (p.date||'').startsWith(monthKey())),
-                machines,
-                target: thisMonthTarget,
-                achieved: thisMonthAchieved,
-              })}
-              className="w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5"
-            >📊 Is Mahine Ki Report Download Karein</button>
+            <p className="text-[11px] text-slate-400 mt-1">{yearPct}% achieved</p>
           </>
         )}
+
+        <div className="border-t border-slate-100 mt-3 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-bold text-slate-800">This Month's Target</p>
+              {thisMonthTargetIsAuto && thisMonthTarget > 0 && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">Auto (÷12)</span>
+              )}
+            </div>
+            <button onClick={() => setEditTarget(!editTarget)} className="text-xs text-teal-700 font-semibold">
+              {editTarget ? 'Cancel' : 'Change'}
+            </button>
+          </div>
+          {editTarget ? (
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={targetInput}
+                onChange={e => setTargetInput(e.target.value)}
+                placeholder="Target amount ₹"
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-base"
+              />
+              <button
+                onClick={() => {
+                  const mk = monthKey();
+                  setTargets({ ...targets, [mk]: Number(targetInput) || 0 });
+                  setEditTarget(false);
+                }}
+                className="bg-teal-700 text-white text-sm font-semibold px-4 rounded-lg"
+              >Save</button>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between text-xs text-slate-500 mb-1">
+                <span>₹{thisMonthAchieved.toLocaleString('en-IN')} collected</span>
+                <span>₹{thisMonthTarget.toLocaleString('en-IN')} target</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">{pct}% achieved{thisMonthTargetIsAuto && thisMonthTarget > 0 ? ' — annual target se auto-calculate hua hai' : ''}</p>
+            </>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 mt-3 pt-3">
+          <p className="text-xs font-bold text-slate-600 mb-2">FY {currentFY} — Mahine-Dar-Mahine Collection</p>
+          <div className="flex items-end gap-1 h-16">
+            {fyMonthKeys(currentFY).map(mk => {
+              const monthCollected = payments.filter(p => (p.date||'').startsWith(mk)).reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+              const monthNum = parseInt(mk.split('-')[1], 10);
+              const label = FY_MONTH_NAMES[FY_MONTH_ORDER.indexOf(monthNum)];
+              const isCurrent = mk === monthKey();
+              const maxVal = Math.max(1, ...fyMonthKeys(currentFY).map(k => payments.filter(p => (p.date||'').startsWith(k)).reduce((s,p) => s + Number(p.receivedAmount||0), 0)));
+              const barPct = Math.max(3, Math.round((monthCollected / maxVal) * 100));
+              return (
+                <div key={mk} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div className={`w-full rounded-t ${isCurrent ? 'bg-teal-600' : 'bg-slate-200'}`} style={{ height: `${barPct}%` }} title={`₹${monthCollected.toLocaleString('en-IN')}`} />
+                  <p className={`text-[8.5px] mt-1 ${isCurrent ? 'text-teal-700 font-bold' : 'text-slate-400'}`}>{label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {targetAdvice && (
+          <div className={`mt-3 rounded-lg p-3 border ${targetAdvice.tone === 'good' ? 'bg-emerald-50 border-emerald-200' : targetAdvice.tone === 'watch' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+            <p className={`text-xs font-bold mb-1.5 ${targetAdvice.tone === 'good' ? 'text-emerald-800' : targetAdvice.tone === 'watch' ? 'text-amber-800' : 'text-red-800'}`}>💡 Target Achieve Karne Ki Salah</p>
+            <div className="space-y-1">
+              {targetAdvice.lines.map((line, i) => (
+                <p key={i} className={`text-[11.5px] leading-snug ${targetAdvice.tone === 'good' ? 'text-emerald-700' : targetAdvice.tone === 'watch' ? 'text-amber-700' : 'text-red-700'}`}>{line}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowReportCenter(true)}
+          className="w-full mt-3 bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5"
+        >📊 Report Center — Mahina/Saal Chunkar Download Karein</button>
       </Card>
+      {showReportCenter && (
+        <ReportCenterModal
+          quotations={quotations}
+          orders={orders}
+          payments={payments}
+          machines={machines}
+          targets={targets}
+          annualTargets={annualTargets}
+          onClose={() => setShowReportCenter(false)}
+        />
+      )}
 
       <div>
         <SectionTitle action={<button onClick={() => goTo('log')} className="text-xs text-teal-700 font-semibold flex items-center">Sabhi Tasks <ChevronRight size={14} /></button>}>
@@ -836,6 +1024,97 @@ function HomeTab({ machines, expiringSoon, quotations, orders, payments, challan
         )}
       </div>
     </div>
+  );
+}
+
+function ReportCenterModal({ quotations, orders, payments, machines, targets, annualTargets, onClose }) {
+  const now = new Date();
+  const [reportType, setReportType] = useState('monthly'); // 'monthly' | 'annual'
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selFY, setSelFY] = useState(getFinancialYear());
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const yearsAvailable = useMemo(() => {
+    const ys = new Set([now.getFullYear()]);
+    quotations.forEach(q => { if (q.date) ys.add(Number(q.date.slice(0,4))); });
+    payments.forEach(p => { if (p.date) ys.add(Number(p.date.slice(0,4))); });
+    return Array.from(ys).sort((a,b) => b-a);
+  }, [quotations, payments]);
+
+  const fyAvailable = useMemo(() => {
+    const fys = new Set([getFinancialYear()]);
+    quotations.forEach(q => { if (q.date) fys.add(getFinancialYear(new Date(q.date))); });
+    payments.forEach(p => { if (p.date) fys.add(getFinancialYear(new Date(p.date))); });
+    return Array.from(fys).sort((a,b) => b.localeCompare(a));
+  }, [quotations, payments]);
+
+  const handleDownload = () => {
+    if (reportType === 'monthly') {
+      const mk = `${selYear}-${String(selMonth).padStart(2,'0')}`;
+      const prevDate = new Date(selYear, selMonth - 2, 1);
+      const prevMk = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+      const prevCollected = payments.filter(p => (p.date||'').startsWith(prevMk)).reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+      downloadMonthlyReport({
+        monthLabel: `${monthNames[selMonth-1]} ${selYear}`,
+        quotations: quotations.filter(q => (q.date||'').startsWith(mk)),
+        orders: orders.filter(o => (o.poDate||'').startsWith(mk)),
+        payments: payments.filter(p => (p.date||'').startsWith(mk)),
+        machines,
+        target: targets[mk] || 0,
+        achieved: payments.filter(p => (p.date||'').startsWith(mk)).reduce((s,p) => s + Number(p.receivedAmount||0), 0),
+        prevCollected,
+      });
+    } else {
+      const yearPayments = payments.filter(p => isDateInFY(p.date, selFY));
+      downloadAnnualReport({
+        fy: selFY,
+        quotations, orders, payments,
+        annualTarget: annualTargets[selFY] || 0,
+        annualAchieved: yearPayments.reduce((s,p) => s + Number(p.receivedAmount||0), 0),
+      });
+    }
+    onClose();
+  };
+
+  return (
+    <Modal title="Report Center" onClose={onClose}>
+      <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+        <button onClick={() => setReportType('monthly')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'monthly' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Monthly Report</button>
+        <button onClick={() => setReportType('annual')} className={`flex-1 text-sm font-semibold py-2 rounded-lg ${reportType === 'annual' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Annual Report</button>
+      </div>
+
+      {reportType === 'monthly' && (
+        <Field label="Mahina Chunein">
+          <select value={selMonth} onChange={e => setSelMonth(Number(e.target.value))} className={inputCls}>
+            {monthNames.map((name, i) => <option key={i} value={i+1}>{name}</option>)}
+          </select>
+        </Field>
+      )}
+      {reportType === 'monthly' ? (
+        <Field label="Saal Chunein">
+          <select value={selYear} onChange={e => setSelYear(Number(e.target.value))} className={inputCls}>
+            {yearsAvailable.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </Field>
+      ) : (
+        <Field label="Financial Year Chunein (April–March)">
+          <select value={selFY} onChange={e => setSelFY(e.target.value)} className={inputCls}>
+            {fyAvailable.map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
+          </select>
+        </Field>
+      )}
+
+      <p className="text-xs text-slate-500 mb-3">
+        {reportType === 'monthly'
+          ? 'Report mein: Quotations, Orders, Billing/Collection, Target vs Achievement, pichle mahine se tulna, aur sabse badi parties shamil hongi.'
+          : 'Report mein: Poore saal ka mahine-dar-mahine vivaran, annual target vs achievement, aur saal ki sabse badi parties shamil hongi.'}
+      </p>
+
+      <button onClick={handleDownload} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-1.5">
+        <Download size={16} /> Report Download Karein
+      </button>
+    </Modal>
   );
 }
 
@@ -1025,7 +1304,28 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
   };
 
   const [showImport, setShowImport] = useState(false);
-  const importMachines = (rows) => {
+  const importMachines = (rows, replaceMode) => {
+    if (replaceMode) {
+      const fresh = [];
+      rows.forEach(row => {
+        const machineNo = getField(row, 'machineno', 'machine no', 'machine_no', 'phno');
+        if (!machineNo) return;
+        fresh.push({
+          id: uid(),
+          machineNo,
+          model: getField(row, 'model', 'modelno', 'model no'),
+          party: getField(row, 'party', 'partyname', 'party name'),
+          contact: getField(row, 'contact', 'contactno', 'contact no'),
+          city: getField(row, 'city'),
+          place: getField(row, 'place', 'instplace', 'inst place'),
+          amcFrom: getField(row, 'amcfrom', 'amc from'),
+          amcTo: getField(row, 'amcto', 'amc to'),
+          status: getField(row, 'status') || 'ACTIVE',
+        });
+      });
+      setMachines(fresh);
+      return { replaced: true, total: fresh.length };
+    }
     const updated = [...machines];
     let added = 0, upd = 0;
     rows.forEach(row => {
@@ -1085,6 +1385,7 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
           hint="CSV ya Excel file mein columns: Machine No, Model, Party, Contact, City, Place, AMC From, AMC To, Status. Machine No match hone par purani entry update ho jayegi, warna nayi jud jayegi."
           onImport={importMachines}
           onClose={() => setShowImport(false)}
+          allowReplace
         />
       )}
 
@@ -1213,19 +1514,22 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
   );
 }
 
-function ImportModal({ title, hint, onImport, onClose }) {
+function ImportModal({ title, hint, onImport, onClose, allowReplace }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
 
   const handleUpload = async () => {
     if (!file) return;
+    if (replaceMode && !confirmReplace) return;
     setBusy(true);
     setError('');
     try {
       const rows = await parseUploadedFile(file);
-      const res = onImport(rows);
+      const res = onImport(rows, replaceMode);
       setResult({ total: rows.length, ...res });
     } catch (e) {
       setError('File padhne mein dikkat hui. CSV ya Excel (.xlsx) file try karein.');
@@ -1241,17 +1545,35 @@ function ImportModal({ title, hint, onImport, onClose }) {
         <Upload size={22} className="mx-auto text-slate-400 mb-2" />
         <p className="text-sm text-slate-600 font-medium">{file ? file.name : 'File chunein (.csv / .xlsx)'}</p>
       </label>
+      {allowReplace && (
+        <label className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3">
+          <input type="checkbox" checked={replaceMode} onChange={e => { setReplaceMode(e.target.checked); setConfirmReplace(false); }} className="w-4 h-4 mt-0.5" />
+          <span className="text-xs text-amber-800"><b>Poori purani list hata kar sirf yehi file rakhein</b> (replace) — bina is checkbox ke sirf update/add hoga, purana kuch nahi hatega.</span>
+        </label>
+      )}
+      {replaceMode && !confirmReplace && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 mb-3">
+          <p className="text-xs text-red-700 mb-2">⚠️ Ye sabhi purani machines hamesha ke liye hata dega, sirf isi file ki entries reh jayengi. Pakka hai?</p>
+          <button onClick={() => setConfirmReplace(true)} className="w-full bg-red-600 text-white font-semibold py-2 rounded-lg text-xs">Haan, Purani List Hata Dein</button>
+        </div>
+      )}
+      {replaceMode && confirmReplace && (
+        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">✔ Replace confirm ho gaya — ab Upload dabayein</p>
+      )}
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       {result && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3 mb-3">
-          ✔ {result.total} rows mile. {result.added !== undefined && `${result.added} nayi jodi gayi, ${result.upd} update hui.`}
+          {result.replaced
+            ? `✔ Purani list hata di gayi — ab total ${result.total} machines hain.`
+            : <>✔ {result.total} rows mile. {result.added !== undefined && `${result.added} nayi jodi gayi, ${result.upd} update hui.`}</>
+          }
         </div>
       )}
       <button
         onClick={handleUpload}
-        disabled={!file || busy}
+        disabled={!file || busy || (replaceMode && !confirmReplace)}
         className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl disabled:opacity-40"
-      >{busy ? 'Process ho raha hai...' : 'Upload Karein'}</button>
+      >{busy ? 'Process ho raha hai...' : replaceMode ? 'Replace Karein' : 'Upload Karein'}</button>
     </Modal>
   );
 }
@@ -1568,10 +1890,6 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
   const [amcSaved, setAmcSaved] = useState(false);
   const [noteDraft, setNoteDraft] = useState(machine.note || '');
   const [noteSaved, setNoteSaved] = useState(false);
-  if (editing) return <MachineForm initial={machine} onSave={onSave} onClose={() => setEditing(false)} />;
-  const currentStatus = normStatus(machine.status);
-  const days = daysUntil(machine.amcTo);
-  const badge = currentStatus === 'ACTIVE' ? amcBadge(days, machine.contType) : { label: STATUS_LABELS[currentStatus], color: STATUS_COLORS[currentStatus] };
 
   const history = useMemo(() => {
     const events = [];
@@ -1603,6 +1921,11 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
     });
     return events.sort((a,b) => (b.date||'').localeCompare(a.date||''));
   }, [quotations, orders, challans, payments, amcHistory, machine.machineNo]);
+
+  if (editing) return <MachineForm initial={machine} onSave={onSave} onClose={() => setEditing(false)} />;
+  const currentStatus = normStatus(machine.status);
+  const days = daysUntil(machine.amcTo);
+  const badge = currentStatus === 'ACTIVE' ? amcBadge(days, machine.contType) : { label: STATUS_LABELS[currentStatus], color: STATUS_COLORS[currentStatus] };
 
   const saveNote = () => {
     onStatusChange({ note: noteDraft });
@@ -1751,7 +2074,7 @@ function MachineDetail({ machine, onClose, onSave, onStatusChange, onDelete, pay
 }
 
 // ---------------- SALES TAB (Quotations + Orders + Items) ----------------
-function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg, challans, setChallans, gemLetters, setGemLetters }) {
+function SalesTab({ machines, quotations, setQuotations, orders, setOrders, items, setItems, payments, setPayments, signatureImg, challans, setChallans, gemLetters, setGemLetters, machineSales, setMachineSales }) {
   const [sub, setSub] = useState('quotes');
   const [showAdd, setShowAdd] = useState(false);
   const [viewQuote, setViewQuote] = useState(null);
@@ -1759,6 +2082,8 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
   const [duplicateSource, setDuplicateSource] = useState(null);
   const [viewGemLetter, setViewGemLetter] = useState(null);
   const [duplicateGemSource, setDuplicateGemSource] = useState(null);
+  const [editMachineSale, setEditMachineSale] = useState(null);
+  const [showSalesReport, setShowSalesReport] = useState(false);
   const [editChallan, setEditChallan] = useState(null);
 
   const addQuote = (data) => {
@@ -1847,6 +2172,13 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
     setViewGemLetter(null);
   };
 
+  const addMachineSale = (data) => setMachineSales([{ ...data, id: uid() }, ...machineSales]);
+  const updateMachineSale = (id, data) => {
+    setMachineSales(machineSales.map(s => s.id === id ? { ...s, ...data } : s));
+    setEditMachineSale(null);
+  };
+  const deleteMachineSale = (id) => setMachineSales(machineSales.filter(s => s.id !== id));
+
   const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
 
   return (
@@ -1861,11 +2193,12 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           )}
         </button>
         <button onClick={() => setSub('gemletter')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'gemletter' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>GeM Letter</button>
+        <button onClick={() => setSub('machinesale')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'machinesale' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Machine Sale</button>
         <button onClick={() => setSub('items')} className={`flex-1 text-xs font-semibold py-2 rounded-lg whitespace-nowrap px-2 ${sub === 'items' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Items</button>
       </div>
 
       <button onClick={() => setShowAdd(true)} className="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mb-3 flex items-center justify-center gap-1">
-        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : sub === 'challan' ? 'Naya Challan Jodein' : sub === 'gemletter' ? 'Naya GeM Letter Banayein' : 'Naya Item Jodein'}
+        <Plus size={16} /> {sub === 'quotes' ? 'Nayi Quotation Banayein' : sub === 'orders' ? 'Naya Order' : sub === 'challan' ? 'Naya Challan Jodein' : sub === 'gemletter' ? 'Naya GeM Letter Banayein' : sub === 'machinesale' ? 'Nayi Machine Sale Jodein' : 'Naya Item Jodein'}
       </button>
 
       {sub === 'gemletter' && (
@@ -1883,6 +2216,17 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
                 className="mt-2 text-xs text-teal-700 font-semibold flex items-center gap-1"
               >📋 Isi Jaisi Nayi Letter Banayein</button>
             </Card>
+          ))}
+        </div>
+      )}
+
+      {sub === 'machinesale' && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi nayi photocopier machine bikti hai (AMC/service billing se alag), yahan entry daal dein — model, amount aur payment mode ke saath. Financial Year ki alag report bhi nikal sakte hain.</p>
+          <button onClick={() => setShowSalesReport(true)} className="w-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold py-2 rounded-lg text-xs mb-2">📊 Machine Sales Ki FY Report Nikalein</button>
+          {machineSales.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi machine sale nahi</Card>}
+          {machineSales.map(s => (
+            <MachineSaleCard key={s.id} sale={s} onEdit={setEditMachineSale} onDelete={deleteMachineSale} />
           ))}
         </div>
       )}
@@ -1953,7 +2297,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
       )}
 
       {showAdd && sub === 'quotes' && (
-        <QuotationBuilder machines={machines} items={items} setItems={setItems} quotations={quotations} onSave={addQuote} onClose={() => setShowAdd(false)} />
+        <QuotationBuilder machines={machines} items={items} setItems={setItems} quotations={quotations} payments={payments} onSave={addQuote} onClose={() => setShowAdd(false)} />
       )}
       {showAdd && sub === 'orders' && <OrderForm machines={machines} onSave={addOrder} onClose={() => setShowAdd(false)} />}
       {showAdd && sub === 'items' && <ItemForm items={items} onSave={(d) => { addItem(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
@@ -1970,6 +2314,9 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
       {viewGemLetter && (
         <GemLetterView letter={viewGemLetter} signatureImg={signatureImg} onClose={() => setViewGemLetter(null)} onDelete={() => deleteGemLetter(viewGemLetter.id)} />
       )}
+      {showAdd && sub === 'machinesale' && <MachineSaleForm machines={machines} onSave={(d) => { addMachineSale(d); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+      {editMachineSale && <MachineSaleForm machines={machines} initial={editMachineSale} onSave={(data) => updateMachineSale(editMachineSale.id, data)} onClose={() => setEditMachineSale(null)} />}
+      {showSalesReport && <MachineSalesReportModal machineSales={machineSales} onClose={() => setShowSalesReport(false)} />}
       {editChallan && <ChallanForm machines={machines} initial={editChallan} onSave={(data) => updateChallan(editChallan.id, data)} onClose={() => setEditChallan(null)} />}
 
       {viewQuote && !editQuote && (
@@ -1989,6 +2336,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           items={items}
           setItems={setItems}
           quotations={quotations}
+          payments={payments}
           initial={editQuote}
           onSave={(data) => updateQuote(editQuote.id, data)}
           onClose={() => setEditQuote(null)}
@@ -2000,6 +2348,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           items={items}
           setItems={setItems}
           quotations={quotations}
+          payments={payments}
           initial={{
             party: duplicateSource.party,
             attention: duplicateSource.attention,
@@ -2275,6 +2624,150 @@ function GemLetterView({ letter, signatureImg, onClose, onDelete }) {
   );
 }
 
+const PAYMENT_MODES = ['Cash', 'Cheque', 'Bank Transfer/NEFT', 'UPI', 'Other'];
+
+function MachineSaleForm({ machines, onSave, onClose, initial }) {
+  const [f, setF] = useState(initial || { party: '', model: '', amount: '', paymentMode: 'Cash', date: todayISO(), note: '' });
+  const set = (k,v) => setF({ ...f, [k]: v });
+  const canSave = f.party.trim() && f.model.trim() && f.amount;
+
+  return (
+    <Modal title={initial ? 'Machine Sale Edit Karein' : 'Nayi Machine Sale'} onClose={onClose}>
+      <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} /></Field>
+      <Field label="Machine Model"><input className={inputCls} value={f.model} onChange={e => set('model', e.target.value)} placeholder="Jaise: AR-6020N" /></Field>
+      <Field label="Amount (₹)"><input type="number" className={inputCls} value={f.amount} onChange={e => set('amount', e.target.value)} /></Field>
+      <Field label="Payment Mode">
+        <select className={inputCls} value={f.paymentMode} onChange={e => set('paymentMode', e.target.value)}>
+          {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </Field>
+      <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
+      <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: Naya/Used, invoice no. vagera" /></Field>
+      <button onClick={() => onSave(f)} disabled={!canSave} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40">{initial ? 'Update Karein' : 'Sale Save Karein'}</button>
+    </Modal>
+  );
+}
+
+function MachineSaleCard({ sale, onEdit, onDelete }) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  return (
+    <Card className="!p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800 truncate">{sale.party}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{sale.model} · {formatDateDMY(sale.date)}</p>
+          {sale.note && <p className="text-[11px] text-slate-400 mt-0.5">{sale.note}</p>}
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold text-emerald-700">₹{Number(sale.amount||0).toLocaleString('en-IN')}</p>
+          <p className="text-[10px] text-slate-400">{sale.paymentMode}</p>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button onClick={() => onEdit(sale)} className="text-xs text-teal-700 font-semibold px-2 py-1">Edit</button>
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} className="text-xs text-red-600 font-semibold px-2 py-1">Delete</button>
+        ) : (
+          <button onClick={() => onDelete(sale.id)} className="text-xs bg-red-600 text-white font-semibold px-2 py-1 rounded-lg">Sure?</button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function MachineSalesReportModal({ machineSales, onClose }) {
+  const [selFY, setSelFY] = useState(getFinancialYear());
+  const fyAvailable = useMemo(() => {
+    const fys = new Set([getFinancialYear()]);
+    machineSales.forEach(s => { if (s.date) fys.add(getFinancialYear(new Date(s.date))); });
+    return Array.from(fys).sort((a,b) => b.localeCompare(a));
+  }, [machineSales]);
+
+  const fySales = useMemo(() => machineSales.filter(s => isDateInFY(s.date, selFY)), [machineSales, selFY]);
+
+  const summary = useMemo(() => {
+    const totalAmount = fySales.reduce((s,x) => s + Number(x.amount||0), 0);
+    const byModel = {};
+    const byMode = {};
+    fySales.forEach(s => {
+      const model = s.model || 'Unknown';
+      byModel[model] = (byModel[model] || 0) + Number(s.amount||0);
+      byMode[s.paymentMode] = (byMode[s.paymentMode] || 0) + Number(s.amount||0);
+    });
+    return { totalAmount, byModel, byMode, count: fySales.length };
+  }, [fySales]);
+
+  const handleDownload = () => {
+    const modelRows = Object.entries(summary.byModel).sort((a,b) => b[1]-a[1])
+      .map(([model, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${model}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`).join('');
+    const modeRows = Object.entries(summary.byMode).sort((a,b) => b[1]-a[1])
+      .map(([mode, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${mode}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`).join('');
+    const listRows = fySales.slice().sort((a,b) => (a.date||'').localeCompare(b.date||''))
+      .map(s => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${formatDateDMY(s.date)}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.party}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.model}</td><td style="border:1px solid #cbd5e1;padding:5px;">${s.paymentMode}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${Number(s.amount||0).toLocaleString('en-IN')}</td></tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Machine Sales Report — FY ${selFY}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding:20px; max-width:750px; margin:0 auto; }
+  .header { text-align:center; border-bottom:3px solid #b91c1c; padding-bottom:10px; margin-bottom:16px; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; }
+  .small { font-size:11px; color:#64748b; }
+  h2 { font-size:14px; margin:18px 0 8px; color:#0f766e; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid #cbd5e1; border-radius:8px; padding:10px; }
+  .stat-label { font-size:11px; color:#64748b; }
+  .stat-value { font-size:18px; font-weight:800; color:#1e293b; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">Machine Sales Report — FY ${selFY}</div>
+  </div>
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Total Machines Bikin</div><div class="stat-value">${summary.count}</div></div>
+    <div class="stat"><div class="stat-label">Total Sale Amount</div><div class="stat-value">₹${summary.totalAmount.toLocaleString('en-IN')}</div></div>
+  </div>
+  <h2>Model Ke Hisab Se</h2>
+  <table><thead><tr><th>Model</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${modelRows || '<tr><td colspan="2" style="padding:8px;border:1px solid #cbd5e1;">Koi data nahi</td></tr>'}</tbody></table>
+  <h2>Payment Mode Ke Hisab Se</h2>
+  <table><thead><tr><th>Payment Mode</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${modeRows || '<tr><td colspan="2" style="padding:8px;border:1px solid #cbd5e1;">Koi data nahi</td></tr>'}</tbody></table>
+  <h2>Poori List</h2>
+  <table><thead><tr><th>Date</th><th>Party</th><th>Model</th><th>Payment Mode</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${listRows || '<tr><td colspan="5" style="padding:8px;border:1px solid #cbd5e1;">Koi sale nahi</td></tr>'}</tbody></table>
+  <p class="small" style="margin-top:20px;">Report generated on ${formatDateDMY(todayISO())} — Argus Tracker</p>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Machine-Sales-Report-FY-${selFY}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  return (
+    <Modal title="Machine Sales Report" onClose={onClose}>
+      <Field label="Financial Year Chunein">
+        <select value={selFY} onChange={e => setSelFY(e.target.value)} className={inputCls}>
+          {fyAvailable.map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
+        </select>
+      </Field>
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
+        <p className="text-sm text-slate-600">Total <b>{summary.count}</b> machines bikin, total <b>₹{summary.totalAmount.toLocaleString('en-IN')}</b> ki.</p>
+      </div>
+      <button onClick={handleDownload} className="w-full bg-teal-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-1.5">
+        <Download size={16} /> Report Download Karein
+      </button>
+    </Modal>
+  );
+}
+
 function ChallanForm({ machines, onSave, onClose, initial }) {
   const [f, setF] = useState(initial || { party: '', machineNo: '', challanNo: '', date: todayISO(), items: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
@@ -2514,7 +3007,7 @@ function MachineSearchPicker({ machines, value, onSelect }) {
   );
 }
 
-function QuotationBuilder({ machines, items, quotations, setItems, onSave, onClose, initial, isDuplicate }) {
+function QuotationBuilder({ machines, items, quotations, setItems, payments, onSave, onClose, initial, isDuplicate }) {
   const [party, setParty] = useState(initial?.party || '');
   const [attention, setAttention] = useState(initial?.attention || 'The Director');
   const [department, setDepartment] = useState(initial?.department || '');
@@ -2542,6 +3035,14 @@ function QuotationBuilder({ machines, items, quotations, setItems, onSave, onClo
     if (!party) return [];
     return machines.filter(m => m.party.toLowerCase() === party.toLowerCase());
   }, [party, machines]);
+
+  const partyOutstanding = useMemo(() => {
+    if (!party || !payments) return 0;
+    const target = party.trim().toLowerCase().replace(/\s+/g, ' ');
+    return payments
+      .filter(p => (p.party || '').trim().toLowerCase().replace(/\s+/g, ' ') === target)
+      .reduce((s,p) => s + (Number(p.invoiceAmount||0) - Number(p.receivedAmount||0)), 0);
+  }, [party, payments]);
 
   useEffect(() => {
     if (!recipientAddress && partyMachines.length > 0 && partyMachines[0].city) {
@@ -2605,6 +3106,12 @@ function QuotationBuilder({ machines, items, quotations, setItems, onSave, onClo
   return (
     <Modal title={isDuplicate ? 'Nayi Quotation (Copy)' : initial ? 'Quotation Edit Karein' : 'Nayi Quotation'} onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={party} onChange={setParty} /></Field>
+      {party && (
+        <div className={`flex items-center justify-between rounded-lg px-3 py-2 mb-3 border ${partyOutstanding > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+          <span className={`text-xs font-medium ${partyOutstanding > 0 ? 'text-red-700' : 'text-emerald-700'}`}>Is party ka outstanding</span>
+          <span className={`text-sm font-bold ${partyOutstanding > 0 ? 'text-red-700' : 'text-emerald-700'}`}>₹{partyOutstanding.toLocaleString('en-IN')}</span>
+        </div>
+      )}
       <Field label="Addressed To (jaise: The Director)"><input className={inputCls} value={attention} onChange={e => setAttention(e.target.value)} placeholder="The Director / The Manager" /></Field>
       <Field label="Address (To, block mein designation ke saath print hoga)"><textarea rows={2} className={inputCls + ' resize-none'} value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} placeholder="Jaise: 2nd Floor, Vidhan Bhawan, Lucknow" /></Field>
       <Field label="Machine Dhundein (Party ya PH/Machine No se) — quotation isi se connect rahegi">
@@ -2770,7 +3277,7 @@ function QuotationLineEditor({ line, items, selectedModel, onUpdate, onRemove })
   );
 }
 
-function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved }) {
+function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, machines, target, achieved, prevCollected }) {
   const quotesInMonth = quotations;
   const ordersInMonth = orders;
   const totalBilled = payments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
@@ -2779,16 +3286,35 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
   const rejectedQuotes = quotesInMonth.filter(q => q.status === 'Rejected').length;
 
   const byPartyOutstanding = {};
+  const byPartyBilled = {};
   payments.forEach(p => {
+    const rawName = (p.party || '').trim();
+    if (!rawName) return;
+    const key = rawName.toLowerCase().replace(/\s+/g, ' ');
     const pend = Number(p.invoiceAmount||0) - Number(p.receivedAmount||0);
-    if (pend > 0) byPartyOutstanding[p.party] = (byPartyOutstanding[p.party]||0) + pend;
+    if (pend > 0) {
+      if (!byPartyOutstanding[key]) byPartyOutstanding[key] = { name: rawName, amt: 0 };
+      byPartyOutstanding[key].amt += pend;
+    }
+    if (Number(p.invoiceAmount||0) > 0) {
+      if (!byPartyBilled[key]) byPartyBilled[key] = { name: rawName, amt: 0 };
+      byPartyBilled[key].amt += Number(p.invoiceAmount||0);
+    }
   });
-  const topOutstandingRows = Object.entries(byPartyOutstanding)
-    .sort((a,b) => b[1]-a[1]).slice(0,10)
-    .map(([party, amt]) => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${party}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${amt.toLocaleString('en-IN')}</td></tr>`)
+  const topOutstandingRows = Object.values(byPartyOutstanding)
+    .sort((a,b) => b.amt-a.amt).slice(0,10)
+    .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
+    .join('');
+  const topBilledRows = Object.values(byPartyBilled)
+    .sort((a,b) => b.amt-a.amt).slice(0,5)
+    .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
     .join('');
 
   const pct = target > 0 ? Math.min(100, Math.round((achieved/target)*100)) : 0;
+  const growthPct = prevCollected > 0 ? Math.round(((totalCollected - prevCollected) / prevCollected) * 100) : null;
+  const growthLine = growthPct === null ? '' : growthPct >= 0
+    ? `<p class="small" style="color:#15803d;font-weight:600;">▲ Pichle mahine se ${growthPct}% zyada collection hui hai.</p>`
+    : `<p class="small" style="color:#b91c1c;font-weight:600;">▼ Pichle mahine se ${Math.abs(growthPct)}% kam collection hui hai.</p>`;
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Monthly Report — ${monthLabel}</title>
@@ -2827,6 +3353,14 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
   <h2>Target vs Achievement</h2>
   <p class="small">₹${achieved.toLocaleString('en-IN')} collected of ₹${target.toLocaleString('en-IN')} target (${pct}%)</p>
   <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+  ${growthLine}
+
+  ${topBilledRows ? `
+  <h2>Sabse Zyada Business Wali Parties (Is Mahine)</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Billing</th></tr></thead>
+    <tbody>${topBilledRows}</tbody>
+  </table>` : ''}
 
   ${topOutstandingRows ? `
   <h2>Sabse Zyada Outstanding Wali Parties</h2>
@@ -2835,7 +3369,99 @@ function buildMonthlyReportHTML({ monthLabel, quotations, orders, payments, mach
     <tbody>${topOutstandingRows}</tbody>
   </table>` : ''}
 
-  <p class="small" style="margin-top:20px;">Report generated on ${todayISO()} — Argus Tracker</p>
+  <p class="small" style="margin-top:20px;">Report generated on ${formatDateDMY(todayISO())} — Argus Tracker</p>
+</body></html>`;
+}
+
+function buildAnnualReportHTML({ fy, quotations, orders, payments, annualTarget, annualAchieved }) {
+  const mKeys = fyMonthKeys(fy);
+  const monthRows = mKeys.map((mk, i) => {
+    const name = FY_MONTH_NAMES[i];
+    const mQuotes = quotations.filter(q => (q.date||'').startsWith(mk)).length;
+    const mOrders = orders.filter(o => (o.poDate||'').startsWith(mk)).length;
+    const mPayments = payments.filter(p => (p.date||'').startsWith(mk));
+    const mBilled = mPayments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+    const mCollected = mPayments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+    return `<tr>
+      <td style="border:1px solid #cbd5e1;padding:5px;">${name}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:center;">${mQuotes}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:center;">${mOrders}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${mBilled.toLocaleString('en-IN')}</td>
+      <td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${mCollected.toLocaleString('en-IN')}</td>
+    </tr>`;
+  }).join('');
+
+  const yearPayments = payments.filter(p => isDateInFY(p.date, fy));
+  const totalBilled = yearPayments.reduce((s,p) => s + Number(p.invoiceAmount||0), 0);
+  const totalCollected = yearPayments.reduce((s,p) => s + Number(p.receivedAmount||0), 0);
+  const yearQuotes = quotations.filter(q => isDateInFY(q.date, fy)).length;
+  const yearOrders = orders.filter(o => isDateInFY(o.poDate, fy)).length;
+
+  const byPartyBilled = {};
+  yearPayments.forEach(p => {
+    const rawName = (p.party || '').trim();
+    if (!rawName || Number(p.invoiceAmount||0) <= 0) return;
+    const key = rawName.toLowerCase().replace(/\s+/g, ' ');
+    if (!byPartyBilled[key]) byPartyBilled[key] = { name: rawName, amt: 0 };
+    byPartyBilled[key].amt += Number(p.invoiceAmount||0);
+  });
+  const topPartyRows = Object.values(byPartyBilled)
+    .sort((a,b) => b.amt-a.amt).slice(0,10)
+    .map(p => `<tr><td style="border:1px solid #cbd5e1;padding:5px;">${p.name}</td><td style="border:1px solid #cbd5e1;padding:5px;text-align:right;">₹${p.amt.toLocaleString('en-IN')}</td></tr>`)
+    .join('');
+
+  const pct = annualTarget > 0 ? Math.min(100, Math.round((annualAchieved/annualTarget)*100)) : 0;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Annual Report — FY ${fy}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#1e293b; padding:20px; max-width:750px; margin:0 auto; word-wrap:break-word; }
+  .header { text-align:center; border-bottom:3px solid #b91c1c; padding-bottom:10px; margin-bottom:16px; }
+  .company { font-size:16px; font-weight:800; color:#b91c1c; }
+  .small { font-size:11px; color:#64748b; }
+  h2 { font-size:14px; margin:18px 0 8px; color:#0f766e; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid #cbd5e1; border-radius:8px; padding:10px; }
+  .stat-label { font-size:11px; color:#64748b; }
+  .stat-value { font-size:18px; font-weight:800; color:#1e293b; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; margin-top:6px; }
+  th { background:#f1f5f9; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+  .bar-bg { width:100%; height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar-fill { height:100%; background:#4338ca; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="company">${COMPANY.name}</div>
+    <div class="small">Annual Business Report — FY ${fy}</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Total Quotations</div><div class="stat-value">${yearQuotes}</div></div>
+    <div class="stat"><div class="stat-label">Total Orders</div><div class="stat-value">${yearOrders}</div></div>
+    <div class="stat"><div class="stat-label">Total Billing</div><div class="stat-value">₹${totalBilled.toLocaleString('en-IN')}</div></div>
+    <div class="stat"><div class="stat-label">Total Collection</div><div class="stat-value">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+  </div>
+
+  <h2>Annual Target vs Achievement</h2>
+  <p class="small">₹${annualAchieved.toLocaleString('en-IN')} collected of ₹${annualTarget.toLocaleString('en-IN')} target (${pct}%)</p>
+  <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;"></div></div>
+
+  <h2>Mahine-Dar-Mahine Vivaran</h2>
+  <table>
+    <thead><tr><th>Mahina</th><th style="text-align:center;">Quotes</th><th style="text-align:center;">Orders</th><th style="text-align:right;">Billing</th><th style="text-align:right;">Collection</th></tr></thead>
+    <tbody>${monthRows}</tbody>
+  </table>
+
+  ${topPartyRows ? `
+  <h2>Saal Ki Sabse Badi Parties (Billing Ke Hisab Se)</h2>
+  <table>
+    <thead><tr><th>Party</th><th style="text-align:right;">Total Billing</th></tr></thead>
+    <tbody>${topPartyRows}</tbody>
+  </table>` : ''}
+
+  <p class="small" style="margin-top:20px;">Report generated on ${formatDateDMY(todayISO())} — Argus Tracker</p>
 </body></html>`;
 }
 
@@ -2846,6 +3472,19 @@ function downloadMonthlyReport(payload) {
   const a = document.createElement('a');
   a.href = url;
   a.download = `Monthly-Report-${payload.monthLabel.replace(/\s/g,'-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function downloadAnnualReport(payload) {
+  const html = buildAnnualReportHTML(payload);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Annual-Report-${payload.fy}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
