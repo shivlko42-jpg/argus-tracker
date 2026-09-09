@@ -1870,36 +1870,14 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         setGemLetters(gemLetters.filter(g => g.id !== id));
         setViewGemLetter(null);
     };
-    const addMachineSale = (data) => {
-        const saleId = uid();
-        setMachineSales([{ ...data, id: saleId }, ...machineSales]);
-        setPayments([{
-                id: saleId,
-                party: data.party,
-                machineNo: '',
-                invoiceAmount: Number(data.amount) || 0,
-                receivedAmount: Number(data.receivedAmount) || 0,
-                date: data.date,
-                note: `Machine Sale — ${data.model} (${data.paymentMode})`,
-                fromMachineSale: true,
-            }, ...payments]);
-    };
+    // Machine Sale (naya machine bechna) — Service Department ke Billing/Collection/Outstanding se
+    // bilkul alag rakha gaya hai, taaki dono department ka hisaab mix na ho.
+    const addMachineSale = (data) => setMachineSales([{ ...data, id: uid() }, ...machineSales]);
     const updateMachineSale = (id, data) => {
         setMachineSales(machineSales.map(s => s.id === id ? { ...s, ...data } : s));
-        setPayments(payments.map(p => p.id === id ? {
-            ...p,
-            party: data.party,
-            invoiceAmount: Number(data.amount) || 0,
-            receivedAmount: Number(data.receivedAmount) || 0,
-            date: data.date,
-            note: `Machine Sale — ${data.model} (${data.paymentMode})`,
-        } : p));
         setEditMachineSale(null);
     };
-    const deleteMachineSale = (id) => {
-        setMachineSales(machineSales.filter(s => s.id !== id));
-        setPayments(payments.filter(p => p.id !== id));
-    };
+    const deleteMachineSale = (id) => setMachineSales(machineSales.filter(s => s.id !== id));
     const statusColor = { Sent: 'bg-blue-50 text-blue-700 border border-blue-200', Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200', Rejected: 'bg-red-50 text-red-700 border border-red-200', Pending: 'bg-amber-50 text-amber-700 border border-amber-200', Delivered: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
     return (React.createElement("div", { className: "px-4 pt-4" },
         React.createElement("div", { className: "flex bg-slate-100 rounded-xl p-1 mb-3 overflow-x-auto" },
@@ -1924,20 +1902,33 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
                     React.createElement("p", { className: "text-xs text-slate-500 mt-0.5" }, formatDateDMY(g.date))),
                 React.createElement("button", { onClick: (e) => { e.stopPropagation(); setDuplicateGemSource(g); }, className: "mt-2 text-xs text-teal-700 font-semibold flex items-center gap-1" }, "\uD83D\uDCCB Isi Jaisi Nayi Letter Banayein")))))),
         sub === 'machinesale' && (React.createElement("div", { className: "space-y-2" },
-            React.createElement("p", { className: "text-xs text-slate-400 mb-1 px-1" }, "Jab bhi nayi photocopier machine bikti hai (AMC/service billing se alag), yahan entry daal dein \u2014 model, amount aur payment mode ke saath. Baaki payment outstanding mein khud dikh jayega, aur monthly/annual report bhi nikal sakte hain."),
+            React.createElement("p", { className: "text-xs text-slate-400 mb-1 px-1" }, "Jab bhi nayi photocopier machine bikti hai (AMC/service billing se bilkul alag department) \u2014 yahan entry daal dein. Ye Service Department ke Billing/Collection/Outstanding se mix nahi hota, apna alag hisaab rehta hai."),
             (() => {
-                const mk = monthKey();
-                const thisMonthSales = machineSales.filter(s => (s.date || '').startsWith(mk));
-                const thisMonthAmount = thisMonthSales.reduce((s, x) => s + Number(x.amount || 0), 0);
+                const fy = getFinancialYear();
+                const fySales = machineSales.filter(s => isDateInFY(s.date, fy));
+                const fyAmount = fySales.reduce((s, x) => s + Number(x.amount || 0), 0);
+                const fyCollected = fySales.reduce((s, x) => s + Number(x.receivedAmount || 0), 0);
                 return (React.createElement("div", { className: "grid grid-cols-2 gap-2 mb-2" },
                     React.createElement("div", { className: "bg-emerald-50 border border-emerald-200 rounded-xl p-3" },
-                        React.createElement("p", { className: "text-[10px] text-emerald-600 font-semibold" }, "Is Mahine Bikin"),
-                        React.createElement("p", { className: "text-lg font-bold text-emerald-800" }, thisMonthSales.length)),
-                    React.createElement("div", { className: "bg-emerald-50 border border-emerald-200 rounded-xl p-3" },
-                        React.createElement("p", { className: "text-[10px] text-emerald-600 font-semibold" }, "Is Mahine Ki Sale"),
+                        React.createElement("p", { className: "text-[10px] text-emerald-600 font-semibold" },
+                            "FY ",
+                            fy,
+                            " Ki Sale"),
                         React.createElement("p", { className: "text-lg font-bold text-emerald-800" },
                             "\u20B9",
-                            thisMonthAmount.toLocaleString('en-IN')))));
+                            fyAmount.toLocaleString('en-IN')),
+                        React.createElement("p", { className: "text-[10px] text-emerald-500 mt-0.5" },
+                            fySales.length,
+                            " machines")),
+                    React.createElement("div", { className: "bg-emerald-50 border border-emerald-200 rounded-xl p-3" },
+                        React.createElement("p", { className: "text-[10px] text-emerald-600 font-semibold" },
+                            "FY ",
+                            fy,
+                            " Collection"),
+                        React.createElement("p", { className: "text-lg font-bold text-emerald-800" },
+                            "\u20B9",
+                            fyCollected.toLocaleString('en-IN')),
+                        React.createElement("p", { className: "text-[10px] text-emerald-500 mt-0.5" }, fyAmount > fyCollected ? `₹${(fyAmount - fyCollected).toLocaleString('en-IN')} baki` : 'poora mila'))));
             })(),
             React.createElement("button", { onClick: () => setShowSalesReport(true), className: "w-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold py-2 rounded-lg text-xs mb-2" }, "\uD83D\uDCCA Machine Sales Report (Mahina ya Saal) Nikalein"),
             machineSales.length === 0 && React.createElement(Card, { className: "text-center text-sm text-slate-400 py-6" }, "Abhi tak koi machine sale nahi"),
@@ -2250,9 +2241,9 @@ function MachineSaleForm({ machines, onSave, onClose, initial }) {
             React.createElement("input", { className: inputCls, value: f.model, onChange: e => set('model', e.target.value), placeholder: "Jaise: AR-6020N" })),
         React.createElement(Field, { label: "Sale Amount / Bill (\u20B9)" },
             React.createElement("input", { type: "number", className: inputCls, value: f.amount, onChange: e => set('amount', e.target.value) })),
-        React.createElement(Field, { label: "Abhi Kitna Mila (Received Amount \u20B9) \u2014 baaki khud outstanding mein reh jayega" },
+        React.createElement(Field, { label: "Abhi Kitna Mila (Received Amount \u20B9) \u2014 sirf machine sale ke apne hisaab ke liye" },
             React.createElement("input", { type: "number", className: inputCls, value: f.receivedAmount, onChange: e => set('receivedAmount', e.target.value), placeholder: "0 agar poora udhaar hai" })),
-        f.amount && (React.createElement("p", { className: `text-xs mb-3 -mt-2 ${pending > 0 ? 'text-red-600' : 'text-emerald-600'} font-medium` }, pending > 0 ? `₹${pending.toLocaleString('en-IN')} abhi bhi baki hai (Outstanding mein dikhega)` : '✔ Poora payment mil chuka hai')),
+        f.amount && (React.createElement("p", { className: `text-xs mb-3 -mt-2 ${pending > 0 ? 'text-red-600' : 'text-emerald-600'} font-medium` }, pending > 0 ? `₹${pending.toLocaleString('en-IN')} abhi bhi baki hai` : '✔ Poora payment mil chuka hai')),
         React.createElement(Field, { label: "Payment Mode (jo abhi mila uska)" },
             React.createElement("select", { className: inputCls, value: f.paymentMode, onChange: e => set('paymentMode', e.target.value) }, PAYMENT_MODES.map(m => React.createElement("option", { key: m, value: m }, m)))),
         React.createElement(Field, { label: "Date" },
