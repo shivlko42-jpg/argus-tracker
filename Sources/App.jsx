@@ -2507,7 +2507,12 @@ function buildGemLetterInnerHTML(letter, signatureImg) {
       <div class="small">CIN: U74899DL2000PTC104046</div>
     </div>
     <p>${formatDateDMY(letter.date)}</p>
-    <p>To,<br/>${letter.attention || ''}<br/><b>${letter.party || ''}</b>${letter.recipientAddress ? `<br/>${letter.recipientAddress.replace(/\n/g, '<br/>')}` : ''}</p>
+    <p>To,</p>
+    <div style="margin-left:28px;">
+      <p style="margin:2px 0;">${letter.attention || ''}</p>
+      <p style="margin:2px 0;"><b>${letter.party || ''}</b></p>
+      ${letter.recipientAddress ? `<p style="margin:2px 0 10px;">${letter.recipientAddress.replace(/\n/g, '<br/>')}</p>` : ''}
+    </div>
     <p>Dear Sir,</p>
     <p>We would like to confirm you that we as a OEM, due to technical problem on GEM in current days, we have not registered Machines, Toner Cartridges, Developer &amp; Drum on GEM Portal, we would also mention that D.V Unit, Main Board, Process Frame, Web Roll, Heater Roller, Bearing, Side Tray, Main Tray, Thermistor, Fusing Flap Cover, Pressure Roller, Cleaning Blade, Side Miller, Clutch Rod, Fusing Unit, Bypass paper guide, CCD Connector, HBT Card, Main Charger, Tray Rollers &amp; Spares Parts have not been registered on GEM as there is no provision to register these items on GEM. Also to inform you that we are still talking to GEM authorities regarding terms &amp; conditions for registering our services on GEM portal.</p>
     <p>Meanwhile we would like to request you to kindly buy the genuine sharp consumables through our authorised dealer as per current company price list.</p>
@@ -2631,9 +2636,11 @@ function GemLetterView({ letter, signatureImg, onClose, onDelete }) {
         <p className="text-[10px] text-slate-500 mb-2">CIN: U74899DL2000PTC104046</p>
         <p className="text-xs mb-2">{formatDateDMY(letter.date)}</p>
         <p className="text-xs mb-1">To,</p>
-        <p className="text-sm font-bold">{letter.attention}</p>
-        <p className="text-sm font-extrabold">{letter.party}</p>
-        {letter.recipientAddress && <p className="text-xs text-slate-600 mb-2" style={{ whiteSpace: 'pre-line' }}>{letter.recipientAddress}</p>}
+        <div className="ml-6">
+          <p className="text-sm font-bold">{letter.attention}</p>
+          <p className="text-sm font-extrabold">{letter.party}</p>
+          {letter.recipientAddress && <p className="text-xs text-slate-600 mb-2" style={{ whiteSpace: 'pre-line' }}>{letter.recipientAddress}</p>}
+        </div>
         <p className="text-xs mt-2">Dear Sir,</p>
         <p className="text-xs mt-2">We would like to confirm you that we as a OEM, due to technical problem on GEM in current days, we have not registered Machines, Toner Cartridges, Developer & Drum on GEM Portal, we would also mention that D.V Unit, Main Board, Process Frame, Web Roll, Heater Roller, Bearing, Side Tray, Main Tray, Thermistor, Fusing Flap Cover, Pressure Roller, Cleaning Blade, Side Miller, Clutch Rod, Fusing Unit, Bypass paper guide, CCD Connector, HBT Card, Main Charger, Tray Rollers & Spares Parts have not been registered on GEM as there is no provision to register these items on GEM. Also to inform you that we are still talking to GEM authorities regarding terms & conditions for registering our services on GEM portal.</p>
         <p className="text-xs mt-2">Meanwhile we would like to request you to kindly buy the genuine sharp consumables through our authorised dealer as per current company price list.</p>
@@ -3612,9 +3619,11 @@ function buildQuotationInnerHTML(quote, signatureImg) {
       <b>${quote.quotNo || ''}</b><span style="font-weight:700;">Date: ${formatDateDMY(quote.date)}</span>
     </div>
     <p style="font-size:13px;margin:4px 0;font-weight:700;">To,</p>
-    ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:700;">${quote.attention}</p>` : ''}
-    <p style="font-size:14px;font-weight:800;margin:2px 0 4px;">${quote.party || ''}</p>
-    ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;white-space:pre-line;font-weight:700;">${quote.recipientAddress}</p>` : ''}
+    <div style="margin-left:28px;">
+      ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:700;">${quote.attention}</p>` : ''}
+      <p style="font-size:14px;font-weight:800;margin:2px 0 4px;">${quote.party || ''}</p>
+      ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;white-space:pre-line;font-weight:700;">${quote.recipientAddress}</p>` : ''}
+    </div>
     ${quote.subject ? `<p style="font-size:13px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
     <p style="font-size:13px;margin:4px 0 2px;">Dear Sir,</p>
     <p style="font-size:13px;margin:0 0 10px;">With reference to your requirements we are pleased to quote our rates.</p>
@@ -3851,9 +3860,11 @@ function QuotationView({ quote, onClose, onEdit, onDelete, onStatusChange, onCon
         </div>
 
         <p className="text-sm font-bold mb-1">To,</p>
-        {quote.attention && <p className="text-sm font-bold mb-0.5">{quote.attention}</p>}
-        <p className="text-sm font-extrabold mb-0.5">{quote.party}</p>
-        {quote.recipientAddress && <p className="text-sm font-bold text-slate-700 mb-2" style={{ whiteSpace: 'pre-line' }}>{quote.recipientAddress}</p>}
+        <div className="ml-6">
+          {quote.attention && <p className="text-sm font-bold mb-0.5">{quote.attention}</p>}
+          <p className="text-sm font-extrabold mb-0.5">{quote.party}</p>
+          {quote.recipientAddress && <p className="text-sm font-bold text-slate-700 mb-2" style={{ whiteSpace: 'pre-line' }}>{quote.recipientAddress}</p>}
+        </div>
 
         {quote.subject && (
           <p className="text-sm mb-2"><span className="font-semibold">Sub: </span>{quote.subject}</p>
