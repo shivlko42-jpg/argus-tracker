@@ -3621,8 +3621,8 @@ function buildQuotationInnerHTML(quote, signatureImg) {
     <p style="font-size:13px;margin:4px 0;font-weight:700;">To,</p>
     <div style="margin-left:28px;">
       ${quote.attention ? `<p style="font-size:13px;margin:2px 0;font-weight:700;">${quote.attention}</p>` : ''}
-      <p style="font-size:14px;font-weight:800;margin:2px 0 4px;">${quote.party || ''}</p>
-      ${quote.recipientAddress ? `<p style="font-size:12px;margin:0 0 8px;color:#334155;white-space:pre-line;font-weight:700;">${quote.recipientAddress}</p>` : ''}
+      <p style="font-size:13px;font-weight:700;margin:2px 0 4px;">${quote.party || ''}</p>
+      ${quote.recipientAddress ? `<p style="font-size:13px;margin:0 0 8px;color:#334155;white-space:pre-line;font-weight:700;">${quote.recipientAddress}</p>` : ''}
     </div>
     ${quote.subject ? `<p style="font-size:13px;margin:4px 0;"><b>Sub: </b>${quote.subject}</p>` : ''}
     <p style="font-size:13px;margin:4px 0 2px;">Dear Sir,</p>
