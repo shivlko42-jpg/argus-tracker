@@ -1861,15 +1861,19 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         if (!ch)
             return;
         setChallans(challans.map(c => c.id === id ? { ...c, status: 'Billed', billDate, billAmount } : c));
-        setPayments([{
-                id: uid(),
-                party: ch.party,
-                machineNo: ch.machineNo || '',
-                invoiceAmount: Number(billAmount) || 0,
-                receivedAmount: 0,
-                date: billDate,
-                note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
-            }, ...payments]);
+        // Agar amount 0 hai (jaise "sirf status update" chuna gaya ho, kyunki billing kahin aur se ho chuki hai),
+        // to dobara/khaali billing entry na banayein — sirf challan ka status badal dein.
+        if (Number(billAmount) > 0) {
+            setPayments([{
+                    id: uid(),
+                    party: ch.party,
+                    machineNo: ch.machineNo || '',
+                    invoiceAmount: Number(billAmount) || 0,
+                    receivedAmount: 0,
+                    date: billDate,
+                    note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
+                }, ...payments]);
+        }
     };
     const deleteChallan = (id) => setChallans(challans.filter(c => c.id !== id));
     const updateChallan = (id, data) => {
@@ -1951,7 +1955,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
         sub === 'challan' && (React.createElement("div", { className: "space-y-2" },
             React.createElement("p", { className: "text-xs text-slate-400 mb-1 px-1" }, "Jab bhi saman challan par bhejein, yahan entry daal dein \u2014 jab tak bill nahi banta, ye \"Aaj Ke Kaam\" mein reminder ki tarah dikhta rahega."),
             challans.length === 0 && React.createElement(Card, { className: "text-center text-sm text-slate-400 py-6" }, "Abhi tak koi challan nahi"),
-            challans.map(c => (React.createElement(ChallanCard, { key: c.id, challan: c, onMarkBilled: markChallanBilled, onDelete: deleteChallan, onEdit: setEditChallan }))))),
+            challans.map(c => (React.createElement(ChallanCard, { key: c.id, challan: c, payments: payments, onMarkBilled: markChallanBilled, onDelete: deleteChallan, onEdit: setEditChallan }))))),
         sub === 'quotes' && (React.createElement("div", { className: "space-y-2" },
             quotations.length === 0 && React.createElement(Card, { className: "text-center text-sm text-slate-400 py-6" }, "Abhi tak koi quotation nahi"),
             quotations.map(q => (React.createElement(Card, { key: q.id, className: "!p-3" },
@@ -2422,9 +2426,15 @@ function MachineSalesReportModal({ machineSales, onClose }) {
 function ChallanForm({ machines, onSave, onClose, initial }) {
     const [f, setF] = useState(initial || { party: '', machineNo: '', challanNo: '', date: todayISO(), items: '' });
     const set = (k, v) => setF({ ...f, [k]: v });
+    const handleMachineSelect = (m) => setF({ ...f, machineNo: m.machineNo, party: f.party || m.party });
     return (React.createElement(Modal, { title: initial ? 'Challan Edit Karein' : 'Naya Challan', onClose: onClose },
         React.createElement(Field, { label: "Party" },
             React.createElement(PartyPicker, { machines: machines, value: f.party, onChange: v => set('party', v), onMachineNo: v => set('machineNo', v) })),
+        React.createElement(Field, { label: "Machine Dhundein (Party ya PH/Machine No se)" },
+            React.createElement(MachineSearchPicker, { machines: machines, value: f.machineNo, onSelect: handleMachineSelect })),
+        f.machineNo && (React.createElement("div", { className: "bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between" },
+            React.createElement("p", { className: "text-xs font-semibold text-teal-800" }, f.machineNo),
+            React.createElement("button", { onClick: () => set('machineNo', ''), className: "text-[11px] text-red-600 font-semibold" }, "Hatayein"))),
         React.createElement(Field, { label: "Challan No" },
             React.createElement("input", { className: inputCls, value: f.challanNo, onChange: e => set('challanNo', e.target.value), placeholder: "Jaise: CH-045" })),
         React.createElement(Field, { label: "Date" },
@@ -2433,13 +2443,29 @@ function ChallanForm({ machines, onSave, onClose, initial }) {
             React.createElement("textarea", { rows: 2, className: inputCls + ' resize-none', value: f.items, onChange: e => set('items', e.target.value), placeholder: "Jaise: 1 Drum, 1 Developer bheja" })),
         React.createElement("button", { onClick: () => onSave(f), disabled: !f.party || !f.challanNo, className: "w-full bg-teal-700 text-white font-semibold py-3 rounded-xl mt-2 disabled:opacity-40" }, initial ? 'Update Karein' : 'Challan Save Karein')));
 }
-function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
+function ChallanCard({ challan, payments, onMarkBilled, onDelete, onEdit }) {
     const [showBill, setShowBill] = useState(false);
     const [billAmount, setBillAmount] = useState('');
     const [billDate, setBillDate] = useState(todayISO());
     const [confirmDel, setConfirmDel] = useState(false);
+    const [confirmDuplicate, setConfirmDuplicate] = useState(false);
     const daysPending = challan.status === 'Pending' ? Math.round((new Date() - new Date(challan.date)) / 86400000) : null;
     const isOverdue = daysPending !== null && daysPending >= 5;
+    // Isi party/machine ka koi aur Billing (jaise Order conversion se) pichle 10 dino mein ho chuki ho
+    // to warn kar dein — taaki same transaction ka bill do baar na ban jaye.
+    const possibleDuplicate = useMemo(() => {
+        if (!showBill || !payments)
+            return null;
+        const target = (challan.party || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+        return payments.find(p => {
+            const pName = (p.party || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            const sameParty = pName === target;
+            const sameMachine = challan.machineNo && p.machineNo === challan.machineNo;
+            const recent = (p.date || '') >= tenDaysAgo;
+            return (sameParty || sameMachine) && recent && !(p.note || '').includes(`Challan ${challan.challanNo || ''}`);
+        }) || null;
+    }, [showBill, payments, challan]);
     return (React.createElement(Card, { className: "!p-3" },
         React.createElement("div", { className: "flex items-start justify-between gap-2" },
             React.createElement("div", { className: "min-w-0 flex-1" },
@@ -2461,9 +2487,21 @@ function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
                 React.createElement("input", { type: "number", className: inputCls, value: billAmount, onChange: e => setBillAmount(e.target.value) })),
             React.createElement(Field, { label: "Bill Date" },
                 React.createElement("input", { type: "date", className: inputCls, value: billDate, onChange: e => setBillDate(e.target.value) })),
+            possibleDuplicate && !confirmDuplicate && (React.createElement("div", { className: "bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-3" },
+                React.createElement("p", { className: "text-xs text-amber-800 font-semibold" }, "\u26A0\uFE0F Isi party/machine ka ek Billing pehle se maujood hai"),
+                React.createElement("p", { className: "text-xs text-amber-700 mt-0.5" },
+                    formatDateDMY(payments ? payments.find(p => (p.party || '').trim().toLowerCase().replace(/\s+/g, ' ') === (challan.party || '').trim().toLowerCase().replace(/\s+/g, ' ') || p.machineNo === challan.machineNo)?.date : ''),
+                    " \u00B7 \u20B9",
+                    possibleDuplicate.invoiceAmount,
+                    " \u00B7 ",
+                    possibleDuplicate.note),
+                React.createElement("p", { className: "text-xs text-amber-700 mt-1" }, "Kahin wahi transaction to nahi? Agar wahi hai to naya billing mat banayein, sirf challan ko \"Billed\" status mein le jayein."),
+                React.createElement("div", { className: "flex gap-2 mt-2" },
+                    React.createElement("button", { onClick: () => { onMarkBilled(challan.id, 0, billDate); setShowBill(false); }, className: "flex-1 bg-white border border-amber-300 text-amber-800 font-semibold py-1.5 rounded-lg text-xs" }, "Sirf Status Update (Naya Bill Nahi)"),
+                    React.createElement("button", { onClick: () => setConfirmDuplicate(true), className: "flex-1 bg-amber-600 text-white font-semibold py-1.5 rounded-lg text-xs" }, "Nahi, Alag Hai \u2014 Naya Bill Banayein")))),
             React.createElement("div", { className: "flex gap-2" },
                 React.createElement("button", { onClick: () => setShowBill(false), className: "flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm" }, "Cancel"),
-                React.createElement("button", { onClick: () => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }, disabled: !billAmount, className: "flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40" }, "Confirm"))))))));
+                React.createElement("button", { onClick: () => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }, disabled: !billAmount || (possibleDuplicate && !confirmDuplicate), className: "flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40" }, "Confirm"))))))));
 }
 function ItemForm({ onSave, onClose, initial, inline, items }) {
     const [f, setF] = useState(initial || { name: '', description: '', rate: '', gst: 18, machineModel: '' });
@@ -3540,11 +3578,19 @@ function PaymentEditForm({ entry, machines, onSave, onDelete, onClose }) {
 function BillingForm({ machines, onSave, onClose }) {
     const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: '', receivedAmount: 0, date: todayISO(), note: '', billType: 'OTHER' });
     const set = (k, v) => setF({ ...f, [k]: v });
+    const handleMachineSelect = (m) => {
+        // Agar is machine ka AMC active hai, to bill type apne aap "AMC" set ho jaata hai (zyada common case)
+        const autoAmc = normStatus(m.status) === 'ACTIVE' && m.contType && m.contType.toLowerCase().includes('amc');
+        setF({ ...f, machineNo: m.machineNo, party: f.party || m.party, billType: autoAmc ? 'AMC' : f.billType });
+    };
     return (React.createElement(Modal, { title: "Billing Entry (Bulk Order)", onClose: onClose },
         React.createElement(Field, { label: "Party" },
             React.createElement(PartyPicker, { machines: machines, value: f.party, onChange: v => set('party', v), onMachineNo: v => set('machineNo', v) })),
-        React.createElement(Field, { label: "Machine No / Order Ref (optional)" },
-            React.createElement("input", { className: inputCls, value: f.machineNo, onChange: e => set('machineNo', e.target.value) })),
+        React.createElement(Field, { label: "Machine Dhundein (Party ya PH/Machine No se) \u2014 Machine History mein bhi jud jayega" },
+            React.createElement(MachineSearchPicker, { machines: machines, value: f.machineNo, onSelect: handleMachineSelect })),
+        f.machineNo && (React.createElement("div", { className: "bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between" },
+            React.createElement("p", { className: "text-xs font-semibold text-teal-800" }, f.machineNo),
+            React.createElement("button", { onClick: () => set('machineNo', ''), className: "text-[11px] text-red-600 font-semibold" }, "Hatayein"))),
         React.createElement(Field, { label: "Bill Amount (\u20B9)" },
             React.createElement("input", { type: "number", className: inputCls, value: f.invoiceAmount, onChange: e => set('invoiceAmount', e.target.value), placeholder: "Bulk order ka total billing" })),
         React.createElement(Field, { label: "Date" },
@@ -3560,11 +3606,15 @@ function BillingForm({ machines, onSave, onClose }) {
 function CollectionForm({ machines, onSave, onClose }) {
     const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: 0, receivedAmount: '', date: todayISO(), note: '' });
     const set = (k, v) => setF({ ...f, [k]: v });
+    const handleMachineSelect = (m) => setF({ ...f, machineNo: m.machineNo, party: f.party || m.party });
     return (React.createElement(Modal, { title: "Collection Entry", onClose: onClose },
         React.createElement(Field, { label: "Party" },
             React.createElement(PartyPicker, { machines: machines, value: f.party, onChange: v => set('party', v), onMachineNo: v => set('machineNo', v) })),
-        React.createElement(Field, { label: "Machine No (optional)" },
-            React.createElement("input", { className: inputCls, value: f.machineNo, onChange: e => set('machineNo', e.target.value) })),
+        React.createElement(Field, { label: "Machine Dhundein (Party ya PH/Machine No se)" },
+            React.createElement(MachineSearchPicker, { machines: machines, value: f.machineNo, onSelect: handleMachineSelect })),
+        f.machineNo && (React.createElement("div", { className: "bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between" },
+            React.createElement("p", { className: "text-xs font-semibold text-teal-800" }, f.machineNo),
+            React.createElement("button", { onClick: () => set('machineNo', ''), className: "text-[11px] text-red-600 font-semibold" }, "Hatayein"))),
         React.createElement(Field, { label: "Amount Collected (\u20B9)" },
             React.createElement("input", { type: "number", className: inputCls, value: f.receivedAmount, onChange: e => set('receivedAmount', e.target.value) })),
         React.createElement(Field, { label: "Date" },
