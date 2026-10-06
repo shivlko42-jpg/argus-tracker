@@ -347,7 +347,9 @@ export default function App() {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     const today = todayISO();
-    setTasks(tasks.map(x => x.id === id ? { ...x, done: true, completedDate: today } : x));
+    // Task poora hote hi list se hata dete hain (delete) — uska record Daily Log mein save ho jata hai,
+    // isliye kuch khota nahi, bas Tasks list saaf rehti hai.
+    setTasks(tasks.filter(x => x.id !== id));
     const noteText = extraNote && extraNote.trim() ? `✔ Task complete: ${t.title} — ${extraNote.trim()}` : `✔ Task complete: ${t.title}`;
     setDailyLogs(prev => [{ id: uid(), date: today, note: noteText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }, ...prev]);
   }, [tasks]);
@@ -371,6 +373,22 @@ export default function App() {
     const d = dateStr || todayISO();
     setHolidays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   }, []);
+
+  // Parties merge karne par — sirf Machines nahi, balki Quotations/Orders/Payments/Challan/
+  // GeM Letters/Machine Sales/Visits — sab jagah purane (alag-alag likhe) naam ko naye naam se
+  // badal dete hain, taaki Outstanding/Reports kahin bhi split-up na dikhein.
+  const mergePartiesEverywhere = (oldNames, newName) => {
+    const oldSet = new Set(oldNames.map(n => n.trim().toLowerCase().replace(/\s+/g, ' ')));
+    const matches = (p) => oldSet.has((p || '').trim().toLowerCase().replace(/\s+/g, ' '));
+    setMachines(prev => prev.map(m => matches(m.party) ? { ...m, party: newName } : m));
+    setPayments(prev => prev.map(p => matches(p.party) ? { ...p, party: newName } : p));
+    setQuotations(prev => prev.map(q => matches(q.party) ? { ...q, party: newName } : q));
+    setOrders(prev => prev.map(o => matches(o.party) ? { ...o, party: newName } : o));
+    setChallans(prev => prev.map(c => matches(c.party) ? { ...c, party: newName } : c));
+    setGemLetters(prev => prev.map(g => matches(g.party) ? { ...g, party: newName } : g));
+    setMachineSales(prev => prev.map(s => matches(s.party) ? { ...s, party: newName } : s));
+    setVisits(prev => prev.map(v => matches(v.party) ? { ...v, party: newName } : v));
+  };
 
   if (!ready) {
     return (
@@ -419,7 +437,7 @@ export default function App() {
             goTo={goTo}
           />
         )}
-        {tab === 'machines' && <MachinesTab machines={machines} setMachines={setMachines} view={machinesView} setView={setMachinesView} jumpToParty={jumpToParty} payments={payments} setPayments={setPayments} quotations={quotations} orders={orders} challans={challans} amcHistory={amcHistory} setAmcHistory={setAmcHistory} />}
+        {tab === 'machines' && <MachinesTab machines={machines} setMachines={setMachines} view={machinesView} setView={setMachinesView} jumpToParty={jumpToParty} payments={payments} setPayments={setPayments} quotations={quotations} orders={orders} challans={challans} amcHistory={amcHistory} setAmcHistory={setAmcHistory} mergePartiesEverywhere={mergePartiesEverywhere} />}
         {tab === 'sales' && (
           <SalesTab
             machines={machines}
@@ -1211,7 +1229,7 @@ function SuggestionCard({ action }) {
 }
 
 // ---------------- MACHINES TAB ----------------
-function MachinesTab({ machines, setMachines, view, setView, jumpToParty, payments, setPayments, quotations, orders, challans, amcHistory, setAmcHistory }) {
+function MachinesTab({ machines, setMachines, view, setView, jumpToParty, payments, setPayments, quotations, orders, challans, amcHistory, setAmcHistory, mergePartiesEverywhere }) {
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('ACTIVE');
@@ -1501,7 +1519,7 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
         </>
       )}
 
-      {showMerge && <MergePartiesModal machines={machines} setMachines={setMachines} onClose={() => setShowMerge(false)} />}
+      {showMerge && <MergePartiesModal machines={machines} mergePartiesEverywhere={mergePartiesEverywhere} onClose={() => setShowMerge(false)} />}
 
       {showAdd && <MachineForm onSave={addMachine} onClose={() => setShowAdd(false)} defaultParty={selectedParty} />}
       {selected && (
@@ -1526,6 +1544,7 @@ function MachinesTab({ machines, setMachines, view, setView, jumpToParty, paymen
           onClose={() => setSelectedParty(null)}
           onSelectMachine={setSelected}
           onAddMachine={() => setShowAdd(true)}
+          onRename={(newName) => { mergePartiesEverywhere([selectedParty], newName); setSelectedParty(newName); }}
         />
       )}
     </div>
@@ -1596,7 +1615,7 @@ function ImportModal({ title, hint, onImport, onClose, allowReplace }) {
   );
 }
 
-function MergePartiesModal({ machines, setMachines, onClose }) {
+function MergePartiesModal({ machines, mergePartiesEverywhere, onClose }) {
   const [selected, setSelected] = useState([]);
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
@@ -1618,19 +1637,19 @@ function MergePartiesModal({ machines, setMachines, onClose }) {
   const handleMerge = () => {
     if (selected.length < 1 || !newName.trim()) return;
     const target = newName.trim();
-    const updated = machines.map(m => selected.includes(m.party) ? { ...m, party: target } : m);
-    setMachines(updated);
-    setDone({ count: updated.filter(m => m.party === target).length, target });
+    const mergedMachineCount = machines.filter(m => selected.includes(m.party)).length;
+    mergePartiesEverywhere(selected, target);
+    setDone({ count: mergedMachineCount, target });
     setSelected([]);
   };
 
   return (
     <Modal title="Parties Merge Karein" onClose={onClose}>
-      <p className="text-xs text-slate-500 mb-3">Jin parties ke naam alag-alag likhe hain par asal mein ek hi party hain (jaise "RML", "RAM MANOHAR LOHIA", "DR. RAM MANOHAR LOHIA HOSPITAL"), unhe neeche se select karein aur ek naya sahi naam de dein — sabki machines usi naam ke neeche aa jayengi.</p>
+      <p className="text-xs text-slate-500 mb-3">Jin parties ke naam alag-alag likhe hain par asal mein ek hi party hain (jaise "RML", "RAM MANOHAR LOHIA", "DR. RAM MANOHAR LOHIA HOSPITAL"), unhe neeche se select karein aur ek naya sahi naam de dein — Machines, Quotations, Orders, Payments/Outstanding, Challan, GeM Letter, Machine Sales — sabhi jagah ye naam badal jayega.</p>
 
       {done && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3 mb-3">
-          ✔ Merge ho gaya — "{done.target}" ke andar ab {done.count} machines hain.
+          ✔ Merge ho gaya — "{done.target}" ke andar ab {done.count} machines hain, aur baaki sabhi records (Quotations/Payments/Orders waghera) mein bhi naam update ho gaya hai.
         </div>
       )}
 
@@ -1672,9 +1691,30 @@ function MergePartiesModal({ machines, setMachines, onClose }) {
   );
 }
 
-function PartyDetail({ party, machines, onClose, onSelectMachine, onAddMachine }) {
+function PartyDetail({ party, machines, onClose, onSelectMachine, onAddMachine, onRename }) {
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(party);
+
+  const saveRename = () => {
+    const trimmed = nameInput.trim();
+    if (trimmed && trimmed !== party) onRename(trimmed);
+    setEditing(false);
+  };
+
   return (
-    <Modal title={party} onClose={onClose}>
+    <Modal title={editing ? 'Party Ka Naam Edit Karein' : party} onClose={onClose}>
+      {editing ? (
+        <div className="mb-3">
+          <p className="text-xs text-slate-500 mb-2">Naya naam dein — Machines, Quotations, Orders, Payments, Challan, GeM Letter, Machine Sales — sabhi jagah ye naam badal jayega.</p>
+          <div className="flex gap-2">
+            <input className={inputCls} value={nameInput} onChange={e => setNameInput(e.target.value)} autoFocus />
+            <button onClick={saveRename} className="bg-teal-700 text-white font-semibold px-4 rounded-lg text-sm shrink-0">Save</button>
+          </div>
+          <button onClick={() => { setEditing(false); setNameInput(party); }} className="text-xs text-slate-500 font-semibold mt-2">Cancel</button>
+        </div>
+      ) : (
+        <button onClick={() => setEditing(true)} className="text-xs text-teal-700 font-semibold mb-3 -mt-2">✏️ Party Ka Naam Edit Karein</button>
+      )}
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-slate-500">{machines.length} machine{machines.length > 1 ? 's' : ''}</p>
         <button onClick={onAddMachine} className="text-xs bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
@@ -2164,15 +2204,19 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
     const ch = challans.find(c => c.id === id);
     if (!ch) return;
     setChallans(challans.map(c => c.id === id ? { ...c, status: 'Billed', billDate, billAmount } : c));
-    setPayments([{
-      id: uid(),
-      party: ch.party,
-      machineNo: ch.machineNo || '',
-      invoiceAmount: Number(billAmount) || 0,
-      receivedAmount: 0,
-      date: billDate,
-      note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
-    }, ...payments]);
+    // Agar amount 0 hai (jaise "sirf status update" chuna gaya ho, kyunki billing kahin aur se ho chuki hai),
+    // to dobara/khaali billing entry na banayein — sirf challan ka status badal dein.
+    if (Number(billAmount) > 0) {
+      setPayments([{
+        id: uid(),
+        party: ch.party,
+        machineNo: ch.machineNo || '',
+        invoiceAmount: Number(billAmount) || 0,
+        receivedAmount: 0,
+        date: billDate,
+        note: `Challan ${ch.challanNo || ''} ka bill — ${ch.items || ''}`,
+      }, ...payments]);
+    }
   };
   const deleteChallan = (id) => setChallans(challans.filter(c => c.id !== id));
   const updateChallan = (id, data) => {
@@ -2276,7 +2320,7 @@ function SalesTab({ machines, quotations, setQuotations, orders, setOrders, item
           <p className="text-xs text-slate-400 mb-1 px-1">Jab bhi saman challan par bhejein, yahan entry daal dein — jab tak bill nahi banta, ye "Aaj Ke Kaam" mein reminder ki tarah dikhta rahega.</p>
           {challans.length === 0 && <Card className="text-center text-sm text-slate-400 py-6">Abhi tak koi challan nahi</Card>}
           {challans.map(c => (
-            <ChallanCard key={c.id} challan={c} onMarkBilled={markChallanBilled} onDelete={deleteChallan} onEdit={setEditChallan} />
+            <ChallanCard key={c.id} challan={c} payments={payments} onMarkBilled={markChallanBilled} onDelete={deleteChallan} onEdit={setEditChallan} />
           ))}
         </div>
       )}
@@ -2871,9 +2915,19 @@ function MachineSalesReportModal({ machineSales, onClose }) {
 function ChallanForm({ machines, onSave, onClose, initial }) {
   const [f, setF] = useState(initial || { party: '', machineNo: '', challanNo: '', date: todayISO(), items: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
+  const handleMachineSelect = (m) => setF({ ...f, machineNo: m.machineNo, party: f.party || m.party });
   return (
     <Modal title={initial ? 'Challan Edit Karein' : 'Naya Challan'} onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
+      <Field label="Machine Dhundein (Party ya PH/Machine No se)">
+        <MachineSearchPicker machines={machines} value={f.machineNo} onSelect={handleMachineSelect} />
+      </Field>
+      {f.machineNo && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold text-teal-800">{f.machineNo}</p>
+          <button onClick={() => set('machineNo', '')} className="text-[11px] text-red-600 font-semibold">Hatayein</button>
+        </div>
+      )}
       <Field label="Challan No"><input className={inputCls} value={f.challanNo} onChange={e => set('challanNo', e.target.value)} placeholder="Jaise: CH-045" /></Field>
       <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
       <Field label="Saman / Items ka vivaran"><textarea rows={2} className={inputCls + ' resize-none'} value={f.items} onChange={e => set('items', e.target.value)} placeholder="Jaise: 1 Drum, 1 Developer bheja" /></Field>
@@ -2882,14 +2936,30 @@ function ChallanForm({ machines, onSave, onClose, initial }) {
   );
 }
 
-function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
+function ChallanCard({ challan, payments, onMarkBilled, onDelete, onEdit }) {
   const [showBill, setShowBill] = useState(false);
   const [billAmount, setBillAmount] = useState('');
   const [billDate, setBillDate] = useState(todayISO());
   const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
 
   const daysPending = challan.status === 'Pending' ? Math.round((new Date() - new Date(challan.date)) / 86400000) : null;
   const isOverdue = daysPending !== null && daysPending >= 5;
+
+  // Isi party/machine ka koi aur Billing (jaise Order conversion se) pichle 10 dino mein ho chuki ho
+  // to warn kar dein — taaki same transaction ka bill do baar na ban jaye.
+  const possibleDuplicate = useMemo(() => {
+    if (!showBill || !payments) return null;
+    const target = (challan.party || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().slice(0,10);
+    return payments.find(p => {
+      const pName = (p.party || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const sameParty = pName === target;
+      const sameMachine = challan.machineNo && p.machineNo === challan.machineNo;
+      const recent = (p.date || '') >= tenDaysAgo;
+      return (sameParty || sameMachine) && recent && !(p.note||'').includes(`Challan ${challan.challanNo || ''}`);
+    }) || null;
+  }, [showBill, payments, challan]);
 
   return (
     <Card className="!p-3">
@@ -2925,9 +2995,24 @@ function ChallanCard({ challan, onMarkBilled, onDelete, onEdit }) {
             <div className="mt-2 border-t border-slate-100 pt-2">
               <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={billAmount} onChange={e => setBillAmount(e.target.value)} /></Field>
               <Field label="Bill Date"><input type="date" className={inputCls} value={billDate} onChange={e => setBillDate(e.target.value)} /></Field>
+              {possibleDuplicate && !confirmDuplicate && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-3">
+                  <p className="text-xs text-amber-800 font-semibold">⚠️ Isi party/machine ka ek Billing pehle se maujood hai</p>
+                  <p className="text-xs text-amber-700 mt-0.5">{formatDateDMY(payments ? payments.find(p => (p.party||'').trim().toLowerCase().replace(/\s+/g,' ') === (challan.party||'').trim().toLowerCase().replace(/\s+/g,' ') || p.machineNo === challan.machineNo)?.date : '')} · ₹{possibleDuplicate.invoiceAmount} · {possibleDuplicate.note}</p>
+                  <p className="text-xs text-amber-700 mt-1">Kahin wahi transaction to nahi? Agar wahi hai to naya billing mat banayein, sirf challan ko "Billed" status mein le jayein.</p>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { onMarkBilled(challan.id, 0, billDate); setShowBill(false); }} className="flex-1 bg-white border border-amber-300 text-amber-800 font-semibold py-1.5 rounded-lg text-xs">Sirf Status Update (Naya Bill Nahi)</button>
+                    <button onClick={() => setConfirmDuplicate(true)} className="flex-1 bg-amber-600 text-white font-semibold py-1.5 rounded-lg text-xs">Nahi, Alag Hai — Naya Bill Banayein</button>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => setShowBill(false)} className="flex-1 bg-white border border-slate-300 text-slate-600 font-semibold py-2 rounded-lg text-sm">Cancel</button>
-                <button onClick={() => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }} disabled={!billAmount} className="flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40">Confirm</button>
+                <button
+                  onClick={() => { onMarkBilled(challan.id, billAmount, billDate); setShowBill(false); }}
+                  disabled={!billAmount || (possibleDuplicate && !confirmDuplicate)}
+                  className="flex-1 bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm disabled:opacity-40"
+                >Confirm</button>
               </div>
             </div>
           )}
@@ -4222,10 +4307,23 @@ function PaymentEditForm({ entry, machines, onSave, onDelete, onClose }) {
 function BillingForm({ machines, onSave, onClose }) {
   const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: '', receivedAmount: 0, date: todayISO(), note: '', billType: 'OTHER' });
   const set = (k,v) => setF({ ...f, [k]: v });
+  const handleMachineSelect = (m) => {
+    // Agar is machine ka AMC active hai, to bill type apne aap "AMC" set ho jaata hai (zyada common case)
+    const autoAmc = normStatus(m.status) === 'ACTIVE' && m.contType && m.contType.toLowerCase().includes('amc');
+    setF({ ...f, machineNo: m.machineNo, party: f.party || m.party, billType: autoAmc ? 'AMC' : f.billType });
+  };
   return (
     <Modal title="Billing Entry (Bulk Order)" onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
-      <Field label="Machine No / Order Ref (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Machine Dhundein (Party ya PH/Machine No se) — Machine History mein bhi jud jayega">
+        <MachineSearchPicker machines={machines} value={f.machineNo} onSelect={handleMachineSelect} />
+      </Field>
+      {f.machineNo && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold text-teal-800">{f.machineNo}</p>
+          <button onClick={() => set('machineNo', '')} className="text-[11px] text-red-600 font-semibold">Hatayein</button>
+        </div>
+      )}
       <Field label="Bill Amount (₹)"><input type="number" className={inputCls} value={f.invoiceAmount} onChange={e => set('invoiceAmount', e.target.value)} placeholder="Bulk order ka total billing" /></Field>
       <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
       <Field label="Bill Type">
@@ -4243,10 +4341,19 @@ function BillingForm({ machines, onSave, onClose }) {
 function CollectionForm({ machines, onSave, onClose }) {
   const [f, setF] = useState({ party: '', machineNo: '', invoiceAmount: 0, receivedAmount: '', date: todayISO(), note: '' });
   const set = (k,v) => setF({ ...f, [k]: v });
+  const handleMachineSelect = (m) => setF({ ...f, machineNo: m.machineNo, party: f.party || m.party });
   return (
     <Modal title="Collection Entry" onClose={onClose}>
       <Field label="Party"><PartyPicker machines={machines} value={f.party} onChange={v => set('party', v)} onMachineNo={v => set('machineNo', v)} /></Field>
-      <Field label="Machine No (optional)"><input className={inputCls} value={f.machineNo} onChange={e => set('machineNo', e.target.value)} /></Field>
+      <Field label="Machine Dhundein (Party ya PH/Machine No se)">
+        <MachineSearchPicker machines={machines} value={f.machineNo} onSelect={handleMachineSelect} />
+      </Field>
+      {f.machineNo && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold text-teal-800">{f.machineNo}</p>
+          <button onClick={() => set('machineNo', '')} className="text-[11px] text-red-600 font-semibold">Hatayein</button>
+        </div>
+      )}
       <Field label="Amount Collected (₹)"><input type="number" className={inputCls} value={f.receivedAmount} onChange={e => set('receivedAmount', e.target.value)} /></Field>
       <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={e => set('date', e.target.value)} /></Field>
       <Field label="Note (optional)"><input className={inputCls} value={f.note} onChange={e => set('note', e.target.value)} placeholder="Jaise: Cheque no. / cash" /></Field>
@@ -4416,7 +4523,7 @@ function TasksSection({ tasks, setTasks, completeTask }) {
   };
 
   const pending = useMemo(() => tasks.filter(t => !t.done).sort((a,b) => a.dueDate.localeCompare(b.dueDate)), [tasks]);
-  const done = useMemo(() => tasks.filter(t => t.done).sort((a,b) => (b.completedDate||'').localeCompare(a.completedDate||'')), [tasks]);
+
 
   return (
     <>
@@ -4454,22 +4561,7 @@ function TasksSection({ tasks, setTasks, completeTask }) {
         })}
       </div>
 
-      {done.length > 0 && (
-        <>
-          <SectionTitle>Complete Ho Chuke ({done.length})</SectionTitle>
-          <div className="space-y-1.5">
-            {done.slice(0, 15).map(t => (
-              <Card key={t.id} className="!p-2.5 flex items-center gap-3 opacity-60">
-                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-slate-600 line-through truncate">{t.title}</p>
-                  <p className="text-[10px] text-slate-400">{t.completedDate}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
+      <p className="text-[11px] text-slate-400 text-center mt-2">Task poora karte hi list se hat jata hai — uska record Daily Log mein save rehta hai.</p>
     </>
   );
 }
